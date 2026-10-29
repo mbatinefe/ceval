@@ -3,17 +3,15 @@
   "name": "ceval",
   "main": "src/server/index.ts",
   "compatibility_date": "2026-10-29",
-  "compatibility_flags": [
-    "nodejs_compat"
-  ],
+  "compatibility_flags": ["nodejs_compat"],
   "workers_dev": false,
   "preview_urls": false,
   "observability": {
     "enabled": true,
     "head_sampling_rate": 0.1,
     "logs": {
-      "invocation_logs": false
-    }
+      "invocation_logs": false,
+    },
   },
   "env": {
     "staging": {
@@ -24,33 +22,23 @@
         "directory": "./dist/client",
         "binding": "ASSETS",
         "not_found_handling": "none",
-        "run_worker_first": [
-          "/",
-          "/signin",
-          "/app",
-          "/app/*",
-          "/api/*"
-        ]
+        "run_worker_first": ["/", "/signin", "/app", "/app/*", "/api/*"],
       },
       "secrets": {
-        "required": [
-          "BETTER_AUTH_SECRET",
-          "RESEND_API_KEY",
-          "AUTH_EMAIL_FROM"
-        ]
+        "required": ["BETTER_AUTH_SECRET", "RESEND_API_KEY", "AUTH_EMAIL_FROM"],
       },
       "vars": {
         "APP_ENVIRONMENT": "staging",
-        "BETTER_AUTH_URL": "https://ceval-staging.mbefe34.workers.dev"
+        "BETTER_AUTH_URL": "https://ceval-staging.mbefe34.workers.dev",
       },
       "d1_databases": [
         {
           "binding": "DB",
           "database_name": "ceval-staging",
           "database_id": "33067d83-0155-4c29-8bc8-2a880726a6c6",
-          "migrations_dir": "db/d1/migrations"
-        }
-      ]
-    }
-  }
+          "migrations_dir": "db/d1/migrations",
+        },
+      ],
+    },
+  },
 }
