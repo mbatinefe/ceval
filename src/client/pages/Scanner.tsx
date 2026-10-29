@@ -104,7 +104,7 @@ export function Scanner() {
               className="video-surface"
               style={{
                 aspectRatio: scan.aspect,
-                width: `min(100%, ${620 * scan.aspect}px, ${66 * scan.aspect}dvh)`,
+                width: `min(100%, calc(var(--view-height) * ${scan.aspect}))`,
               }}
             >
               <video
