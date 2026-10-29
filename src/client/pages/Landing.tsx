@@ -74,11 +74,6 @@ export function Landing() {
               <span className="film-index">01 / LOOK</span>
               <h2 id="perspective-title">Your point of view.</h2>
             </div>
-            <p>
-              A concept for the way
-              <br />
-              we’ll shop next.
-            </p>
           </div>
           <figure className="film-detail">
             <img
@@ -92,7 +87,7 @@ export function Landing() {
               alt="Close-up of the same wearer’s smart glasses, with the shop reflected in the lenses; generated concept photograph"
             />
             <figcaption>
-              <span>Through a different lens.</span>
+              <span>Ray-Ban Meta · Concept</span>
               <ScanLine size={20} />
             </figcaption>
           </figure>

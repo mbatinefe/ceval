@@ -65,10 +65,12 @@
   gap: 32px;
 }
 .cinematic .film-header .quiet-link {
+  white-space: nowrap;
   font-size: 12px;
   color: #dedfd4;
 }
 .cinematic .film-header .button {
+  white-space: nowrap;
   border-radius: 6px;
   font-size: 12px;
   min-height: 40px;
@@ -560,7 +562,7 @@
     font-size: 11px;
     min-height: 38px;
   }
-  .film-nav-story {
+  .cinematic .film-header .film-nav-story {
     display: none;
   }
   .film-hero-copy {
