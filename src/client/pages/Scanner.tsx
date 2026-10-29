@@ -210,10 +210,10 @@ export function Scanner() {
               )}
               <span>{scan.message}</span>
             </div>
-            {scan.running ? (
+            {scan.running || scan.finishing ? (
               <button className="button dark small" onClick={scan.stopAnalysis}>
                 <Square size={15} />
-                Stop scanning
+                {scan.finishing ? "Cancel remaining" : "Stop scanning"}
               </button>
             ) : (
               <button

@@ -1,0 +1,111 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { ScanWork } from "../../src/client/scanner/work.ts";
+const deferred = () => {
+  let resolve!: () => void;
+  const promise = new Promise<void>((r) => {
+    resolve = r;
+  });
+  return { promise, resolve };
+};
+const tick = () => new Promise((r) => setImmediate(r));
+test("a slow price search does not block recognition of the next frame", async () => {
+  const work = new ScanWork(),
+    price = deferred();
+  let frames = 0;
+  work.start();
+  await work.recognize(async () => {
+    frames++;
+    work.compare("first", async () => {
+      await price.promise;
+    });
+  });
+  await work.recognize(async () => {
+    frames++;
+  });
+  assert.equal(frames, 2);
+  assert.equal(work.state.pending, 1);
+  price.resolve();
+  await tick();
+  assert.equal(work.state.pending, 0);
+});
+test("video end drains recognition and its price searches without aborting", async () => {
+  const work = new ScanWork(),
+    recognition = deferred(),
+    price = deferred();
+  let complete = false,
+    signal!: AbortSignal;
+  work.start();
+  const pending = work.recognize(async (s) => {
+    signal = s;
+    await recognition.promise;
+    work.compare("item", async () => {
+      await price.promise;
+      complete = true;
+    });
+  });
+  work.finishInput();
+  assert.equal(signal.aborted, false);
+  assert.equal(work.state.draining, true);
+  recognition.resolve();
+  await pending;
+  assert.equal(work.state.draining, true);
+  let extraFrame = false;
+  await work.recognize(async () => {
+    extraFrame = true;
+  });
+  assert.equal(extraFrame, false);
+  price.resolve();
+  await tick();
+  assert.equal(complete, true);
+  assert.equal(work.state.draining, false);
+});
+test("searches are deduplicated and at most two run concurrently", async () => {
+  const work = new ScanWork(),
+    first = deferred();
+  const started: string[] = [];
+  work.start();
+  for (const key of ["a", "a", "b", "c"])
+    work.compare(key, async () => {
+      started.push(key);
+      await first.promise;
+    });
+  assert.deepEqual(started, ["a", "b"]);
+  assert.equal(work.state.pending, 3);
+  first.resolve();
+  await tick();
+  assert.deepEqual(started, ["a", "b", "c"]);
+  assert.equal(work.state.pending, 0);
+});
+test("explicit cancellation aborts active work, drops queued work and isolates a new run", async () => {
+  const work = new ScanWork(),
+    old = deferred(),
+    next = deferred();
+  const signals: AbortSignal[] = [],
+    started: string[] = [];
+  work.start();
+  const prior = work.recognize(async (s) => {
+    signals.push(s);
+    await old.promise;
+  });
+  for (const key of ["a", "b", "queued"])
+    work.compare(key, async (s) => {
+      signals.push(s);
+      started.push(key);
+      await old.promise;
+    });
+  work.cancel();
+  assert.ok(signals.every((s) => s.aborted));
+  work.start();
+  const current = work.recognize(async () => {
+    await next.promise;
+  });
+  old.resolve();
+  await prior;
+  await tick();
+  assert.equal(work.state.recognizing, true);
+  assert.deepEqual(started, ["a", "b"]);
+  next.resolve();
+  await current;
+  assert.equal(work.state.recognizing, false);
+});

@@ -10,6 +10,7 @@ import { api } from "../lib/api";
 import { captureFrame, grayFrame, scanRequest, videoFileError } from "./media";
 import { frameDifference, trackBox, type GrayFrame } from "./tracking";
 import { cachedComparison, comparisonKey, playCurrent } from "./state";
+import { ScanWork } from "./work";
 export type SourceKind = "camera" | "video" | "sample" | null;
 export type FoundProduct = {
   product: Product;
@@ -22,9 +23,9 @@ export function useScanner(mode: Mode, market: Market) {
   const video = useRef<HTMLVideoElement>(null);
   const stream = useRef<MediaStream | null>(null),
     objectUrl = useRef<string | null>(null);
-  const generation = useRef(0),
-    abort = useRef<AbortController | null>(null),
-    inFlight = useRef(false);
+  const generation = useRef(0);
+  const [work] = useState(() => new ScanWork());
+  const finished = useRef(false);
   const runningRef = useRef(false),
     lastAnalyzed = useRef<GrayFrame | null>(null),
     previous = useRef<GrayFrame | null>(null);
@@ -46,19 +47,38 @@ export function useScanner(mode: Mode, market: Market) {
   const [error, setError] = useState(""),
     [running, setRunning] = useState(false),
     [busy, setBusy] = useState(false),
+    [finishing, setFinishing] = useState(false),
     [ready, setReady] = useState(false);
   const [pins, setPins] = useState<Product[]>([]),
     [found, setFound] = useState<FoundProduct[]>([]);
   const [aspect, setAspect] = useState(16 / 9);
+  useEffect(() => {
+    work.onChange = () => {
+      const state = work.state;
+      setBusy(state.recognizing || state.pending > 0);
+      setFinishing(state.draining);
+      if (finished.current)
+        setMessage(
+          state.draining
+            ? "Finishing your remaining comparisons…"
+            : "Video complete. Your finds are ready.",
+        );
+    };
+    work.onError = () =>
+      setError("A price search could not finish. Try scanning again.");
+    return () => {
+      work.onChange = undefined;
+      work.onError = undefined;
+    };
+  }, [work]);
   const updateResults = useCallback((rows: FoundProduct[]) => {
     resultsRef.current = rows;
     setFound(rows);
   }, []);
   const stopAnalysis = useCallback(() => {
     generation.current++;
-    abort.current?.abort();
-    abort.current = null;
-    inFlight.current = false;
+    finished.current = false;
+    work.cancel();
     runningRef.current = false;
     setRunning(false);
     setBusy(false);
@@ -69,7 +89,7 @@ export function useScanner(mode: Mode, market: Market) {
     updateResults(
       resultsRef.current.map((row) => ({ ...row, searching: false })),
     );
-  }, [updateResults]);
+  }, [updateResults, work]);
   const closeSource = useCallback(() => {
     stopAnalysis();
     stream.current?.getTracks().forEach((track) => track.stop());
@@ -104,7 +124,7 @@ export function useScanner(mode: Mode, market: Market) {
     return () => {
       active = false;
       generation.current++;
-      abort.current?.abort();
+      work.cancel();
       stream.current?.getTracks().forEach((t) => t.stop());
       if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
     };
@@ -233,9 +253,9 @@ export function useScanner(mode: Mode, market: Market) {
   }
   const invalidatePosition = useCallback(() => {
     generation.current++;
-    abort.current?.abort();
-    abort.current = null;
-    inFlight.current = false;
+    finished.current = false;
+    if (runningRef.current) work.start();
+    else work.cancel();
     setBusy(false);
     tracked.current = [];
     setPins([]);
@@ -243,12 +263,12 @@ export function useScanner(mode: Mode, market: Market) {
     lastAnalyzed.current = null;
     lastAnalysis.current = 0;
     updateResults(resultsRef.current.map((r) => ({ ...r, searching: false })));
-  }, [updateResults]);
+  }, [updateResults, work]);
   async function analyze() {
     const element = video.current;
     if (
       !element ||
-      inFlight.current ||
+      work.state.recognizing ||
       !runningRef.current ||
       element.readyState < 2 ||
       element.seeking ||
@@ -268,122 +288,132 @@ export function useScanner(mode: Mode, market: Market) {
     const time = sourceRef.current === "camera" ? 0 : element.currentTime;
     lastAnalysis.current = now;
     lastAnalyzed.current = thumbnail;
-    inFlight.current = true;
-    setBusy(true);
+
     setMessage("Identifying visible products…");
     const epoch = generation.current;
-    const controller = new AbortController();
-    abort.current = controller;
-    try {
-      const result = await scanRequest<{ products: Product[] }>(
-        "/api/scan/recognize",
-        { frame, market, requestId: crypto.randomUUID() },
-        controller.signal,
-      );
-      if (epoch !== generation.current) return;
-      const current = grayFrame(element);
-      const near = frameDifference(thumbnail, current) < 5;
-      tracked.current = result.products.flatMap((product) => {
-        const box = near
-          ? product.box
-          : trackBox(thumbnail, current, product.box);
-        return box ? [{ ...product, box }] : [];
-      });
-      previous.current = current;
-      lastDetection.current = Date.now();
-      setPins(tracked.current);
-      let rows = [...resultsRef.current];
-      for (const product of result.products) {
-        const index = rows.findIndex((row) => row.product.id === product.id);
-        const cached = cachedComparison(cache.current, product, mode, market);
-        const row: FoundProduct = {
-          product,
-          time,
-          comparison:
-            cached && cached.expiresAt > Date.now() ? cached : undefined,
-        };
-        if (index >= 0) rows[index] = row;
-        else rows.unshift(row);
-      }
-      updateResults(rows.slice(0, 30));
-      setMessage(
-        result.products.length
-          ? "Products identified. Checking matching prices…"
-          : "No clear product label found. Move closer or try another moment.",
-      );
-      for (const product of result.products) {
-        if (epoch !== generation.current) break;
-        if (!product.model || product.confidence < 0.85) {
-          updateResults(
-            resultsRef.current.map((r) =>
-              r.product.id === product.id
-                ? {
-                    ...r,
-                    error: "A clearer model label is needed before searching.",
-                  }
-                : r,
-            ),
-          );
-          continue;
-        }
-        const key = comparisonKey(product, mode, market),
-          cached = cachedComparison(cache.current, product, mode, market);
-        if (cached && cached.expiresAt > Date.now()) continue;
-        updateResults(
-          resultsRef.current.map((r) =>
-            r.product.id === product.id ? { ...r, searching: true } : r,
-          ),
+    await work.recognize(async (signal) => {
+      try {
+        const result = await scanRequest<{ products: Product[] }>(
+          "/api/scan/recognize",
+          { frame, market, requestId: crypto.randomUUID() },
+          signal,
         );
-        try {
-          const comparison = await scanRequest<Comparison>(
-            "/api/scan/compare",
-            { productId: product.id, mode, market },
-            controller.signal,
-          );
-          if (epoch !== generation.current) break;
-          cache.current.set(key, comparison);
-          updateResults(
-            resultsRef.current.map((r) =>
-              r.product.id === product.id
-                ? { ...r, comparison, searching: false, error: undefined }
-                : r,
-            ),
-          );
-        } catch (err) {
-          if (epoch !== generation.current) break;
-          updateResults(
-            resultsRef.current.map((r) =>
-              r.product.id === product.id
-                ? {
-                    ...r,
-                    searching: false,
-                    error:
-                      err instanceof Error
-                        ? err.message
-                        : "Price search failed.",
-                  }
-                : r,
-            ),
-          );
+        if (epoch !== generation.current) return;
+        const current = grayFrame(element);
+        const near = frameDifference(thumbnail, current) < 5;
+        tracked.current = result.products.flatMap((product) => {
+          const box = near
+            ? product.box
+            : trackBox(thumbnail, current, product.box);
+          return box ? [{ ...product, box }] : [];
+        });
+        previous.current = current;
+        lastDetection.current = Date.now();
+        setPins(tracked.current);
+        let rows = [...resultsRef.current];
+        for (const product of result.products) {
+          const index = rows.findIndex((row) => row.product.id === product.id);
+          const cached = cachedComparison(cache.current, product, mode, market);
+          const row: FoundProduct = {
+            product,
+            time,
+            comparison:
+              cached && cached.expiresAt > Date.now() ? cached : undefined,
+          };
+          if (index >= 0) rows[index] = row;
+          else rows.unshift(row);
         }
-      }
-      if (epoch === generation.current)
+        updateResults(rows.slice(0, 30));
         setMessage(
-          "Scanning as you explore. Clear labels give better matches.",
+          result.products.length
+            ? "Products identified. Checking matching prices…"
+            : "No clear product label found. Move closer or try another moment.",
         );
-    } catch (err) {
-      if (epoch === generation.current) {
-        setError(
-          err instanceof Error ? err.message : "Analysis could not finish.",
-        );
-        stopAnalysis();
+        for (const product of result.products) {
+          if (epoch !== generation.current) break;
+          if (!product.model || product.confidence < 0.85) {
+            updateResults(
+              resultsRef.current.map((r) =>
+                r.product.id === product.id
+                  ? {
+                      ...r,
+                      error:
+                        "A clearer model label is needed before searching.",
+                    }
+                  : r,
+              ),
+            );
+            continue;
+          }
+          const key = comparisonKey(product, mode, market),
+            cached = cachedComparison(cache.current, product, mode, market);
+          if (cached && cached.expiresAt > Date.now()) continue;
+          updateResults(
+            resultsRef.current.map((r) =>
+              r.product.id === product.id ? { ...r, searching: true } : r,
+            ),
+          );
+          const queued = work.compare(key, async (searchSignal) => {
+            try {
+              const comparison = await scanRequest<Comparison>(
+                "/api/scan/compare",
+                { productId: product.id, mode, market },
+                searchSignal,
+              );
+              if (epoch !== generation.current) return;
+              cache.current.set(key, comparison);
+              updateResults(
+                resultsRef.current.map((r) =>
+                  comparisonKey(r.product, mode, market) === key
+                    ? { ...r, comparison, searching: false, error: undefined }
+                    : r,
+                ),
+              );
+            } catch (err) {
+              if (epoch !== generation.current) return;
+              updateResults(
+                resultsRef.current.map((r) =>
+                  comparisonKey(r.product, mode, market) === key
+                    ? {
+                        ...r,
+                        searching: false,
+                        error:
+                          err instanceof Error
+                            ? err.message
+                            : "Price search failed.",
+                      }
+                    : r,
+                ),
+              );
+            }
+          });
+          if (!queued)
+            updateResults(
+              resultsRef.current.map((r) =>
+                r.product.id === product.id
+                  ? {
+                      ...r,
+                      searching: false,
+                      error:
+                        "Search queue is full. Scan this item again shortly.",
+                    }
+                  : r,
+              ),
+            );
+        }
+        if (epoch === generation.current && !finished.current)
+          setMessage(
+            "Scanning as you explore. Clear labels give better matches.",
+          );
+      } catch (err) {
+        if (epoch === generation.current) {
+          setError(
+            err instanceof Error ? err.message : "Analysis could not finish.",
+          );
+          stopAnalysis();
+        }
       }
-    } finally {
-      if (epoch === generation.current) {
-        inFlight.current = false;
-        setBusy(false);
-      }
-    }
+    });
   }
   const analyzeRef = useRef(analyze);
   analyzeRef.current = analyze;
@@ -436,6 +466,7 @@ export function useScanner(mode: Mode, market: Market) {
     if (!ready || !video.current) return;
     stopAnalysis();
     lastAnalysis.current = 0;
+    work.start();
     runningRef.current = true;
     setRunning(true);
     const epoch = generation.current;
@@ -454,8 +485,10 @@ export function useScanner(mode: Mode, market: Market) {
     }
   }
   function ended() {
-    stopAnalysis();
-    setMessage("Video finished. Your identified products are listed below.");
+    finished.current = true;
+    runningRef.current = false;
+    setRunning(false);
+    work.finishInput();
   }
   return {
     video,
@@ -466,6 +499,7 @@ export function useScanner(mode: Mode, market: Market) {
     error,
     running,
     busy,
+    finishing,
     ready,
     pins,
     found,
