@@ -42,6 +42,22 @@
         640,
         960
       ]
+    },
+    {
+      "id": "phone",
+      "original": "/campaign/originals/phone.png",
+      "sizes": [
+        960,
+        1600
+      ]
+    },
+    {
+      "id": "phone-portrait",
+      "original": "/campaign/originals/phone-portrait.png",
+      "sizes": [
+        640,
+        960
+      ]
     }
   ]
 }
