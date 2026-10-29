@@ -26,10 +26,19 @@
         "run_worker_first": ["/", "/signin", "/app", "/app/*", "/api/*"],
       },
       "secrets": {
-        "required": ["BETTER_AUTH_SECRET", "RESEND_API_KEY", "AUTH_EMAIL_FROM"],
+        "required": [
+          "BETTER_AUTH_SECRET",
+          "RESEND_API_KEY",
+          "AUTH_EMAIL_FROM",
+          "META_API_KEY",
+        ],
       },
       "vars": {
         "APP_ENVIRONMENT": "staging",
+        "SCAN_ENABLED": "false",
+        "SCAN_DAILY_BUDGET_MICROS": "10000000",
+        "SCAN_TOTAL_BUDGET_MICROS": "100000000",
+        "EMAIL_DAILY_LIMIT": "10",
         "BETTER_AUTH_URL": "https://ceval-staging.mbefe34.workers.dev",
       },
       "d1_databases": [

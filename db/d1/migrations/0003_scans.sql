@@ -1,0 +1,10 @@
+CREATE TABLE scan_jobs (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE, kind TEXT NOT NULL, request_key TEXT NOT NULL, status TEXT NOT NULL, result TEXT, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL, UNIQUE(user_id,kind,request_key));
+CREATE INDEX scan_jobs_expiry ON scan_jobs(expires_at);
+CREATE TABLE scan_products (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE, fingerprint TEXT NOT NULL, data TEXT NOT NULL, updated_at INTEGER NOT NULL, UNIQUE(user_id,fingerprint));
+CREATE INDEX scan_products_owner ON scan_products(user_id,updated_at);
+CREATE TABLE scan_comparisons (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE, data TEXT NOT NULL, created_at INTEGER NOT NULL);
+CREATE TABLE scan_saves (user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE, comparison_id TEXT NOT NULL REFERENCES scan_comparisons(id) ON DELETE CASCADE, created_at INTEGER NOT NULL, PRIMARY KEY(user_id,comparison_id));
+CREATE TABLE scan_spend (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, scope TEXT NOT NULL DEFAULT 'total', kind TEXT NOT NULL, amount INTEGER NOT NULL CHECK(amount>0), created_at INTEGER NOT NULL);
+CREATE INDEX scan_spend_created ON scan_spend(created_at);
+CREATE INDEX scan_spend_user ON scan_spend(user_id,created_at);
+CREATE TABLE scan_requests (user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE, request_id TEXT NOT NULL, fingerprint TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(user_id,request_id));

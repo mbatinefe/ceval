@@ -8,9 +8,10 @@ import {
 } from "./auth/limits.ts";
 import { demoProducts } from "../shared/demo.ts";
 
-type Session = NonNullable<
-  Awaited<ReturnType<ReturnType<typeof createAuth>["api"]["getSession"]>>
->;
+import type { Session } from "./types.ts";
+import { scanRoutes } from "./scan/routes.ts";
+import { ScanError } from "./scan/errors.ts";
+import { capabilities } from "./scan/service.ts";
 type FindRow = {
   id: string;
   productId: string;
@@ -22,7 +23,7 @@ const app = new Hono<{
   Variables: { body: Record<string, unknown>; session: Session };
 }>();
 const csp =
-  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self'; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'";
+  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'";
 
 app.use("*", async (c, next) => {
   await next();
@@ -30,7 +31,10 @@ app.use("*", async (c, next) => {
   c.header("Referrer-Policy", "strict-origin-when-cross-origin");
   c.header("Content-Security-Policy", csp);
   c.header("X-Frame-Options", "DENY");
-  c.header("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  c.header(
+    "Permissions-Policy",
+    "camera=(self), microphone=(), geolocation=()",
+  );
   if (c.env.APP_ENVIRONMENT === "staging")
     c.header("X-Robots-Tag", "noindex, nofollow");
   c.header("Cache-Control", "no-store");
@@ -55,7 +59,7 @@ app.use("/api/*", async (c, next) => {
         const { value, done } = await reader.read();
         if (done) break;
         size += value.length;
-        if (size > 4096) {
+        if (size > (c.req.path === "/api/scan/recognize" ? 280000 : 4096)) {
           await reader.cancel();
           return c.json({ error: "Request is too large." }, 413);
         }
@@ -79,6 +83,7 @@ app.use("/api/*", async (c, next) => {
         method: c.req.method,
         headers,
         body: JSON.stringify(body),
+        signal: c.req.raw.signal,
       });
     } catch {
       return c.json({ error: "Invalid JSON." }, 400);
@@ -164,7 +169,10 @@ app.get("/api/me", (c) => {
   const { user } = c.get("session");
   return c.json({
     user: { id: user.id, email: user.email, name: user.name },
-    capabilities: { liveScanning: false, demo: true },
+    capabilities: {
+      liveScanning: capabilities(c.env).analysisAvailable,
+      demo: true,
+    },
   });
 });
 app.get("/api/finds", async (c) => {
@@ -212,6 +220,7 @@ app.delete("/api/finds", async (c) => {
     .run();
   return c.json({ deleted: true });
 });
+app.route("/api", scanRoutes);
 app.all("/api/*", (c) => c.json({ error: "Not found." }, 404));
 app.get("*", async (c) => {
   if (
@@ -235,6 +244,11 @@ app.get("*", async (c) => {
   return c.newResponse(response.body, response);
 });
 app.onError((error, c) => {
+  if (error instanceof ScanError) {
+    if (error.status === 429 || error.status === 409)
+      c.header("Retry-After", error.status === 409 ? "3" : "60");
+    return c.json({ error: error.message, code: error.code }, error.status);
+  }
   if (error instanceof LimitReached) {
     c.header("Retry-After", String(error.retryAfter));
     return c.json({ error: error.message, retryAfter: error.retryAfter }, 429);

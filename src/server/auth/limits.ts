@@ -64,5 +64,10 @@ export async function reserveEmail(
   await consumeLimit(env.DB, `send:email:minute:${emailKey}`, 1, 60);
   await consumeLimit(env.DB, `send:email:hour:${emailKey}`, 5, 3600);
   // Reserve before delivery; uncertain provider outcomes never release the allowance.
-  await consumeLimit(env.DB, "send:deployment:day", 80, 86400);
+  const configured = Number(env.EMAIL_DAILY_LIMIT);
+  const daily =
+    Number.isInteger(configured) && configured > 0 && configured <= 80
+      ? configured
+      : 80;
+  await consumeLimit(env.DB, "send:deployment:day", daily, 86400);
 }

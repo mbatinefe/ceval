@@ -50,7 +50,7 @@ export type SavedFind = {
 };
 export type Profile = {
   user: { id: string; email: string; name: string };
-  capabilities: { liveScanning: false; demo: true };
+  capabilities: { liveScanning: boolean; demo: true };
 };
 export function formatPrice(minor: number, currency = "USD"): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(
