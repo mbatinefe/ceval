@@ -41,6 +41,9 @@ export class ScanWork {
     this.onChange?.();
     try {
       await task(controller.signal);
+    } catch (error) {
+      if (controller === this.controller) this.finishInput();
+      throw error;
     } finally {
       if (controller === this.controller) {
         this.recognizing = false;

@@ -9,8 +9,14 @@ import type {
 import { api } from "../lib/api";
 import { captureFrame, grayFrame, scanRequest, videoFileError } from "./media";
 import { frameDifference, trackBox, type GrayFrame } from "./tracking";
-import { cachedComparison, comparisonKey, playCurrent } from "./state";
+import {
+  cachedComparison,
+  cacheMatchingComparison,
+  comparisonKey,
+  playCurrent,
+} from "./state";
 import { ScanWork } from "./work";
+import { clips } from "../../../public/demo/manifest.json";
 export type SourceKind = "camera" | "video" | "sample" | null;
 export type FoundProduct = {
   product: Product;
@@ -25,7 +31,7 @@ export function useScanner(mode: Mode, market: Market) {
     objectUrl = useRef<string | null>(null);
   const generation = useRef(0);
   const [work] = useState(() => new ScanWork());
-  const finished = useRef(false);
+  const finished = useRef<"video" | "error" | null>(null);
   const runningRef = useRef(false),
     lastAnalyzed = useRef<GrayFrame | null>(null),
     previous = useRef<GrayFrame | null>(null);
@@ -61,7 +67,9 @@ export function useScanner(mode: Mode, market: Market) {
         setMessage(
           state.draining
             ? "Finishing your remaining comparisons…"
-            : "Video complete. Your finds are ready.",
+            : finished.current === "video"
+              ? "Video complete. Your finds are ready."
+              : "Scanning paused. Your completed finds are kept.",
         );
     };
     work.onError = () =>
@@ -77,7 +85,7 @@ export function useScanner(mode: Mode, market: Market) {
   }, []);
   const stopAnalysis = useCallback(() => {
     generation.current++;
-    finished.current = false;
+    finished.current = null;
     work.cancel();
     runningRef.current = false;
     setRunning(false);
@@ -90,6 +98,15 @@ export function useScanner(mode: Mode, market: Market) {
       resultsRef.current.map((row) => ({ ...row, searching: false })),
     );
   }, [updateResults, work]);
+  const finishAnalysis = useCallback(
+    (reason: "video" | "error") => {
+      finished.current = reason;
+      runningRef.current = false;
+      setRunning(false);
+      work.finishInput();
+    },
+    [work],
+  );
   const closeSource = useCallback(() => {
     stopAnalysis();
     stream.current?.getTracks().forEach((track) => track.stop());
@@ -222,15 +239,15 @@ export function useScanner(mode: Mode, market: Market) {
     }
     setMessage("Your video stays on this device. Play it or start scanning.");
   }
-  function sample() {
+  function sample(clip = clips[0]) {
     closeSource();
     setError("");
     updateResults([]);
     sourceRef.current = "sample";
     setSource("sample");
-    setSourceName("Generated store footage");
+    setSourceName(clip.title);
     if (video.current) {
-      video.current.src = "/demo/electronics-shelf-pan.mp4";
+      video.current.src = clip.video;
       video.current.load();
     }
     setMessage(
@@ -253,7 +270,7 @@ export function useScanner(mode: Mode, market: Market) {
   }
   const invalidatePosition = useCallback(() => {
     generation.current++;
-    finished.current = false;
+    finished.current = null;
     if (runningRef.current) work.start();
     else work.cancel();
     setBusy(false);
@@ -354,6 +371,12 @@ export function useScanner(mode: Mode, market: Market) {
             ),
           );
           const queued = work.compare(key, async (searchSignal) => {
+            if (
+              !resultsRef.current.some(
+                (row) => comparisonKey(row.product, mode, market) === key,
+              )
+            )
+              return;
             try {
               const comparison = await scanRequest<Comparison>(
                 "/api/scan/compare",
@@ -361,7 +384,19 @@ export function useScanner(mode: Mode, market: Market) {
                 searchSignal,
               );
               if (epoch !== generation.current) return;
-              cache.current.set(key, comparison);
+              if (
+                !cacheMatchingComparison(
+                  cache.current,
+                  product,
+                  mode,
+                  market,
+                  comparison,
+                )
+              ) {
+                throw new Error(
+                  "The shelf label changed during search. Scan this item again.",
+                );
+              }
               updateResults(
                 resultsRef.current.map((r) =>
                   comparisonKey(r.product, mode, market) === key
@@ -410,7 +445,7 @@ export function useScanner(mode: Mode, market: Market) {
           setError(
             err instanceof Error ? err.message : "Analysis could not finish.",
           );
-          stopAnalysis();
+          finishAnalysis("error");
         }
       }
     });
@@ -449,14 +484,14 @@ export function useScanner(mode: Mode, market: Market) {
             setError(
               err instanceof Error ? err.message : "Couldn’t read this frame.",
             );
-            stopAnalysis();
+            finishAnalysis("error");
           });
       }
       animation = requestAnimationFrame(tick);
     }
     animation = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(animation);
-  }, [stopAnalysis]);
+  }, [finishAnalysis]);
   async function start() {
     setError("");
     if (!capabilities?.analysisAvailable) {
@@ -485,10 +520,7 @@ export function useScanner(mode: Mode, market: Market) {
     }
   }
   function ended() {
-    finished.current = true;
-    runningRef.current = false;
-    setRunning(false);
-    work.finishInput();
+    finishAnalysis("video");
   }
   return {
     video,
@@ -510,7 +542,10 @@ export function useScanner(mode: Mode, market: Market) {
     loaded,
     invalidatePosition,
     start,
-    stopAnalysis,
+    stopAnalysis: () => {
+      stopAnalysis();
+      setMessage("Scanning stopped. Your completed finds are kept.");
+    },
     closeSource,
     ended,
     setError,

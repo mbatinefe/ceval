@@ -72,3 +72,32 @@ test("resolved playback from a replaced source cannot activate scanning", async 
   resolve();
   assert.equal(await operation, false);
 });
+
+test("a delayed comparison cannot be cached against an older shelf label", async () => {
+  const { cacheMatchingComparison } =
+    await import("../../src/client/scanner/state.ts");
+  const comparison: Comparison = {
+    id: "late",
+    product: { ...product, shelfPriceMinor: 19999 },
+    mode: "buy",
+    market: "US",
+    offers: [],
+    status: "no_evidence",
+    checkedAt: Date.now(),
+    expiresAt: Date.now() + 60000,
+  };
+  const cache = new Map<string, Comparison>();
+  assert.equal(
+    cacheMatchingComparison(cache, product, "buy", "US", comparison),
+    false,
+  );
+  assert.equal(cachedComparison(cache, product, "buy", "US"), undefined);
+  assert.equal(
+    cacheMatchingComparison(cache, comparison.product, "buy", "US", comparison),
+    true,
+  );
+  assert.equal(
+    cachedComparison(cache, comparison.product, "buy", "US"),
+    comparison,
+  );
+});

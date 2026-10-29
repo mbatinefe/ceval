@@ -109,3 +109,35 @@ test("explicit cancellation aborts active work, drops queued work and isolates a
   await current;
   assert.equal(work.state.recognizing, false);
 });
+
+test("a failed later recognition stops capture but drains earlier comparisons", async () => {
+  const work = new ScanWork(),
+    prices = deferred();
+  const completed: string[] = [];
+  let priceSignal!: AbortSignal;
+  work.start();
+  await work.recognize(async () => {
+    for (const key of ["a", "b", "c"])
+      work.compare(key, async (signal) => {
+        priceSignal = signal;
+        await prices.promise;
+        completed.push(key);
+      });
+  });
+  await assert.rejects(
+    work.recognize(async () => {
+      throw new Error("Recognition quota reached");
+    }),
+  );
+  assert.equal(priceSignal.aborted, false);
+  assert.equal(work.state.draining, true);
+  let extraFrame = false;
+  await work.recognize(async () => {
+    extraFrame = true;
+  });
+  assert.equal(extraFrame, false);
+  prices.resolve();
+  await tick();
+  assert.deepEqual(completed, ["a", "b", "c"]);
+  assert.equal(work.state.draining, false);
+});

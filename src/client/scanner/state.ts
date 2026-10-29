@@ -36,3 +36,20 @@ export async function playCurrent(
     throw error;
   }
 }
+
+export function cacheMatchingComparison(
+  cache: Map<string, Comparison>,
+  product: Product,
+  mode: Mode,
+  market: Market,
+  comparison: Comparison,
+): boolean {
+  const key = comparisonKey(product, mode, market);
+  if (
+    key !==
+    comparisonKey(comparison.product, comparison.mode, comparison.market)
+  )
+    return false;
+  cache.set(key, comparison);
+  return true;
+}
