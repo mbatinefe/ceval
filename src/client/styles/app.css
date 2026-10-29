@@ -960,6 +960,16 @@ input::placeholder {
   flex-direction: column;
   gap: 4px;
 }
+.pin-0 .pin-label {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+}
+.pin-1 .pin-label {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+}
 .pin-label strong {
   font-size: 10px;
   font-weight: 650;

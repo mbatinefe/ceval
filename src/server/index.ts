@@ -25,6 +25,7 @@ const csp =
   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self'; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'";
 
 app.use("*", async (c, next) => {
+  await next();
   c.header("X-Content-Type-Options", "nosniff");
   c.header("Referrer-Policy", "strict-origin-when-cross-origin");
   c.header("Content-Security-Policy", csp);
@@ -33,7 +34,6 @@ app.use("*", async (c, next) => {
   if (c.env.APP_ENVIRONMENT === "staging")
     c.header("X-Robots-Tag", "noindex, nofollow");
   c.header("Cache-Control", "no-store");
-  await next();
 });
 
 app.use("/api/*", async (c, next) => {
@@ -147,9 +147,13 @@ app.all("/api/auth/*", async (c) => {
 
 app.use("/api/*", async (c, next) => {
   if (!c.req.header("Cookie")) return c.json({ error: "Please sign in." }, 401);
-  const session = await createAuth(c.env).api.getSession({
+  const result = await createAuth(c.env).api.getSession({
     headers: c.req.raw.headers,
+    returnHeaders: true,
   });
+  for (const cookie of result.headers.getSetCookie())
+    c.header("Set-Cookie", cookie, { append: true });
+  const session = result.response;
   if (!session?.user.emailVerified)
     return c.json({ error: "Please sign in." }, 401);
   c.set("session", session);
@@ -215,18 +219,20 @@ app.get("*", async (c) => {
   )
     return c.notFound();
   if (c.req.path.startsWith("/app")) {
-    const session = c.req.header("Cookie")
-      ? await createAuth(c.env).api.getSession({ headers: c.req.raw.headers })
-      : null;
+    if (!c.req.header("Cookie")) return c.redirect("/signin");
+    const result = await createAuth(c.env).api.getSession({
+      headers: c.req.raw.headers,
+      returnHeaders: true,
+    });
+    for (const cookie of result.headers.getSetCookie())
+      c.header("Set-Cookie", cookie, { append: true });
+    const session = result.response;
     if (!session?.user.emailVerified) return c.redirect("/signin");
   }
   const response = await c.env.ASSETS.fetch(
     new Request(new URL("/index.html", c.req.url)),
   );
-  return new Response(response.body, {
-    status: response.status,
-    headers: { "Content-Type": "text/html; charset=utf-8" },
-  });
+  return c.newResponse(response.body, response);
 });
 app.onError((error, c) => {
   if (error instanceof LimitReached) {

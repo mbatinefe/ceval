@@ -320,3 +320,40 @@ test("app pages redirect signed-out visitors and unsupported auth operations are
     413,
   );
 });
+
+test("active session renewal updates the browser on API and app-page requests", async () => {
+  const { cookie } = await login();
+  for (const path of ["/api/me", "/app"]) {
+    await env.DB.prepare("UPDATE session SET expiresAt = ?")
+      .bind(Date.now() + 5 * 86400000)
+      .run();
+    const response = await request(path, undefined, cookie);
+    assert.equal(response.status, 200);
+    const row = await env.DB.prepare("SELECT expiresAt FROM session").first<{
+      expiresAt: number;
+    }>();
+    assert.ok(new Date(row!.expiresAt).getTime() > Date.now() + 6 * 86400000);
+    assert.match(
+      response.headers.get("set-cookie") || "",
+      /ceval.session_token=/,
+      `Renewal cookie missing from ${path}`,
+    );
+  }
+});
+
+test("HTML and authentication responses retain security and no-store headers", async () => {
+  const responses = [
+    await request("/"),
+    await request("/signin"),
+    await send("headers@example.com"),
+  ];
+  for (const response of responses) {
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+    assert.match(
+      response.headers.get("content-security-policy") || "",
+      /frame-ancestors 'none'/,
+    );
+  }
+});

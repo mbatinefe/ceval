@@ -16,8 +16,7 @@ export function Scanner() {
       <div className="scan-copy">
         <span className="eyebrow">YOUR CURIOSITY, IN FOCUS</span>
         <h1>
-          Let’s see
-          <br />
+          Let’s see <br />
           what’s <em>here.</em>
         </h1>
         <p>
