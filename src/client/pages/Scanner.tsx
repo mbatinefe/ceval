@@ -236,10 +236,7 @@ export function Scanner() {
           {scan.capabilities && !scan.capabilities.analysisAvailable && (
             <div className="availability-note">
               <span className="status-dot" />
-              <p>
-                Preview mode. Recognition and price search are not connected
-                yet.
-              </p>
+              <p>{scan.capabilities.reason}</p>
             </div>
           )}
           <details className="media-privacy">

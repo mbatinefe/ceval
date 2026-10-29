@@ -313,6 +313,37 @@ function offerResponse(
     ],
   );
 }
+for (const phase of [undefined, "final_answer"]) {
+  test(`price search ignores progress messages before the final result (${phase ?? "unmarked"})`, async () => {
+    const productId = await identified();
+    provider = async () => {
+      const result = await offerResponse().json();
+      const progress = {
+        type: "message",
+        role: "assistant",
+        phase: "commentary",
+        content: [{ type: "output_text", text: "Searching current prices." }],
+      };
+      result.output.at(-1).phase = phase;
+      result.output.splice(0, 0, progress);
+      result.output.splice(2, 0, progress);
+      return Response.json(result);
+    };
+    const result = await request("/api/scan/compare", {
+      productId,
+      mode: "buy",
+      market: "US",
+    });
+    assert.equal(result.status, 200, await result.clone().text());
+    const comparison = await result.json();
+    assert.equal(comparison.offers.length, 1);
+    assert.equal(comparison.offers[0].priceMinor, 24999);
+    assert.equal(
+      comparison.offers[0].url,
+      "https://shop.example.com/headphones",
+    );
+  });
+}
 test("only sourced prices survive and saved comparisons are owner-scoped", async () => {
   const productId = await identified();
   provider = async () => offerResponse();
@@ -390,6 +421,19 @@ test("an unsupported price or skipped web search cannot become a comparison offe
     market: "US",
   });
   assert.equal((await resale.json()).offers.length, 0);
+});
+test("retailer links without source text cannot substantiate a generated price", async () => {
+  const productId = await identified();
+  provider = async () => offerResponse("");
+  const result = await request("/api/scan/compare", {
+    productId,
+    mode: "buy",
+    market: "US",
+  });
+  assert.equal(result.status, 200);
+  const comparison = await result.json();
+  assert.equal(comparison.status, "no_evidence");
+  assert.deepEqual(comparison.offers, []);
 });
 test("resale asking prices are not promoted to completed sales", async () => {
   const productId = await identified();

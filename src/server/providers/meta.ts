@@ -133,7 +133,11 @@ async function meta(
               });
           }
       }
-      if (part.type === "message" && Array.isArray(part.content))
+      if (
+        part.type === "message" &&
+        part.phase !== "commentary" &&
+        Array.isArray(part.content)
+      )
         for (const block of part.content) {
           const b = record(block);
           if (b.type === "output_text") content += text(b.text, 40000);
