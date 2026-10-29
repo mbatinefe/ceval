@@ -9,6 +9,7 @@ import type {
 import { api } from "../lib/api";
 import { captureFrame, grayFrame, scanRequest, videoFileError } from "./media";
 import { frameDifference, trackBox, type GrayFrame } from "./tracking";
+import { cachedComparison, comparisonKey, playCurrent } from "./state";
 export type SourceKind = "camera" | "video" | "sample" | null;
 export type FoundProduct = {
   product: Product;
@@ -130,6 +131,7 @@ export function useScanner(mode: Mode, market: Market) {
   async function camera() {
     closeSource();
     setError("");
+    updateResults([]);
     setMessage("Waiting for camera permission…");
     const epoch = generation.current;
     try {
@@ -153,7 +155,13 @@ export function useScanner(mode: Mode, market: Market) {
       setSourceName("Live camera");
       if (video.current) {
         video.current.srcObject = media;
-        await video.current.play();
+        if (
+          !(await playCurrent(
+            () => video.current!.play(),
+            () => epoch === generation.current,
+          ))
+        )
+          return;
       }
       media.getVideoTracks()[0]?.addEventListener("ended", () => {
         if (stream.current === media) {
@@ -287,7 +295,7 @@ export function useScanner(mode: Mode, market: Market) {
       let rows = [...resultsRef.current];
       for (const product of result.products) {
         const index = rows.findIndex((row) => row.product.id === product.id);
-        const cached = cache.current.get(`${product.id}:${mode}:${market}`);
+        const cached = cachedComparison(cache.current, product, mode, market);
         const row: FoundProduct = {
           product,
           time,
@@ -318,8 +326,8 @@ export function useScanner(mode: Mode, market: Market) {
           );
           continue;
         }
-        const key = `${product.id}:${mode}:${market}`,
-          cached = cache.current.get(key);
+        const key = comparisonKey(product, mode, market),
+          cached = cachedComparison(cache.current, product, mode, market);
         if (cached && cached.expiresAt > Date.now()) continue;
         updateResults(
           resultsRef.current.map((r) =>
@@ -430,8 +438,15 @@ export function useScanner(mode: Mode, market: Market) {
     lastAnalysis.current = 0;
     runningRef.current = true;
     setRunning(true);
+    const epoch = generation.current;
     try {
-      await video.current.play();
+      if (
+        !(await playCurrent(
+          () => video.current!.play(),
+          () => epoch === generation.current,
+        ))
+      )
+        return;
       setMessage("Scanning started. Keep the model label in view.");
     } catch {
       stopAnalysis();

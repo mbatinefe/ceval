@@ -147,8 +147,43 @@ export function safeUrl(value: unknown): string | null {
     return null;
   }
 }
-const normalized = (s: string) =>
-  s.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+function containsIdentity(evidence: string, identity: string): boolean {
+  const tokens = identity.match(/[\p{L}\p{N}]+/gu);
+  if (!tokens?.length) return false;
+  return new RegExp(
+    `(?<![\\p{L}\\p{N}])${tokens.join("[\\s-]*")}(?![\\p{L}\\p{N}])`,
+    "iu",
+  ).test(evidence);
+}
+function containsPrice(
+  evidence: string,
+  priceMinor: number,
+  market: Market,
+): boolean {
+  const number =
+    market === "TR"
+      ? "((?:\\d{1,3}(?:\\.\\d{3})+|\\d+)(?:,\\d{1,2})?)"
+      : "((?:\\d{1,3}(?:,\\d{3})+|\\d+)(?:\\.\\d{1,2})?)";
+  const symbol =
+    market === "US"
+      ? "(?:USD\\s*\\$?|US\\$|\\$)"
+      : market === "GB"
+        ? "(?:GBP\\s*£?|£)"
+        : "(?:TRY|TL|₺)";
+  const patterns = [
+    new RegExp(`${symbol}\\s*${number}(?!\\d|[.,]\\d)`, "gi"),
+    new RegExp(`(?<![\\d.,])${number}\\s*${symbol}(?![A-Za-z])`, "gi"),
+  ];
+  return patterns.some((pattern) =>
+    [...evidence.matchAll(pattern)].some((match) => {
+      const amount =
+        market === "TR"
+          ? match[1].replace(/\./g, "").replace(",", ".")
+          : match[1].replace(/,/g, "");
+      return Math.round(Number(amount) * 100) === priceMinor;
+    }),
+  );
+}
 export type Source = { url: string; title: string; snippet: string };
 export function validateOffers(
   value: unknown,
@@ -181,7 +216,7 @@ export function validateOffers(
       continue;
     const evidence = `${source.title} ${source.snippet}`;
     if (
-      /\b(per month|monthly|installment|financing|sold out|out of stock|unavailable|members? only|with coupon|after rebate|starting at|from\s*[$£₺])\b/i.test(
+      /\b(per month|monthly|installment|financing|sold out|out of stock|unavailable|expired|members? only|with coupon|after rebate|starting at|replacement|accessories|accessory|compatible with|ear pads|earpads|bundle|from\s*[$£₺])\b/i.test(
         evidence,
       )
     )
@@ -191,40 +226,17 @@ export function validateOffers(
       /\b(CAD|AUD|NZD|SGD|HKD)\b|CA\$|AU\$/i.test(evidence)
     )
       continue;
-    const folded = normalized(evidence);
     if (
-      !product.model ||
-      !folded.includes(normalized(product.model)) ||
-      !product.brand ||
-      !folded.includes(normalized(product.brand))
+      !containsIdentity(evidence, product.model) ||
+      !containsIdentity(evidence, product.brand)
     )
       continue;
-    const price = Number(o.priceMinor) / 100;
-    const amounts = [
-      price.toFixed(2),
-      price.toFixed(2).replace(".", ","),
-      new Intl.NumberFormat("en-US", { minimumFractionDigits: 2 }).format(
-        price,
-      ),
-      new Intl.NumberFormat("tr-TR", { minimumFractionDigits: 2 }).format(
-        price,
-      ),
-    ];
-    const escaped = amounts
-      .map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-      .join("|");
-    if (!new RegExp(`(?:^|[^\\d])(?:${escaped})(?!\\d)`).test(evidence))
-      continue;
-    const currencyPattern =
-      market === "US"
-        ? /\bUSD\b|US\$|\$(?!\s*(?:CAD|AUD))/i
-        : market === "GB"
-          ? /\bGBP\b|£/
-          : /\bTRY\b|\bTL\b|₺/;
-    if (!currencyPattern.test(evidence)) continue;
-    const sold = /\b(sold on|sold for|completed sale|satıldı)\b/i.test(
-      evidence,
-    );
+    if (!containsPrice(evidence, Number(o.priceMinor), market)) continue;
+    const sold =
+      /\b(sold on|sold for|completed sale|satıldı)\b/i.test(evidence) &&
+      !/\b(unsold|not|never|no)\b.{0,40}\b(sold|completed|sale)\b/i.test(
+        evidence,
+      );
     const kind =
       mode === "buy" ? "retail" : sold && o.kind === "sold" ? "sold" : "asking";
     if (mode === "buy" && o.kind !== "retail") continue;
@@ -238,7 +250,7 @@ export function validateOffers(
     const match =
       product.confidence >= 0.85 &&
       Boolean(product.variant) &&
-      folded.includes(normalized(product.variant))
+      containsIdentity(evidence, product.variant)
         ? "exact"
         : "possible";
     if (!accepted.some((a) => a.url === url))
@@ -250,7 +262,7 @@ export function validateOffers(
         condition,
         kind,
         match,
-        evidence: evidence.slice(0, 1000),
+        evidence,
       });
   }
   return accepted.sort((a, b) => a.priceMinor - b.priceMinor).slice(0, 5);
