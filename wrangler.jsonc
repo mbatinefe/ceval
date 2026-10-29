@@ -1,0 +1,37 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ceval",
+  "main": "src/server/index.ts",
+  "compatibility_date": "2026-10-29",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 0.1,
+    "logs": {
+      "invocation_logs": false
+    }
+  },
+  "env": {
+    "staging": {
+      "name": "ceval-staging",
+      "workers_dev": false,
+      "preview_urls": false,
+      "vars": {
+        "APP_ENVIRONMENT": "staging",
+        "BETTER_AUTH_URL": "https://ceval-staging.mbefe34.workers.dev"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "ceval-staging",
+          "database_id": "33067d83-0155-4c29-8bc8-2a880726a6c6",
+          "migrations_dir": "db/d1/migrations"
+        }
+      ]
+    }
+  }
+}

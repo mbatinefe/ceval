@@ -1,7 +1,12 @@
 # Local server configuration. Copy to .dev.vars and supply your own credentials.
 # Deployed credentials belong in Cloudflare Worker secrets.
 META_API_KEY=
-CLERK_SECRET_KEY=
+BETTER_AUTH_SECRET=
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+
+# Set to the exact deployed HTTPS origin for the selected environment.
+BETTER_AUTH_URL=
 
 # Optional, only if the structured shopping provider is enabled.
 SERPAPI_API_KEY=

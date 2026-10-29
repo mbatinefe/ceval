@@ -10,5 +10,17 @@
   },
   "engines": {
     "node": ">=22"
+  },
+  "scripts": {
+    "cf:login": "wrangler login --device --use-keyring",
+    "cf:types": "wrangler types .wrangler/worker-configuration.d.ts --env staging",
+    "typecheck": "npm run cf:types && tsc --noEmit",
+    "check:deploy": "wrangler deploy --env staging --dry-run",
+    "deploy:staging": "wrangler deploy --env staging"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.155.0"
   }
 }
