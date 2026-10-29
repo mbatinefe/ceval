@@ -1,0 +1,47 @@
+{
+  "synthetic": true,
+  "purpose": "Cinematic concept photography for the Ceval landing page.",
+  "usage": "Glasses interaction is a product concept, not a connected integration. All displayed prices are illustrative. Original images retain their provenance.",
+  "assets": [
+    {
+      "id": "hero",
+      "original": "/campaign/originals/hero.png",
+      "sizes": [
+        960,
+        1600
+      ]
+    },
+    {
+      "id": "detail",
+      "original": "/campaign/originals/detail.png",
+      "sizes": [
+        960,
+        1600
+      ]
+    },
+    {
+      "id": "perspective",
+      "original": "/campaign/originals/perspective.png",
+      "sizes": [
+        960,
+        1600
+      ]
+    },
+    {
+      "id": "portrait",
+      "original": "/campaign/originals/portrait.png",
+      "sizes": [
+        640,
+        960
+      ]
+    },
+    {
+      "id": "perspective-portrait",
+      "original": "/campaign/originals/perspective-portrait.png",
+      "sizes": [
+        640,
+        960
+      ]
+    }
+  ]
+}
