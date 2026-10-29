@@ -21,6 +21,7 @@ import {
 import { formatPrice } from "../../shared/demo";
 import { ComparisonDialog } from "../components/ComparisonDialog";
 import { useScanner } from "../scanner/useScanner";
+import { clips } from "../../../public/demo/manifest.json";
 export function Scanner() {
   const [mode, setMode] = useState<Mode>("buy"),
     [market, setMarket] = useState<Market>("US"),
@@ -31,17 +32,13 @@ export function Scanner() {
     <main className="live-scanner app-wrap">
       <div className="scanner-heading">
         <div>
-          <span className="eyebrow">YOUR CURIOSITY, IN FOCUS</span>
+          <span className="eyebrow">YOUR FIELD OF VIEW</span>
           <h1>
-            See what’s <em>here.</em>
+            Look closer<span className="accent">.</span>
           </h1>
-          <p>
-            Open your camera or choose a video. Start with a clear product
-            label.
-          </p>
         </div>
         <label className="market-select">
-          Shopping market
+          Market
           <select
             value={market}
             onChange={(e) => setMarket(e.target.value as Market)}
@@ -107,8 +104,7 @@ export function Scanner() {
               className="video-surface"
               style={{
                 aspectRatio: scan.aspect,
-                maxWidth: "100%",
-                maxHeight: "100%",
+                width: `min(100%, ${620 * scan.aspect}px, ${66 * scan.aspect}dvh)`,
               }}
             >
               <video
@@ -168,15 +164,21 @@ export function Scanner() {
                 <span className="empty-scan-icon">
                   <ScanLine size={36} />
                 </span>
-                <h2>A new way to look.</h2>
-                <p>
-                  Point at a product or bring a video.
-                  <br />
-                  We’ll look for the exact model and its price elsewhere.
-                </p>
-                <button className="text-link" onClick={scan.sample}>
-                  <Film size={17} />
-                  Try the generated store footage
+                <span className="viewfinder-corner top-left" />
+                <span className="viewfinder-corner top-right" />
+                <span className="viewfinder-corner bottom-left" />
+                <span className="viewfinder-corner bottom-right" />
+                <h2>Worth a closer look.</h2>
+                <p>Your camera. A video. A new find.</p>
+                <button
+                  className="button primary"
+                  onClick={() => void scan.camera()}
+                >
+                  <Camera size={18} /> Open camera
+                </button>
+                <button className="text-link" onClick={() => scan.sample()}>
+                  <Film size={16} /> Try a sample instead{" "}
+                  <ArrowUpRight size={15} />
                 </button>
               </div>
             )}
@@ -233,31 +235,34 @@ export function Scanner() {
           )}
           {scan.capabilities && !scan.capabilities.analysisAvailable && (
             <div className="availability-note">
-              <strong>Camera and video preview are ready.</strong>
+              <span className="status-dot" />
               <p>
-                {scan.capabilities.reason} No recognition or price searches will
-                run until analysis is connected.
+                Preview mode. Recognition and price search are not connected
+                yet.
               </p>
             </div>
           )}
-          <p className="media-privacy">
-            When you start scanning, selected frames are sent to Meta for
-            product analysis. The full video stays on your device. Ceval does
-            not save your frames. Videos: up to 150 MB and 10 minutes.
-          </p>
+          <details className="media-privacy">
+            <summary>Video & privacy</summary>
+            <p>
+              Up to 150 MB · 10 minutes. Your video stays on this device. When
+              scanning, selected frames go to Meta for analysis; Ceval does not
+              save them.
+            </p>
+          </details>
         </section>
         <aside className="scan-results">
           <div className="results-heading">
-            <span className="eyebrow">FOUND ALONG THE WAY</span>
+            <span className="eyebrow">YOUR FINDS</span>
             <span>{String(scan.found.length).padStart(2, "0")}</span>
           </div>
           {scan.found.length === 0 ? (
             <div className="results-empty">
               <Tag size={25} />
-              <h2>Every find starts with a look.</h2>
+              <h2>Nothing in view.</h2>
               <p>
-                Identified products and sourced comparisons will appear here.
-                Labels that can’t be read won’t get a guessed price.
+                Scan a clear model label. Your products and comparisons will
+                appear here.
               </p>
             </div>
           ) : (
@@ -318,6 +323,39 @@ export function Scanner() {
           </a>
         </aside>
       </div>
+      <details className="sample-library">
+        <summary>
+          <span>
+            <Film size={16} /> Sample library
+          </span>
+          <small>{clips.length} synthetic clips +</small>
+        </summary>
+        <p>
+          Generated scenes with pans and zooms. Prices on labels are fictional.
+        </p>
+        <div className="sample-grid">
+          {clips.map((clip) => (
+            <button
+              className="sample-card"
+              key={clip.id}
+              onClick={() => {
+                scan.sample(clip);
+                document
+                  .querySelector(".live-stage")
+                  ?.scrollIntoView({ block: "center", behavior: "smooth" });
+              }}
+            >
+              <img src={clip.poster} alt={clip.title} loading="lazy" />
+              <span>
+                <strong>{clip.title}</strong>
+                <small>
+                  {clip.description} · {clip.seconds}s
+                </small>
+              </span>
+            </button>
+          ))}
+        </div>
+      </details>
       {selected && (
         <ComparisonDialog
           key={selected.id}

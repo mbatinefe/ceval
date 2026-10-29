@@ -63,21 +63,21 @@ export function SignIn() {
       <header className="site-header wrap">
         <Brand />
         <a className="quiet-link" href="/">
-          <ArrowLeft size={16} /> Back to the idea
+          <ArrowLeft size={16} /> Back
         </a>
       </header>
       <main className="auth-layout wrap">
         <div className="auth-story">
-          <span className="eyebrow">FOLLOW YOUR CURIOSITY</span>
+          <span className="eyebrow">A BETTER LOOK</span>
           <h1>
-            Good finds
+            See more.
             <br />
-            start <em>here.</em>
+            Spend <em>smarter.</em>
           </h1>
-          <p>A place for the things that make you stop and look twice.</p>
+          <p>Your next good find starts here.</p>
           <div className="auth-image">
             <img
-              src="/demo/electronics-shelf.png"
+              src="/demo/electronics-wide-poster.jpg"
               alt="Products on the simulated Ceval shelf"
             />
             <span>YOUR NEXT GOOD FIND ↗</span>
@@ -89,11 +89,11 @@ export function SignIn() {
           </span>
           <span className="eyebrow">WELCOME TO CEVAL</span>
           <h2>
-            {step === "email" ? "Make yourself at home." : "Check your inbox."}
+            {step === "email" ? "Welcome to Ceval." : "Check your inbox."}
           </h2>
           <p>
             {step === "email" ? (
-              "Sign in or create an account with your email. No password to remember."
+              "Sign in with a code. No password needed."
             ) : (
               <>
                 We sent a six-digit code to <strong>{email.trim()}</strong>.
@@ -160,7 +160,7 @@ export function SignIn() {
                 </>
               ) : (
                 <>
-                  Let’s explore <ArrowRight size={18} />
+                  Open Ceval <ArrowRight size={18} />
                 </>
               )}
             </button>
@@ -184,11 +184,7 @@ export function SignIn() {
           ) : (
             <div className="auth-footnote">
               <ShieldCheck size={17} />
-              <span>
-                Your saved finds belong to your account.
-                <br />
-                This preview doesn’t access your camera.
-              </span>
+              <span>Your finds, saved to your account.</span>
             </div>
           )}
         </section>

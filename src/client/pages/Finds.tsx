@@ -55,11 +55,11 @@ export function Finds() {
     <main className="content-page app-wrap">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">WORTH A SECOND LOOK</span>
+          <span className="eyebrow">SAVED</span>
           <h1>
             Your finds<span className="accent">.</span>
           </h1>
-          <p>The things that caught your eye, all in one place.</p>
+          <p>Your comparisons, all in one place.</p>
         </div>
         <a className="button dark small" href="/app">
           Back to scanning <ArrowUpRight size={16} />
@@ -179,14 +179,14 @@ export function Finds() {
             <span className="empty-icon">
               <Bookmark size={32} />
             </span>
-            <h2>A good find deserves a place.</h2>
+            <h2>No saved finds yet.</h2>
             <p>
               Save a sourced comparison while scanning.
               <br />
               It’ll be waiting right here when you come back.
             </p>
             <a href="/app" className="button primary">
-              Find something interesting <ArrowUpRight size={18} />
+              Open scanner <ArrowUpRight size={18} />
             </a>
           </div>
         )
