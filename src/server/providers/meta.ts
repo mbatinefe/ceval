@@ -1,3 +1,4 @@
+import { metaKey } from "./config.ts";
 import type { Market, Product, Mode } from "../../shared/scan.ts";
 import { markets } from "../../shared/scan.ts";
 import { ScanError } from "../scan/errors.ts";
@@ -54,7 +55,7 @@ async function meta(
     const response = await fetch("https://api.meta.ai/v1/responses", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${env.META_API_KEY}`,
+        Authorization: `Bearer ${metaKey(env)}`,
         "Content-Type": "application/json",
       },
       signal: controller,

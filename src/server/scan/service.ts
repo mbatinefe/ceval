@@ -1,10 +1,11 @@
+import { metaKey } from "../providers/config.ts";
 import type { Comparison, Market, Mode, Product } from "../../shared/scan.ts";
 import { recognizeFrame, searchOffers } from "../providers/meta.ts";
 import { reserveScan } from "./budget.ts";
 import { ScanError } from "./errors.ts";
 import { MAX_FRAME_BYTES } from "./validation.ts";
 export function capabilities(env: Env) {
-  const hasKey = Boolean(env.META_API_KEY?.trim());
+  const hasKey = Boolean(metaKey(env));
   const enabled = String(env.SCAN_ENABLED) === "true";
   return {
     analysisAvailable: hasKey && enabled,
