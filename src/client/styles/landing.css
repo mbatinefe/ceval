@@ -1,8 +1,35 @@
+@font-face {
+  font-family: "Inter Variable";
+  src: url("/fonts/InterVariable.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
 .campaign {
   --campaign-gutter: clamp(25px, 6vw, 104px);
   --campaign-lime: #d2fa69;
+  --type-hero: clamp(3.25rem, 1.75rem + 5vw, 7rem);
+  --type-heading: clamp(2.25rem, 1.5rem + 3vw, 4.5rem);
+  --type-title: clamp(1.5rem, 1rem + 1.25vw, 2rem);
+  --type-body: 1.125rem;
+  --type-label: 0.875rem;
+  --type-small: 0.8125rem;
+  --text-primary: #f5f5f7;
+  --text-secondary: #e0e2e6;
+  --text-muted: #b8bdc5;
+  --text-ink: #1d1d1f;
+  --text-subtle: #61656b;
+  font-family:
+    "Inter Variable",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  font-optical-sizing: auto;
+  font-size: 1rem;
+  line-height: 1.5;
   background: #080909;
-  color: #f7f7f2;
+  color: var(--text-primary);
   overflow-x: clip;
 }
 .campaign-wrap {
@@ -19,19 +46,13 @@
   align-items: center;
   justify-content: space-between;
 }
-.campaign-header .brand {
-  font-size: 31px;
-}
 .campaign-header nav {
   display: flex;
   gap: 31px;
   align-items: center;
 }
-.campaign-header nav > a {
-  font-size: 12px;
-}
 .campaign-header .campaign-cta {
-  min-height: 41px;
+  min-height: 44px;
   padding: 0 18px;
   gap: 20px;
 }
@@ -57,8 +78,6 @@
   gap: 36px;
   color: #18220c;
   background: #d2fa69;
-  font-size: 13px;
-  font-weight: 550;
   transition:
     background 0.2s,
     transform 0.2s;
@@ -72,14 +91,8 @@
 }
 .campaign-kicker {
   display: block;
-  font:
-    9px ui-monospace,
-    SFMono-Regular,
-    Consolas,
-    monospace;
-  letter-spacing: 0.14em;
   margin-bottom: 24px;
-  color: #c1c7b9;
+  color: var(--text-secondary);
 }
 .campaign-photo {
   display: block;
@@ -111,7 +124,7 @@
 .campaign-hero {
   position: relative;
   height: 100svh;
-  min-height: 720px;
+  min-height: 780px;
   max-height: 1250px;
   background: #06090c;
 }
@@ -125,7 +138,7 @@
 }
 .hero-shade {
   background:
-    linear-gradient(90deg, #05080cb5, transparent 65%),
+    linear-gradient(90deg, #05080cdd, #05080c99 40%, transparent 75%),
     linear-gradient(
       0deg,
       #080909c9,
@@ -142,20 +155,14 @@
   max-width: 57%;
 }
 .hero-editorial h1 {
-  font-size: clamp(78px, 9.4vw, 154px);
-  line-height: 0.94;
-  letter-spacing: -0.075em;
-  font-weight: 500;
-  margin-bottom: 30px;
+  margin-bottom: 28px;
 }
 .hero-editorial h1 > span {
-  color: #cbd0c8;
+  color: inherit;
 }
 .hero-editorial > p {
-  font-size: 15px;
-  line-height: 1.7;
-  color: #c5cbc4;
-  margin-bottom: 30px;
+  color: var(--text-secondary);
+  margin-bottom: 28px;
 }
 .hero-bottom {
   position: absolute;
@@ -166,8 +173,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  color: #c3cbc0;
-  font-size: 10px;
+  color: var(--text-secondary);
 }
 .hero-bottom > a {
   display: flex;
@@ -177,9 +183,6 @@
 }
 .hero-bottom > a > svg {
   color: #d2fa69;
-}
-.hero-bottom > span {
-  font-size: 8px;
 }
 .lens-sequence {
   height: 260svh;
@@ -216,23 +219,17 @@
   opacity: var(--intro-opacity, 1);
 }
 .lens-heading h2 {
-  font-size: clamp(58px, 7vw, 108px);
-  line-height: 0.98;
-  font-weight: 450;
-  letter-spacing: -0.065em;
   margin: 0;
 }
 .lens-heading .campaign-kicker {
-  font-size: 8px;
-  color: #a6b19d;
+  color: var(--text-secondary);
   margin-bottom: 20px;
 }
 .lens-note {
   position: absolute;
   right: var(--campaign-gutter);
-  bottom: 43px;
-  font-size: 9px;
-  color: #aab4a0;
+  bottom: 70px;
+  color: var(--text-muted);
   opacity: var(--intro-opacity, 1);
 }
 .lens-world {
@@ -260,28 +257,22 @@
   transform: translateY(var(--result-y, 28px));
 }
 .fashion-copy h2 {
-  font-size: clamp(58px, 7.2vw, 112px);
-  line-height: 0.98;
-  letter-spacing: -0.065em;
-  font-weight: 450;
   margin-bottom: 28px;
 }
 .fashion-copy h2 > span {
-  color: #d2fa69;
+  color: inherit;
 }
 .fashion-copy > p {
-  font-size: 14px;
-  color: #e0e4d7;
-  line-height: 1.7;
+  color: var(--text-secondary);
 }
 .fashion-result {
   position: absolute;
   right: var(--campaign-gutter);
   bottom: 94px;
-  width: 345px;
+  width: 390px;
   padding: 22px;
-  background: #f7f6eff5;
-  color: #24291c;
+  background: #f8f8f5;
+  color: var(--text-ink);
   box-shadow: 0 12px 45px #0002;
   border-radius: 10px;
   opacity: var(--result-opacity, 0);
@@ -291,15 +282,10 @@
   display: flex;
   align-items: center;
   gap: 9px;
-  font-size: 12px;
 }
 .result-identifier small {
   margin-left: auto;
-  font:
-    7px ui-monospace,
-    monospace;
-  color: #69735f;
-  letter-spacing: 0.08em;
+  color: var(--text-subtle);
 }
 .fashion-prices {
   display: flex;
@@ -317,14 +303,7 @@
   text-align: right;
 }
 .fashion-prices span {
-  color: #637055;
-  font-size: 10px;
-}
-.fashion-prices strong {
-  font-size: 38px;
-  line-height: 1;
-  font-weight: 500;
-  letter-spacing: -0.06em;
+  color: var(--text-subtle);
 }
 .fashion-prices > div:last-child strong {
   color: #3f6123;
@@ -338,8 +317,7 @@
   gap: 12px;
   border-top: 1px solid #27391b26;
   padding-top: 13px;
-  font-size: 9px;
-  color: #526443;
+  color: var(--text-subtle);
 }
 .lens-progress {
   position: absolute;
@@ -350,11 +328,7 @@
   display: flex;
   gap: 16px;
   align-items: center;
-  color: #d0d9c3;
-  font:
-    8px ui-monospace,
-    monospace;
-  letter-spacing: 0.13em;
+  color: var(--text-muted);
 }
 .lens-progress i {
   flex: 1;
@@ -362,8 +336,8 @@
   background: #cbd8bc45;
 }
 .electronics-section {
-  background: #f1f1e9;
-  color: #20251c;
+  background: #f5f5f2;
+  color: var(--text-ink);
   padding-top: 115px;
   padding-bottom: 120px;
 }
@@ -375,21 +349,16 @@
   margin-bottom: 55px;
 }
 .section-intro .campaign-kicker {
-  color: #6d7962;
+  color: var(--text-subtle);
   max-width: 180px;
-  line-height: 1.8;
   margin-top: 9px;
 }
 .section-intro h2 {
   width: 66%;
-  font-size: clamp(44px, 5.2vw, 80px);
-  line-height: 1.05;
-  font-weight: 450;
-  letter-spacing: -0.055em;
   margin: 0;
 }
 .section-intro h2 > span {
-  color: #748069;
+  color: inherit;
 }
 .electronics-layout {
   display: grid;
@@ -410,7 +379,7 @@
   content: "";
   position: absolute;
   inset: 70% 0 0;
-  background: linear-gradient(transparent, #10140ea3);
+  background: linear-gradient(transparent, #080909e6);
 }
 .photo-caption {
   position: absolute;
@@ -418,7 +387,6 @@
   bottom: 24px;
   left: 25px;
   right: 25px;
-  font-size: 10px;
   color: #fff;
 }
 .electronics-info {
@@ -429,18 +397,12 @@
   margin-bottom: 32px;
 }
 .electronics-info h3 {
-  font-size: clamp(26px, 2.5vw, 38px);
-  line-height: 1.15;
-  font-weight: 450;
-  letter-spacing: -0.04em;
   margin-bottom: 20px;
 }
 .electronics-info > p {
-  font-size: 13px;
-  color: #5f6c52;
-  line-height: 1.7;
-  max-width: 270px;
-  margin-bottom: 30px;
+  color: var(--text-subtle);
+  max-width: 32ch;
+  margin-bottom: 28px;
 }
 .offer-row {
   display: flex;
@@ -449,14 +411,10 @@
   gap: 20px;
   border-top: 1px solid #b4beaa;
   padding: 20px 0;
-  font-size: 12px;
-  color: #637058;
+  color: var(--text-subtle);
 }
 .offer-row strong {
-  font-size: 27px;
-  letter-spacing: -0.04em;
-  font-weight: 450;
-  color: #505c45;
+  color: var(--text-ink);
   display: flex;
   align-items: center;
   gap: 12px;
@@ -469,18 +427,16 @@
 }
 .electronics-info > small {
   display: block;
-  color: #5f6c52;
-  font-size: 9px;
+  color: var(--text-subtle);
   margin-top: 14px;
 }
 .campaign-text-link {
   display: inline-flex;
   align-items: center;
   gap: 24px;
-  font-size: 11px;
   margin-top: 31px;
   padding: 8px 0;
-  color: #273d18;
+  color: var(--text-ink);
 }
 .resale-section {
   position: relative;
@@ -507,19 +463,13 @@
   left: var(--campaign-gutter);
 }
 .resale-editorial h2 {
-  font-size: clamp(66px, 8.1vw, 126px);
-  line-height: 0.98;
-  letter-spacing: -0.065em;
-  font-weight: 450;
   margin-bottom: 28px;
 }
 .resale-editorial h2 > span {
-  color: #d0d4c3;
+  color: inherit;
 }
 .resale-editorial > p {
-  font-size: 14px;
-  color: #d6dccd;
-  line-height: 1.75;
+  color: var(--text-secondary);
 }
 .resale-value {
   position: absolute;
@@ -528,7 +478,7 @@
   bottom: 47px;
   display: flex;
   align-items: center;
-  gap: 45px;
+  gap: 32px;
   border-top: 1px solid #dbe3cb36;
   padding-top: 30px;
 }
@@ -538,14 +488,7 @@
   gap: 12px;
 }
 .resale-value > div > span {
-  color: #c8d0bd;
-  font-size: 11px;
-}
-.resale-value strong {
-  font-size: 48px;
-  font-weight: 400;
-  letter-spacing: -0.055em;
-  line-height: 1;
+  color: var(--text-secondary);
 }
 .resale-value > div:nth-of-type(2) > strong {
   color: #d2fa69;
@@ -556,14 +499,12 @@
 }
 .resale-value > p {
   margin: 15px 0 0 auto;
-  color: #b9c1af;
-  font-size: 9px;
-  line-height: 1.8;
+  color: var(--text-muted);
 }
 .discoveries-section {
   padding: 110px 0 120px;
-  background: #f1f1e9;
-  color: #20251c;
+  background: #f5f5f2;
+  color: var(--text-ink);
 }
 .discoveries-heading {
   display: flex;
@@ -573,14 +514,10 @@
   margin-bottom: 48px;
 }
 .discoveries-heading h2 {
-  font-size: clamp(46px, 5.2vw, 80px);
-  font-weight: 450;
-  letter-spacing: -0.06em;
   margin: 0;
 }
 .discoveries-heading > p {
-  color: #5f6c52;
-  font-size: 12px;
+  color: var(--text-subtle);
   margin: 0;
 }
 .discoveries-grid {
@@ -613,16 +550,9 @@
   padding-top: 24px;
 }
 .discovery figcaption > span {
-  font:
-    7px ui-monospace,
-    monospace;
-  letter-spacing: 0.11em;
-  color: #5f6c52;
+  color: var(--text-subtle);
 }
 .discovery h3 {
-  font-size: clamp(18px, 1.6vw, 25px);
-  font-weight: 450;
-  letter-spacing: -0.04em;
   margin: 11px 0 0;
 }
 .phone-section {
@@ -658,27 +588,20 @@
   transform: translateY(-50%);
 }
 .phone-editorial h2 {
-  font-size: clamp(56px, 6.7vw, 105px);
-  font-weight: 450;
-  line-height: 0.99;
-  letter-spacing: -0.065em;
   margin-bottom: 29px;
 }
 .phone-editorial h2 > span {
-  color: #d0d5c8;
+  color: inherit;
 }
 .phone-editorial > p {
-  font-size: 14px;
-  color: #d0d8c7;
-  line-height: 1.75;
-  margin-bottom: 30px;
+  color: var(--text-secondary);
+  margin-bottom: 28px;
 }
 .phone-inputs {
   display: flex;
   gap: 23px;
   margin-top: 26px;
-  color: #c3cfb6;
-  font-size: 10px;
+  color: var(--text-secondary);
 }
 .phone-inputs > span {
   display: flex;
@@ -688,8 +611,7 @@
 .phone-editorial > small {
   display: block;
   margin-top: 28px;
-  color: #b8c1ad;
-  font-size: 9px;
+  color: var(--text-muted);
 }
 .campaign-footer {
   padding: 55px var(--campaign-gutter) 35px;
@@ -702,53 +624,145 @@
   gap: 25px;
   align-items: center;
 }
-.footer-top .brand {
-  font-size: 38px;
-}
 .footer-top > a:last-child {
   display: flex;
   gap: 20px;
   align-items: center;
   color: #d2fa69;
-  font-size: 12px;
 }
 .footer-bottom {
   border-top: 1px solid #252a22;
   margin-top: 44px;
   padding-top: 25px;
-  color: #8e9885;
-  font-size: 10px;
+  color: var(--text-muted);
 }
 .footer-bottom > p {
-  font-size: 8px;
-  line-height: 1.8;
   margin: 0;
   text-align: center;
 }
 .footer-bottom > a {
-  color: #c0cbb3;
+  color: var(--text-secondary);
 }
+
+.campaign h1,
+.campaign h2,
+.campaign h3 {
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+.hero-editorial h1 {
+  font-size: var(--type-hero);
+  line-height: 1.04;
+}
+.lens-heading h2,
+.fashion-copy h2,
+.section-intro h2,
+.resale-editorial h2,
+.discoveries-heading h2,
+.phone-editorial h2 {
+  font-size: var(--type-heading);
+  line-height: 1.08;
+}
+.electronics-info h3,
+.discovery h3 {
+  font-size: var(--type-title);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+.hero-editorial > p,
+.fashion-copy > p,
+.electronics-info > p,
+.resale-editorial > p,
+.discoveries-heading > p,
+.phone-editorial > p {
+  font-size: var(--type-body);
+  line-height: 1.55;
+  letter-spacing: 0;
+  text-wrap: pretty;
+}
+.hero-editorial > p,
+.fashion-copy > p,
+.resale-editorial > p,
+.phone-editorial > p {
+  max-width: 36ch;
+}
+.campaign-kicker,
+.result-identifier,
+.fashion-prices span,
+.offer-row,
+.resale-value > div > span,
+.phone-inputs,
+.discovery figcaption > span {
+  font-size: var(--type-label);
+  line-height: 1.5;
+  letter-spacing: 0;
+}
+.campaign-kicker,
+.result-identifier,
+.discovery figcaption > span {
+  font-weight: 500;
+}
+.hero-bottom,
+.lens-note,
+.lens-progress,
+.result-identifier small,
+.result-foot,
+.photo-caption,
+.electronics-info > small,
+.resale-value > p,
+.phone-editorial > small,
+.footer-bottom,
+.footer-bottom > p {
+  font-size: var(--type-small);
+  line-height: 1.5;
+  letter-spacing: 0;
+}
+.campaign-cta,
+.campaign-header nav > a,
+.campaign-text-link,
+.footer-top > a:last-child {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: 0;
+}
+.campaign-header .brand {
+  font-size: 1.875rem;
+}
+.footer-top .brand {
+  font-size: 2rem;
+}
+.fashion-prices strong,
+.offer-row strong,
+.resale-value strong {
+  font-variant-numeric: lining-nums tabular-nums;
+  font-weight: 500;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+}
+.fashion-prices strong {
+  font-size: 2.25rem;
+}
+.offer-row strong {
+  font-size: 2rem;
+}
+.resale-value strong {
+  font-size: clamp(2.25rem, 1.5rem + 1.5vw, 3rem);
+}
+
 @media (max-width: 1050px) and (min-width: 701px) {
-  .hero-editorial h1 {
-    font-size: 90px;
-  }
   .hero-image img {
     object-position: 68% center;
   }
   .lens-heading {
     top: 12%;
   }
-  .lens-heading h2 {
-    font-size: 68px;
-  }
   .fashion-copy {
     top: 21%;
   }
-  .fashion-copy h2 {
-    font-size: 65px;
-  }
   .fashion-result {
-    width: 310px;
+    width: 360px;
   }
   .electronics-layout {
     grid-template-columns: 1.3fr 1fr;
@@ -756,12 +770,6 @@
   }
   .electronics-image {
     aspect-ratio: 0.8;
-  }
-  .electronics-info h3 {
-    font-size: 28px;
-  }
-  .resale-editorial h2 {
-    font-size: 82px;
   }
   .resale-value {
     gap: 25px;
@@ -778,10 +786,7 @@
     align-items: flex-start;
   }
   .discoveries-heading > p {
-    max-width: 170px;
-  }
-  .phone-editorial h2 {
-    font-size: 65px;
+    max-width: 240px;
   }
   .phone-image img {
     object-position: 67% center;
@@ -790,33 +795,35 @@
 @media (max-width: 700px) {
   .campaign {
     --campaign-gutter: 24px;
+    --type-hero: clamp(3.25rem, 1.5rem + 8vw, 5rem);
+    --type-heading: clamp(2.25rem, 1rem + 6vw, 3.25rem);
+    --type-body: 1rem;
+  }
+  .campaign-header .brand {
+    font-size: 1.625rem;
+  }
+  .campaign-header nav > a {
+    font-size: 0.875rem;
   }
   .campaign-header {
     height: 80px;
   }
-  .campaign-header .brand {
-    font-size: 27px;
-  }
   .campaign-header nav {
     gap: 19px;
-  }
-  .campaign-header nav > a {
-    font-size: 11px;
   }
   .campaign-nav-explore {
     display: none;
   }
   .campaign-header .campaign-cta {
     gap: 12px;
-    min-height: 38px;
+    min-height: 44px;
     padding: 0 15px;
-    font-size: 10px;
   }
   .campaign-header .campaign-cta > svg {
     width: 15px;
   }
   .campaign-hero {
-    min-height: 720px;
+    min-height: 780px;
     max-height: 1100px;
   }
   .hero-image img {
@@ -827,7 +834,7 @@
       0deg,
       #080b0f 1%,
       #080b0fd9 28%,
-      #080b0f44 55%,
+      #080b0f99 48%,
       transparent 72%,
       #080b0f33
     );
@@ -841,33 +848,25 @@
     max-width: none;
   }
   .campaign-kicker {
-    font-size: 8px;
     margin-bottom: 19px;
-    letter-spacing: 0.11em;
   }
   .hero-editorial h1 {
-    font-size: clamp(65px, 17.7vw, 112px);
     margin-bottom: 23px;
   }
   .hero-editorial > p {
-    font-size: 12px;
     margin-bottom: 25px;
   }
   .campaign-cta {
-    font-size: 12px;
     min-height: 47px;
     padding: 0 21px;
     gap: 28px;
   }
   .hero-bottom {
     bottom: 29px;
-    font-size: 9px;
   }
   .hero-bottom > span {
-    font-size: 7px;
-    max-width: 130px;
+    max-width: 180px;
     text-align: right;
-    line-height: 1.7;
   }
   .lens-sequence {
     height: 240svh;
@@ -875,13 +874,8 @@
   .lens-heading {
     top: 11%;
   }
-  .lens-heading h2 {
-    font-size: clamp(54px, 14vw, 84px);
-  }
   .lens-heading .campaign-kicker {
     max-width: 200px;
-    line-height: 1.8;
-    font-size: 7px;
   }
   .lens-opening > .campaign-photo {
     width: 140%;
@@ -892,7 +886,6 @@
     bottom: 81px;
     left: var(--campaign-gutter);
     right: auto;
-    font-size: 8px;
   }
   .lens-world img {
     object-position: 67% center;
@@ -901,8 +894,9 @@
     background: linear-gradient(
       0deg,
       #0c1208f2 4%,
-      #0c1208c2 25%,
-      #0c120824 70%
+      #080b0fd9 35%,
+      #080b0f80 60%,
+      transparent 85%
     );
   }
   .fashion-copy {
@@ -911,17 +905,16 @@
     right: var(--campaign-gutter);
   }
   .fashion-copy h2 {
-    font-size: clamp(47px, 12.6vw, 78px);
     margin-bottom: 16px;
   }
   .fashion-copy > p {
-    font-size: 11px;
-    line-height: 1.6;
     margin: 0;
   }
   .fashion-copy .campaign-kicker {
-    font-size: 7px;
     margin-bottom: 15px;
+  }
+  .fashion-prices strong {
+    font-size: clamp(1.75rem, 7.7vw, 2rem);
   }
   .fashion-result {
     right: var(--campaign-gutter);
@@ -930,11 +923,7 @@
     width: auto;
     padding: 20px;
   }
-  .fashion-prices strong {
-    font-size: 37px;
-  }
   .lens-progress {
-    font-size: 7px;
     bottom: 30px;
   }
   .electronics-section {
@@ -947,13 +936,10 @@
   }
   .section-intro .campaign-kicker {
     max-width: none;
-    font-size: 7px;
     margin-bottom: 19px;
   }
   .section-intro h2 {
     width: 100%;
-    font-size: clamp(38px, 10.1vw, 65px);
-    line-height: 1.1;
   }
   .electronics-layout {
     display: flex;
@@ -971,7 +957,6 @@
     left: 18px;
     right: 18px;
     bottom: 18px;
-    font-size: 8px;
   }
   .electronics-info {
     max-width: none;
@@ -981,19 +966,14 @@
     width: 20px;
   }
   .electronics-info h3 {
-    font-size: 30px;
     margin-bottom: 16px;
   }
   .electronics-info > p {
-    font-size: 12px;
-    max-width: 250px;
+    max-width: 32ch;
     margin-bottom: 25px;
   }
   .offer-row {
     padding: 17px 0;
-  }
-  .offer-row strong {
-    font-size: 28px;
   }
   .resale-section {
     height: 100svh;
@@ -1006,8 +986,8 @@
     background: linear-gradient(
       0deg,
       #0b0f08 4%,
-      #0b0f08e0 28%,
-      #0b0f0822 70%,
+      #0b0f08e6 35%,
+      #0b0f0877 65%,
       #0b0f0866
     );
   }
@@ -1017,16 +997,10 @@
     right: var(--campaign-gutter);
   }
   .resale-editorial h2 {
-    font-size: clamp(56px, 14.7vw, 88px);
     margin-bottom: 21px;
   }
   .resale-editorial .campaign-kicker {
-    font-size: 7px;
     margin-bottom: 15px;
-  }
-  .resale-editorial > p {
-    font-size: 11px;
-    line-height: 1.75;
   }
   .resale-value {
     bottom: 37px;
@@ -1037,19 +1011,12 @@
   .resale-value > div {
     gap: 10px;
   }
-  .resale-value > div > span {
-    font-size: 9px;
-  }
-  .resale-value strong {
-    font-size: clamp(36px, 10.6vw, 58px);
-  }
   .resale-value > svg {
     width: 18px;
     margin-top: 23px;
   }
   .resale-value > p {
     flex-basis: 100%;
-    font-size: 8px;
     margin: 0;
   }
   .discoveries-section {
@@ -1060,11 +1027,7 @@
     margin-bottom: 32px;
   }
   .discoveries-heading h2 {
-    font-size: clamp(42px, 11.5vw, 65px);
     margin-bottom: 16px;
-  }
-  .discoveries-heading > p {
-    font-size: 11px;
   }
   .discoveries-grid {
     display: flex;
@@ -1090,16 +1053,12 @@
   .discovery figcaption {
     padding-top: 19px;
   }
-  .discovery figcaption > span {
-    font-size: 7px;
-  }
   .discovery h3 {
-    font-size: 24px;
     margin-top: 9px;
   }
   .phone-section {
     height: 100svh;
-    min-height: 860px;
+    min-height: 940px;
     max-height: 1200px;
   }
   .phone-image {
@@ -1112,8 +1071,8 @@
     background: linear-gradient(
       0deg,
       #0d130a 10%,
-      #0d130aeb 29%,
-      #0d130a60 52%,
+      #0d130af2 29%,
+      #0d130a99 52%,
       transparent 73%
     );
   }
@@ -1130,43 +1089,33 @@
     transform: none;
   }
   .phone-editorial h2 {
-    font-size: clamp(46px, 12.6vw, 78px);
     margin-bottom: 21px;
   }
   .phone-editorial > p {
-    font-size: 12px;
     margin-bottom: 24px;
   }
   .phone-inputs {
-    font-size: 9px;
     gap: 24px;
     margin-top: 23px;
   }
   .phone-editorial > small {
-    font-size: 8px;
     margin-top: 24px;
   }
   .campaign-footer {
     padding-top: 40px;
   }
-  .footer-top .brand {
-    font-size: 30px;
-  }
   .footer-top > a:last-child {
-    font-size: 10px;
     gap: 10px;
   }
   .footer-bottom {
     flex-wrap: wrap;
     margin-top: 30px;
     gap: 24px;
-    font-size: 9px;
   }
   .footer-bottom > p {
     order: 3;
     flex-basis: 100%;
     text-align: left;
-    font-size: 8px;
   }
 }
 @media (max-width: 360px) {
@@ -1177,14 +1126,7 @@
     gap: 13px;
   }
   .campaign-header .brand {
-    font-size: 24px;
     gap: 7px;
-  }
-  .hero-editorial h1 {
-    font-size: 58px;
-  }
-  .fashion-prices strong {
-    font-size: 33px;
   }
   .fashion-result {
     padding: 18px;
@@ -1192,53 +1134,161 @@
   .resale-value {
     gap: 16px;
   }
-  .resale-value strong {
-    font-size: 35px;
-  }
 }
-@media (prefers-reduced-motion: reduce), (max-height: 649px) {
-  .campaign .lens-sequence {
-    height: auto;
-  }
-  .campaign .lens-stage {
-    position: relative;
-    height: auto;
-    overflow: visible;
-  }
-  .campaign .lens-opening,
-  .campaign .lens-world {
-    position: relative;
-    height: 100svh;
-    min-height: 720px;
-    clip-path: none;
-  }
-  .campaign .lens-opening > .campaign-photo {
-    transform: none;
-  }
-  .campaign .lens-heading,
-  .campaign .lens-note,
-  .campaign .fashion-copy,
-  .campaign .fashion-result {
-    opacity: 1;
-  }
-  .campaign .fashion-copy,
-  .campaign .fashion-result {
-    transform: none;
-  }
-  .campaign .lens-progress {
-    display: none;
-  }
-  .campaign [data-drift] > .campaign-photo {
-    transform: none;
-  }
-  .campaign .campaign-cta,
-  .campaign .discovery img {
-    transition: none;
-  }
-  .campaign .campaign-cta:hover,
-  .campaign .discovery:hover img {
-    transform: none;
-  }
+.campaign[data-motion="false"] .lens-sequence {
+  height: auto;
+}
+.campaign[data-motion="false"] .lens-stage {
+  position: relative;
+  height: auto;
+  overflow: visible;
+}
+.campaign[data-motion="false"] .lens-opening,
+.campaign[data-motion="false"] .lens-world {
+  position: relative;
+  height: 100svh;
+  min-height: 780px;
+  clip-path: none;
+}
+.campaign[data-motion="false"] .lens-opening > .campaign-photo {
+  transform: none;
+}
+.campaign[data-motion="false"] .lens-heading,
+.campaign[data-motion="false"] .lens-note,
+.campaign[data-motion="false"] .fashion-copy,
+.campaign[data-motion="false"] .fashion-result {
+  opacity: 1;
+}
+.campaign[data-motion="false"] .fashion-copy,
+.campaign[data-motion="false"] .fashion-result {
+  transform: none;
+}
+.campaign[data-motion="false"] .lens-progress {
+  display: none;
+}
+.campaign[data-motion="false"] [data-drift] > .campaign-photo {
+  transform: none;
+}
+.campaign[data-motion="false"] .campaign-cta,
+.campaign[data-motion="false"] .discovery img {
+  transition: none;
+}
+.campaign[data-motion="false"] .campaign-cta:hover,
+.campaign[data-motion="false"] .discovery:hover img {
+  transform: none;
+}
+
+.campaign[data-expanded-type="true"] :is(h1, h2, h3) {
+  overflow-wrap: anywhere;
+}
+.campaign[data-expanded-type="true"]
+  :is(.hero-shade, .lens-world-shade, .resale-shade, .phone-shade) {
+  background: #080909cc;
+}
+.campaign[data-expanded-type="true"] .campaign-header {
+  position: relative;
+  height: auto;
+  min-height: 100px;
+  padding: 24px var(--campaign-gutter);
+  flex-wrap: wrap;
+  gap: 24px;
+}
+.campaign[data-expanded-type="true"]
+  :is(.campaign-header nav, .phone-inputs, .footer-top, .footer-bottom) {
+  flex-wrap: wrap;
+}
+.campaign[data-expanded-type="true"]
+  :is(.campaign-hero, .resale-section, .phone-section) {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 2rem;
+  height: auto;
+  min-height: 100svh;
+  max-height: none;
+  padding: 16rem var(--campaign-gutter) 3rem;
+}
+.campaign[data-expanded-type="true"]
+  :is(
+    .hero-editorial,
+    .hero-bottom,
+    .lens-heading,
+    .lens-note,
+    .fashion-copy,
+    .fashion-result,
+    .resale-editorial,
+    .resale-value,
+    .phone-editorial
+  ) {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  max-width: none;
+  transform: none;
+}
+.campaign[data-expanded-type="true"] .hero-bottom {
+  flex-wrap: wrap;
+}
+.campaign[data-expanded-type="true"] .hero-bottom > span {
+  max-width: none;
+  text-align: left;
+}
+.campaign[data-expanded-type="true"] :is(.lens-opening, .lens-world) {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 2rem;
+  height: auto;
+  min-height: 100svh;
+  padding: 6rem var(--campaign-gutter) 3rem;
+}
+.campaign[data-expanded-type="true"] .lens-opening > .campaign-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  margin: 0;
+}
+.campaign[data-expanded-type="true"] .lens-note {
+  margin-top: 8rem;
+}
+.campaign[data-expanded-type="true"] .fashion-result {
+  padding: 1rem;
+}
+.campaign[data-expanded-type="true"] :is(.fashion-prices, .resale-value) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+}
+.campaign[data-expanded-type="true"] :is(.fashion-prices, .resale-value) > svg {
+  transform: rotate(90deg);
+  margin: 0;
+}
+.campaign[data-expanded-type="true"] .fashion-prices > div:last-child {
+  text-align: left;
+}
+.campaign[data-expanded-type="true"] .resale-value > p {
+  margin: 0;
+}
+.campaign[data-expanded-type="true"]
+  :is(.result-identifier, .result-foot, .offer-row) {
+  flex-wrap: wrap;
+}
+.campaign[data-expanded-type="true"] .electronics-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+.campaign[data-expanded-type="true"] :is(.section-intro, .discoveries-heading) {
+  display: block;
+}
+.campaign[data-expanded-type="true"] .section-intro h2 {
+  width: 100%;
+}
+.campaign[data-expanded-type="true"]
+  :is(.electronics-info, .discoveries-heading > p) {
+  max-width: none;
+}
+.campaign[data-expanded-type="true"] .discoveries-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .electronics-section :focus-visible,

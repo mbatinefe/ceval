@@ -30,7 +30,7 @@ function useCampaignMotion(root: RefObject<HTMLDivElement | null>) {
     let frame = 0;
     const paint = () => {
       frame = 0;
-      if (preference.matches) return;
+      if (page.dataset.motion === "false") return;
       const rect = sequence.getBoundingClientRect();
       const progress = clamp(
         -rect.top / Math.max(1, sequence.offsetHeight - stage.offsetHeight),
@@ -69,8 +69,11 @@ function useCampaignMotion(root: RefObject<HTMLDivElement | null>) {
       if (!frame) frame = requestAnimationFrame(paint);
     };
     const changePreference = () => {
-      page.dataset.motion = String(!preference.matches);
-      if (preference.matches) {
+      const expandedType = parseFloat(getComputedStyle(page).fontSize) > 20;
+      const staticLayout = preference.matches || expandedType;
+      page.dataset.expandedType = String(expandedType);
+      page.dataset.motion = String(!staticLayout);
+      if (staticLayout) {
         for (const element of entering) element.dataset.entered = "true";
         sequence.dataset.revealed = "true";
       } else schedule();
@@ -86,9 +89,10 @@ function useCampaignMotion(root: RefObject<HTMLDivElement | null>) {
       { threshold: 0.12 },
     );
     entering.forEach((element) => observer.observe(element));
-    const resize = new ResizeObserver(schedule);
+    const resize = new ResizeObserver(changePreference);
     resize.observe(sequence);
     resize.observe(stage);
+    resize.observe(page.querySelector<HTMLElement>(".hero-editorial")!);
     preference.addEventListener("change", changePreference);
     window.addEventListener("scroll", schedule, { passive: true });
     window.addEventListener("resize", schedule);
@@ -102,6 +106,7 @@ function useCampaignMotion(root: RefObject<HTMLDivElement | null>) {
       window.removeEventListener("scroll", schedule);
       window.removeEventListener("resize", schedule);
       delete page.dataset.motion;
+      delete page.dataset.expandedType;
     };
   }, [root]);
 }
@@ -166,25 +171,25 @@ const discoveries = [
   {
     image: "jacket-detail",
     title: "A new favorite.",
-    category: "FASHION",
+    category: "Fashion",
     alt: "An olive wool jacket photographed on a warm ivory studio background.",
   },
   {
     image: "record-store",
     title: "An old obsession.",
-    category: "COLLECTIBLES",
+    category: "Collectibles",
     alt: "Hands discovering a vintage record in a sunlit record store.",
   },
   {
     image: "sneaker-detail",
     title: "The perfect pair.",
-    category: "EVERYDAY FINDS",
+    category: "Everyday finds",
     alt: "An off-white and forest-green suede sneaker in a studio.",
   },
   {
     image: "ceramic-detail",
     title: "Something unexpected.",
-    category: "HOME & DESIGN",
+    category: "Home & design",
     alt: "A sculptural cream stoneware vase with a sunlit shadow.",
   },
 ];
@@ -219,15 +224,16 @@ export function Landing() {
           </div>
           <div className="hero-shade" />
           <div className="hero-editorial">
-            <span className="campaign-kicker">A NEW PERSPECTIVE</span>
+            <span className="campaign-kicker">A new perspective</span>
             <h1 id="landing-title">
               See more.
               <br />
               <span>Spend less.</span>
             </h1>
             <p>
-              Online prices. Resale potential.
-              <br />A little more insight, wherever you look.
+              Compare online prices.
+              <br />
+              Discover resale potential.
             </p>
             <AppLink />
           </div>
@@ -253,9 +259,7 @@ export function Landing() {
                 alt="Black camera glasses in a studio, with a boutique reflected in their lenses. Product concept."
               />
               <div className="lens-heading">
-                <span className="campaign-kicker">
-                  A GLIMPSE OF WHAT’S NEXT
-                </span>
+                <span className="campaign-kicker">Glasses concept</span>
                 <h2>
                   Look a little
                   <br />
@@ -272,7 +276,7 @@ export function Landing() {
               />
               <div className="lens-world-shade" />
               <div className="fashion-copy">
-                <span className="campaign-kicker">01 / BUY BETTER</span>
+                <span className="campaign-kicker">Compare prices</span>
                 <h2>
                   Good taste.
                   <br />
@@ -288,7 +292,7 @@ export function Landing() {
                 <div className="result-identifier">
                   <ScanLine size={16} />
                   <span>Wool jacket</span>
-                  <small>EXAMPLE</small>
+                  <small>Example</small>
                 </div>
                 <div className="fashion-prices">
                   <div>
@@ -308,9 +312,9 @@ export function Landing() {
               </div>
             </div>
             <div className="lens-progress" aria-hidden="true">
-              <span>LOOK</span>
+              <span>Look</span>
               <i />
-              <span>DISCOVER</span>
+              <span>Discover</span>
             </div>
           </div>
         </section>
@@ -321,9 +325,7 @@ export function Landing() {
           aria-labelledby="electronics-title"
         >
           <div className="section-intro" data-enter>
-            <span className="campaign-kicker">
-              A LITTLE CONTEXT GOES A LONG WAY
-            </span>
+            <span className="campaign-kicker">Compare offers</span>
             <h2 id="electronics-title">
               Your next upgrade.
               <br />
@@ -381,7 +383,7 @@ export function Landing() {
           </div>
           <div className="resale-shade" />
           <div className="resale-editorial" data-enter>
-            <span className="campaign-kicker">02 / EXPLORE RESALE</span>
+            <span className="campaign-kicker">Explore resale</span>
             <h2 id="resale-title">
               An eye for
               <br />
@@ -460,7 +462,7 @@ export function Landing() {
           </div>
           <div className="phone-shade" />
           <div className="phone-editorial" data-enter>
-            <span className="campaign-kicker">03 / START RIGHT HERE</span>
+            <span className="campaign-kicker">On your phone</span>
             <h2 id="phone-title">
               A new outlook.
               <br />
