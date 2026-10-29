@@ -21,8 +21,23 @@
       "workers_dev": true,
       "preview_urls": false,
       "assets": {
-        "directory": "./public",
-        "not_found_handling": "none"
+        "directory": "./dist/client",
+        "binding": "ASSETS",
+        "not_found_handling": "none",
+        "run_worker_first": [
+          "/",
+          "/signin",
+          "/app",
+          "/app/*",
+          "/api/*"
+        ]
+      },
+      "secrets": {
+        "required": [
+          "BETTER_AUTH_SECRET",
+          "RESEND_API_KEY",
+          "AUTH_EMAIL_FROM"
+        ]
       },
       "vars": {
         "APP_ENVIRONMENT": "staging",

@@ -7,6 +7,7 @@
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
     "types": []
   },
   "include": ["src/server/**/*.ts", ".wrangler/worker-configuration.d.ts"]
