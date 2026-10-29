@@ -1,0 +1,39 @@
+# Hidden local files are private unless explicitly allowed below.
+.*
+!/.gitignore
+!/.github/
+!/.editorconfig
+!/.env.example
+!/.dev.vars.example
+!.gitkeep
+
+# Keep all Markdown local during development. Allowlist release docs explicitly later.
+*.[mM][dD]
+*.markdown
+
+# Private planning and operating notes.
+IDEAS.md
+AGENTS.md
+docs/private/
+
+# Dependencies, generated output, and local evidence.
+node_modules/
+dist/
+coverage/
+test-results/
+playwright-report/
+recordings/
+captures/
+artifacts/
+logs/
+tmp/
+scratch/
+*.log
+
+# Credentials and local databases.
+*.pem
+*.key
+*.p12
+*.pfx
+*.sqlite*
+*.db*

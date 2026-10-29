@@ -1,0 +1,7 @@
+# Local server configuration. Copy to .dev.vars and supply your own credentials.
+# Deployed credentials belong in Cloudflare Worker secrets.
+META_API_KEY=
+CLERK_SECRET_KEY=
+
+# Optional, only if the structured shopping provider is enabled.
+SERPAPI_API_KEY=
