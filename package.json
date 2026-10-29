@@ -19,7 +19,9 @@
     "deploy:staging": "npm run build && wrangler deploy --env staging",
     "test": "node --experimental-strip-types --test tests/integration/*.test.ts",
     "build": "vite build",
-    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"tests/**/*.ts\" \"*.json\" \"*.jsonc\" \"*.ts\" index.html"
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"tests/**/*.ts\" \"*.json\" \"*.jsonc\" \"*.ts\" index.html",
+    "deploy:production": "npm run build && wrangler deploy --env production",
+    "check:production": "npm run build && wrangler deploy --env production --dry-run"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",

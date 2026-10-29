@@ -38,10 +38,10 @@ export function Landing() {
               to turn what you see into prices you can compare.
             </p>
             <a className="button primary" href="/app">
-              Explore the demo <ArrowUpRight size={20} />
+              Open Ceval <ArrowUpRight size={20} />
             </a>
             <div className="hero-note">
-              <span className="tiny-dot" /> Early preview · No camera needed
+              <span className="tiny-dot" /> Camera or video · Early access
             </div>
             <div className="hero-proof">
               <span>

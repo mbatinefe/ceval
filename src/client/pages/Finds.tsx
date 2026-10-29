@@ -2,8 +2,13 @@ import { useEffect, useState } from "react";
 import { ArrowUpRight, Bookmark, Trash2, LoaderCircle } from "lucide-react";
 import { formatPrice, type SavedFind } from "../../shared/demo";
 import { api, ApiError } from "../lib/api";
+import { ComparisonDialog } from "../components/ComparisonDialog";
+import type { Comparison } from "../../shared/scan";
 import { ProductDialog } from "../components/ProductDialog";
 export function Finds() {
+  const [comparisons, setComparisons] = useState<Comparison[]>([]);
+  const [selectedComparison, setSelectedComparison] =
+    useState<Comparison | null>(null);
   const [finds, setFinds] = useState<SavedFind[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -11,9 +16,15 @@ export function Finds() {
   const [selected, setSelected] = useState<SavedFind | null>(null);
   useEffect(() => {
     let active = true;
-    api<{ finds: SavedFind[] }>("/api/finds")
-      .then((data) => {
-        if (active) setFinds(data.finds);
+    Promise.all([
+      api<{ finds: SavedFind[] }>("/api/finds"),
+      api<{ comparisons: Comparison[] }>("/api/comparisons"),
+    ])
+      .then(([data, results]) => {
+        if (active) {
+          setFinds(data.finds);
+          setComparisons(results.comparisons);
+        }
       })
       .catch((err) => {
         if (err instanceof ApiError && err.status === 401)
@@ -51,7 +62,7 @@ export function Finds() {
           <p>The things that caught your eye, all in one place.</p>
         </div>
         <a className="button dark small" href="/app">
-          Back to the shelf <ArrowUpRight size={16} />
+          Back to scanning <ArrowUpRight size={16} />
         </a>
       </div>
       {error && (
@@ -64,12 +75,62 @@ export function Finds() {
           <LoaderCircle className="spin" />
           <p>Gathering your finds…</p>
         </div>
-      ) : finds.length ? (
+      ) : finds.length || comparisons.length ? (
         <>
           <p className="finds-summary">
-            {finds.length} saved {finds.length === 1 ? "example" : "examples"} ·
-            Simulated store
+            {comparisons.length} saved comparisons
+            {finds.length ? ` · ${finds.length} earlier demo finds` : ""}
           </p>
+          {comparisons.length > 0 && (
+            <div className="finds-grid">
+              {comparisons.map((comparison) => (
+                <article className="comparison-find" key={comparison.id}>
+                  <span className="eyebrow">
+                    {comparison.mode === "buy"
+                      ? "ONLINE COMPARISON"
+                      : "RESALE LISTINGS"}
+                  </span>
+                  <h2>
+                    {comparison.product.brand} {comparison.product.model}
+                  </h2>
+                  <p>{comparison.product.variant}</p>
+                  <p>
+                    {comparison.offers.length} sourced listings ·{" "}
+                    {new Date(comparison.checkedAt).toLocaleDateString()}
+                  </p>
+                  <div className="find-actions">
+                    <button onClick={() => setSelectedComparison(comparison)}>
+                      Review sources <ArrowUpRight size={16} />
+                    </button>
+                    <button
+                      className="icon-button"
+                      aria-label={`Remove comparison ${comparison.product.model}`}
+                      disabled={busy !== null}
+                      onClick={async () => {
+                        setBusy(comparison.id);
+                        try {
+                          await api(
+                            `/api/comparisons/${comparison.id}`,
+                            {},
+                            "DELETE",
+                          );
+                          setComparisons((rows) =>
+                            rows.filter((row) => row.id !== comparison.id),
+                          );
+                        } catch {
+                          setError("Couldn’t remove this comparison.");
+                        } finally {
+                          setBusy(null);
+                        }
+                      }}
+                    >
+                      <Trash2 size={17} />
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
           <div className="finds-grid">
             {finds.map((find) => (
               <article className="find-card" key={find.id}>
@@ -120,7 +181,7 @@ export function Finds() {
             </span>
             <h2>A good find deserves a place.</h2>
             <p>
-              Save an example from the shelf.
+              Save a sourced comparison while scanning.
               <br />
               It’ll be waiting right here when you come back.
             </p>
@@ -129,6 +190,12 @@ export function Finds() {
             </a>
           </div>
         )
+      )}
+      {selectedComparison && (
+        <ComparisonDialog
+          comparison={selectedComparison}
+          onClose={() => setSelectedComparison(null)}
+        />
       )}
       {selected && (
         <ProductDialog

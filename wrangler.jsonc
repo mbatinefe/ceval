@@ -50,5 +50,41 @@
         },
       ],
     },
+    "production": {
+      "name": "ceval",
+      "workers_dev": true,
+      "preview_urls": false,
+      "assets": {
+        "directory": "./dist/client",
+        "binding": "ASSETS",
+        "html_handling": "none",
+        "not_found_handling": "none",
+        "run_worker_first": ["/", "/signin", "/app", "/app/*", "/api/*"],
+      },
+      "secrets": {
+        "required": [
+          "BETTER_AUTH_SECRET",
+          "RESEND_API_KEY",
+          "AUTH_EMAIL_FROM",
+          "META_API_KEY",
+        ],
+      },
+      "vars": {
+        "APP_ENVIRONMENT": "production",
+        "SCAN_ENABLED": "false",
+        "SCAN_DAILY_BUDGET_MICROS": "10000000",
+        "SCAN_TOTAL_BUDGET_MICROS": "100000000",
+        "EMAIL_DAILY_LIMIT": "70",
+        "BETTER_AUTH_URL": "https://ceval.mbefe34.workers.dev",
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "ceval-production",
+          "database_id": "47c7a73b-3692-4a3c-a14d-b893cffa59af",
+          "migrations_dir": "db/d1/migrations",
+        },
+      ],
+    },
   },
 }

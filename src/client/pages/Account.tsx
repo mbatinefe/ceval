@@ -9,8 +9,11 @@ export function Account({ profile }: { profile: Profile }) {
   async function clear() {
     setBusy(true);
     try {
-      await api("/api/finds", {}, "DELETE");
-      setMessage("Your saved demo finds have been cleared.");
+      await Promise.all([
+        api("/api/finds", {}, "DELETE"),
+        api("/api/comparisons", {}, "DELETE"),
+      ]);
+      setMessage("Your saved finds have been cleared.");
       setConfirm(false);
     } catch {
       setMessage("Couldn’t clear your finds. Please try again.");
@@ -63,8 +66,9 @@ export function Account({ profile }: { profile: Profile }) {
             <span className="eyebrow">PREVIEW ACCESS</span>
             <h2>Room to explore.</h2>
             <p>
-              You can explore the simulated shelf and save demo products. Live
-              scanning and online comparisons are not available yet.
+              {profile.capabilities.liveScanning
+                ? "Camera and video analysis are enabled. Clear model labels give the strongest matches. Usage allowances apply to analysis and price searches."
+                : "Camera and video preview are available. Product recognition and price comparisons are waiting for analysis access."}
             </p>
             <a className="text-link" href="/app">
               Back to exploring <ArrowUpRight size={16} />
@@ -74,12 +78,14 @@ export function Account({ profile }: { profile: Profile }) {
             <ShieldCheck size={24} />
             <h2>Your finds stay yours.</h2>
             <p>
-              Saved demo finds are linked to your account. This preview doesn’t
-              request camera or microphone access.
+              Saved finds are linked to your account. Camera access is requested
+              only when you choose it. The full video stays on your device;
+              selected frames go to Meta when you start scanning. Ceval does not
+              save those frames.
             </p>
             {confirm ? (
               <div className="confirm-delete">
-                <p>Remove all your saved demo finds? This can’t be undone.</p>
+                <p>Remove all your saved finds? This can’t be undone.</p>
                 <button
                   className="button danger small"
                   onClick={clear}
@@ -97,7 +103,7 @@ export function Account({ profile }: { profile: Profile }) {
               </div>
             ) : (
               <button className="text-link" onClick={() => setConfirm(true)}>
-                <Trash2 size={16} /> Clear saved demo finds
+                <Trash2 size={16} /> Clear saved finds
               </button>
             )}
           </section>
