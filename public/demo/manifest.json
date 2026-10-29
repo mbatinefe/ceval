@@ -1,0 +1,42 @@
+{
+  "id": "electronics-shelf",
+  "label": "Simulated store",
+  "synthetic": true,
+  "image": "/demo/electronics-shelf.png",
+  "video": "/demo/electronics-shelf-pan.mp4",
+  "videoDetails": {
+    "durationSeconds": 8,
+    "width": 720,
+    "height": 1280,
+    "framesPerSecond": 24,
+    "audio": false,
+    "motion": "A looping pan and zoom of one synthetic still image."
+  },
+  "priceData": "Fictional shelf labels for development. These are not live offers or verified market prices.",
+  "sampleProducts": [
+    {
+      "brand": "Sony",
+      "model": "WH-1000XM5",
+      "sampleStorePriceMinor": 29999,
+      "currency": "USD"
+    },
+    {
+      "brand": "Logitech",
+      "model": "MX Master 3S",
+      "sampleStorePriceMinor": 9999,
+      "currency": "USD"
+    },
+    {
+      "brand": "JBL",
+      "model": "Flip 6",
+      "sampleStorePriceMinor": 12999,
+      "currency": "USD"
+    }
+  ],
+  "usage": "Display the simulated-store label when used in a preview. Feed frames through the scanner; sampleProducts is fixture metadata, not recognition output.",
+  "limitations": [
+    "Packaging and printed text are synthetic approximations.",
+    "Pan and zoom exercise image-plane motion only; no independent object motion, occlusion or changing viewpoint.",
+    "This fixture does not validate physical camera access, autofocus or real-world recognition accuracy."
+  ]
+}

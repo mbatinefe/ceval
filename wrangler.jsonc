@@ -20,6 +20,10 @@
       "name": "ceval-staging",
       "workers_dev": true,
       "preview_urls": false,
+      "assets": {
+        "directory": "./public",
+        "not_found_handling": "none"
+      },
       "vars": {
         "APP_ENVIRONMENT": "staging",
         "BETTER_AUTH_URL": "https://ceval-staging.mbefe34.workers.dev"
