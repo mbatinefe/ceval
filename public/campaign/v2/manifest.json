@@ -1,0 +1,102 @@
+{
+  "synthetic": true,
+  "purpose": "Ceval campaign photography. Glasses are a concept; all depicted prices are illustrative.",
+  "assets": [
+    {
+      "id": "city-wearer",
+      "widths": [
+        640,
+        960,
+        1600
+      ]
+    },
+    {
+      "id": "glasses-object",
+      "widths": [
+        640,
+        960,
+        1600
+      ]
+    },
+    {
+      "id": "fashion-store",
+      "widths": [
+        640,
+        960,
+        1600
+      ]
+    },
+    {
+      "id": "chair-market",
+      "widths": [
+        640,
+        960,
+        1600
+      ]
+    },
+    {
+      "id": "electronics",
+      "widths": [
+        640,
+        960,
+        1600
+      ]
+    },
+    {
+      "id": "phone-fashion",
+      "widths": [
+        640,
+        960,
+        1600
+      ]
+    },
+    {
+      "id": "sneaker-detail",
+      "widths": [
+        640,
+        960,
+        1600
+      ]
+    },
+    {
+      "id": "record-store",
+      "widths": [
+        640,
+        960,
+        1600
+      ]
+    },
+    {
+      "id": "city-wearer-portrait",
+      "widths": [
+        640,
+        960,
+        1600
+      ]
+    },
+    {
+      "id": "phone-fashion-portrait",
+      "widths": [
+        640,
+        960,
+        1600
+      ]
+    },
+    {
+      "id": "jacket-detail",
+      "widths": [
+        640,
+        960,
+        1600
+      ]
+    },
+    {
+      "id": "ceramic-detail",
+      "widths": [
+        640,
+        960,
+        1600
+      ]
+    }
+  ]
+}
