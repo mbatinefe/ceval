@@ -60,22 +60,33 @@ async function job<T>(
       .first<{ status: string; result: string | null; created_at: number }>();
     if (previous?.status === "done" && previous.result)
       return JSON.parse(previous.result) as T;
-    if (previous?.status === "error")
+    if (previous?.status === "error") {
+      if (previous.result) {
+        const failure = JSON.parse(previous.result) as {
+          code: string;
+          message: string;
+          status: ScanError["status"];
+        };
+        throw new ScanError(failure.code, failure.message, failure.status);
+      }
       throw new ScanError(
         "recent_failure",
         "That analysis recently failed. Wait a minute before trying it again.",
         429,
       );
+    }
     throw new ScanError(
       "analysis_pending",
       "This frame or product is already being analyzed. Please wait.",
       409,
     );
   }
+  let reservation: Awaited<ReturnType<typeof reserveScan>> | undefined;
   try {
     requireProvider(env);
-    const reservation = await reserveScan(env, userId, kind);
-    const result = await run((micros) => settleScan(env, reservation, micros));
+    reservation = await reserveScan(env, userId, kind);
+    const reserved = reservation;
+    const result = await run((micros) => settleScan(env, reserved, micros));
     await env.DB.prepare(
       "UPDATE scan_jobs SET status='done',result=? WHERE id=?",
     )
@@ -83,10 +94,24 @@ async function job<T>(
       .run();
     return result;
   } catch (error) {
+    if (!reservation) {
+      await env.DB.prepare("DELETE FROM scan_jobs WHERE id=?").bind(id).run();
+      throw error;
+    }
     await env.DB.prepare(
-      "UPDATE scan_jobs SET status='error',expires_at=? WHERE id=?",
+      "UPDATE scan_jobs SET status='error',result=?,expires_at=? WHERE id=?",
     )
-      .bind(Date.now() + 60000, id)
+      .bind(
+        error instanceof ScanError
+          ? JSON.stringify({
+              code: error.code,
+              message: error.message,
+              status: error.status,
+            })
+          : null,
+        Date.now() + 60000,
+        id,
+      )
       .run();
     throw error;
   }

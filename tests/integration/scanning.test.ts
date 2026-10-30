@@ -4,6 +4,7 @@ import { readFile, readdir } from "node:fs/promises";
 import { createHmac, createHash } from "node:crypto";
 import { Miniflare, convertV4MiniflareOptions } from "miniflare";
 import worker from "../../src/server/index.ts";
+import { reserveScan, settleScan } from "../../src/server/scan/budget.ts";
 
 const origin = "https://ceval.example";
 const secret = "scanning-test-only-secret-over-32-characters";
@@ -310,6 +311,198 @@ test("a completed recognition settles its reservation against reported usage", a
     "SELECT SUM(amount) AS n FROM scan_spend",
   ).first<{ n: number }>();
   assert.equal(spend?.n, 550);
+});
+test("an incomplete billed search settles usage without storing a partial answer", async () => {
+  const productId = await identified();
+  provider = async () =>
+    Response.json({
+      status: "incomplete",
+      incomplete_details: { reason: "max_output_tokens" },
+      usage: { input_tokens: 100, output_tokens: 100 },
+      output: [
+        {
+          type: "web_search_call",
+          status: "completed",
+          action: { type: "search", queries: ["Sony WH-1000XM5 price"] },
+        },
+      ],
+    });
+  const result = await request("/api/scan/compare", {
+    productId,
+    mode: "buy",
+    market: "US",
+  });
+  assert.equal(result.status, 502);
+  assert.equal((await result.json()).code, "analysis_incomplete");
+  const spend = await env.DB.prepare(
+    "SELECT amount FROM scan_spend WHERE kind='compare'",
+  ).first<{ amount: number }>();
+  assert.equal(spend?.amount, 3050);
+  const comparisons = await env.DB.prepare(
+    "SELECT COUNT(*) AS n FROM scan_comparisons",
+  ).first<{ n: number }>();
+  assert.equal(comparisons?.n, 0);
+});
+test("a terminal HTTP failure with complete usage settles before returning a safe error", async () => {
+  provider = async () =>
+    Response.json(
+      {
+        status: "failed",
+        error: { message: "test-provider-key private diagnostics" },
+        usage: { input_tokens: 100, output_tokens: 100 },
+        output: [],
+      },
+      { status: 502 },
+    );
+  const result = await recognize();
+  assert.equal(result.status, 502);
+  assert.ok(!(await result.text()).includes("test-provider-key"));
+  const spend = await env.DB.prepare("SELECT amount FROM scan_spend").first<{
+    amount: number;
+  }>();
+  assert.equal(spend?.amount, 550);
+});
+test("a failed search with unknown tool billing keeps the full reservation", async () => {
+  const productId = await identified();
+  provider = async () =>
+    Response.json({
+      status: "failed",
+      usage: { input_tokens: 100, output_tokens: 100 },
+      output: [{ type: "web_search_call", status: "failed" }],
+    });
+  const result = await request("/api/scan/compare", {
+    productId,
+    mode: "buy",
+    market: "US",
+  });
+  assert.equal(result.status, 502);
+  const spend = await env.DB.prepare(
+    "SELECT amount FROM scan_spend WHERE kind='compare'",
+  ).first<{ amount: number }>();
+  assert.equal(spend?.amount, 2000000);
+});
+test("nonterminal usage cannot reduce a reservation before billing is final", async () => {
+  provider = async () =>
+    Response.json({
+      status: "in_progress",
+      usage: { input_tokens: 100, output_tokens: 100 },
+      output: [],
+    });
+  assert.equal((await recognize()).status, 502);
+  const spend = await env.DB.prepare("SELECT amount FROM scan_spend").first<{
+    amount: number;
+  }>();
+  assert.equal(spend?.amount, 50000);
+});
+test("invalid generated JSON still settles valid terminal billing usage", async () => {
+  provider = async () => {
+    const result = await response({}).json();
+    result.output[0].content[0].text = "{broken json";
+    return Response.json(result);
+  };
+  assert.equal((await recognize()).status, 502);
+  const spend = await env.DB.prepare("SELECT amount FROM scan_spend").first<{
+    amount: number;
+  }>();
+  assert.equal(spend?.amount, 550);
+});
+test("provider throttling keeps its specific safe error during the retry cooldown", async () => {
+  provider = async () =>
+    new Response("test-provider-key internal diagnostics", { status: 429 });
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const result = await recognize();
+    assert.equal(result.status, 503);
+    const error = await result.json();
+    assert.equal(error.code, "provider_rate_limited");
+    assert.ok(!error.error.includes("test-provider-key"));
+  }
+  assert.equal(calls.length, 1);
+});
+test("a preflight budget denial does not cache a failed job or spend another reservation", async () => {
+  env.SCAN_DAILY_BUDGET_MICROS = "1";
+  try {
+    const blocked = await recognize();
+    assert.equal(blocked.status, 429);
+    assert.equal((await blocked.json()).code, "daily_budget_exhausted");
+    const jobs = await env.DB.prepare(
+      "SELECT COUNT(*) AS n FROM scan_jobs",
+    ).first<{ n: number }>();
+    const spend = await env.DB.prepare(
+      "SELECT COUNT(*) AS n FROM scan_spend",
+    ).first<{ n: number }>();
+    assert.equal(jobs?.n, 0);
+    assert.equal(spend?.n, 0);
+    env.SCAN_DAILY_BUDGET_MICROS = "10000000";
+    assert.equal((await recognize()).status, 200);
+    assert.equal(calls.length, 1);
+  } finally {
+    env.SCAN_DAILY_BUDGET_MICROS = "10000000";
+  }
+});
+for (const [kind, limit] of [
+  ["recognize", 120],
+  ["compare", 30],
+] as const) {
+  test(`daily ${kind} allowance supports repeated walkthroughs and remains bounded per account`, async () => {
+    await env.DB.prepare(
+      `WITH RECURSIVE counts(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM counts WHERE n<?)
+      INSERT INTO scan_spend (id,user_id,kind,amount,created_at) SELECT 'earlier-'||n,'shopper',?,1,? FROM counts`,
+    )
+      .bind(limit - 1, kind, Date.now())
+      .run();
+    const final = await reserveScan(env, "shopper", kind);
+    await settleScan(env, final, 1);
+    await assert.rejects(reserveScan(env, "shopper", kind), {
+      code: "account_allowance_exhausted",
+    });
+    assert.ok((await reserveScan(env, "other", kind)).id);
+  });
+}
+test("an exhausted lifetime budget is identified separately and cannot be bypassed by a new day", async () => {
+  await env.DB.prepare(
+    "INSERT INTO scan_spend (id,user_id,kind,amount,created_at) VALUES ('old','other','compare',100000000,?)",
+  )
+    .bind(Date.now() - 2 * 86400000)
+    .run();
+  await assert.rejects(reserveScan(env, "shopper", "recognize"), {
+    code: "total_budget_exhausted",
+  });
+});
+test("the configured 15-dollar daily ceiling stays atomic without expanding the lifetime ceiling", async () => {
+  env.SCAN_DAILY_BUDGET_MICROS = "15000000";
+  try {
+    await env.DB.prepare(
+      "INSERT INTO scan_spend (id,user_id,kind,amount,created_at) VALUES ('used','other','compare',14950000,?)",
+    )
+      .bind(Date.now())
+      .run();
+    const results = await Promise.allSettled([
+      reserveScan(env, "shopper", "recognize"),
+      reserveScan(env, "shopper", "recognize"),
+    ]);
+    assert.equal(
+      results.filter((result) => result.status === "fulfilled").length,
+      1,
+    );
+    const rejected = results.find((result) => result.status === "rejected");
+    assert.equal(rejected?.reason.code, "daily_budget_exhausted");
+    const spend = await env.DB.prepare(
+      "SELECT SUM(amount) AS amount FROM scan_spend",
+    ).first<{ amount: number }>();
+    assert.equal(spend?.amount, 15000000);
+    env.SCAN_DAILY_BUDGET_MICROS = "15000001";
+    await assert.rejects(reserveScan(env, "shopper", "recognize"), {
+      code: "analysis_disabled",
+    });
+    env.SCAN_DAILY_BUDGET_MICROS = "15000000";
+    env.SCAN_TOTAL_BUDGET_MICROS = "100000001";
+    await assert.rejects(reserveScan(env, "shopper", "recognize"), {
+      code: "analysis_disabled",
+    });
+  } finally {
+    env.SCAN_DAILY_BUDGET_MICROS = "10000000";
+    env.SCAN_TOTAL_BUDGET_MICROS = "100000000";
+  }
 });
 async function identified() {
   const r = await recognize();

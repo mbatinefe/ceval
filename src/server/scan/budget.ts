@@ -1,4 +1,6 @@
 import { ScanError } from "./errors.ts";
+// Allow repeated store walkthroughs while keeping both spend caps independent.
+const ACCOUNT_DAILY_REQUESTS = { recognize: 120, compare: 30 } as const;
 export async function reserveScan(
   env: Env,
   userId: string,
@@ -12,7 +14,7 @@ export async function reserveScan(
   if (
     !Number.isSafeInteger(daily) ||
     daily <= 0 ||
-    daily > 10_000_000 ||
+    daily > 15_000_000 ||
     !Number.isSafeInteger(total) ||
     total <= 0 ||
     total > 100_000_000
@@ -45,15 +47,44 @@ export async function reserveScan(
       userId,
       kind,
       start,
-      kind === "recognize" ? 30 : 10,
+      ACCOUNT_DAILY_REQUESTS[kind],
     )
     .first<{ id: string }>();
-  if (!row)
+  if (!row) {
+    const usage = await env.DB.prepare(
+      `SELECT COALESCE(SUM(amount),0) AS total,
+      COALESCE(SUM(CASE WHEN created_at>=? THEN amount ELSE 0 END),0) AS daily,
+      COUNT(CASE WHEN user_id=? AND kind=? AND created_at>=? THEN 1 END) AS requests
+      FROM scan_spend`,
+    )
+      .bind(start, userId, kind, start)
+      .first<{ total: number; daily: number; requests: number }>();
+    if (usage && usage.total + amount > total)
+      throw new ScanError(
+        "total_budget_exhausted",
+        "Analysis is paused because the service allowance is used up. Existing results are still available.",
+        429,
+      );
+    if (usage && usage.daily + amount > daily)
+      throw new ScanError(
+        "daily_budget_exhausted",
+        "Today's analysis budget is in use. Try again later; existing results are still available.",
+        429,
+      );
+    if (usage && usage.requests >= ACCOUNT_DAILY_REQUESTS[kind])
+      throw new ScanError(
+        "account_allowance_exhausted",
+        kind === "recognize"
+          ? "Your daily frame analysis allowance is used up. You can still review products already found."
+          : "Your daily price-search allowance is used up. Existing comparisons are still available.",
+        429,
+      );
     throw new ScanError(
       "allowance_exhausted",
       "The analysis allowance is used up. Existing results are still available.",
       429,
     );
+  }
   return { id: row.id, reserved: amount };
 }
 export async function settleScan(

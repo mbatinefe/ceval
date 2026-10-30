@@ -100,14 +100,6 @@ async function meta(
           : {}),
       }),
     });
-    if (!response.ok) {
-      await response.body?.cancel();
-      throw new ScanError(
-        "provider_error",
-        "Analysis is temporarily unavailable. Please try again later.",
-        502,
-      );
-    }
     const reader = response.body?.getReader();
     if (!reader) throw new Error("empty");
     const decoder = new TextDecoder();
@@ -124,11 +116,41 @@ async function meta(
       body += decoder.decode(value, { stream: true });
     }
     body += decoder.decode();
-    const result = record(JSON.parse(body));
-    if (result.status === "completed" && onUsage) {
+    let result: Record<string, unknown> = {};
+    try {
+      result = record(JSON.parse(body));
+    } catch {
+      if (response.ok) throw new Error("unreadable response");
+    }
+    // Terminal usage remains billable even when generation or parsing fails.
+    if (
+      ["completed", "incomplete", "failed"].includes(String(result.status)) &&
+      onUsage
+    ) {
       const charge = metaChargeMicros(result);
       if (charge !== null) await onUsage(charge);
     }
+    if (!response.ok) {
+      if (response.status === 429)
+        throw new ScanError(
+          "provider_rate_limited",
+          "The analysis service is busy. Try again in a minute.",
+          503,
+        );
+      throw new ScanError(
+        "provider_error",
+        "Analysis is temporarily unavailable. Please try again later.",
+        502,
+      );
+    }
+    if (result.status === "incomplete")
+      throw new ScanError(
+        "analysis_incomplete",
+        search
+          ? "The price search did not finish. Try again in a minute."
+          : "The frame analysis did not finish. Try a clearer view in a minute.",
+        502,
+      );
     if (result.status !== "completed" || !Array.isArray(result.output))
       throw new Error("incomplete");
     let content = "";
