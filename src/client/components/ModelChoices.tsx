@@ -10,15 +10,16 @@ export function ModelChoices({
 }) {
   return (
     <div className="model-choices">
-      <h3>Which model is yours?</h3>
-      <p>Suggestions from its appearance. Check the details before choosing.</p>
       {candidates.map((candidate) => (
         <div className="model-choice" key={modelCandidateKey(candidate)}>
           <strong>
             {candidate.brand} {candidate.model}
           </strong>
           {candidate.variant && <span>{candidate.variant}</span>}
-          <p>{candidate.reason}</p>
+          <details className="model-reason">
+            <summary>How to check</summary>
+            <p>{candidate.reason}</p>
+          </details>
           <div className="model-choice-actions">
             <button
               className="text-link"
@@ -38,7 +39,7 @@ export function ModelChoices({
         </div>
       ))}
       <p className="result-note">
-        None match? Show the model label or another angle and scan again.
+        None match? Show the model label and scan again.
       </p>
     </div>
   );

@@ -455,30 +455,54 @@ em {
   position: absolute;
   transform: translate(-50%, -50%);
   pointer-events: auto;
-  background: var(--accent);
-  color: #111b07;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  max-width: 154px;
+  padding: 8px 11px 8px 8px;
+  border: 1px solid #d2fa6975;
+  border-radius: 12px;
+  background: #11160df0;
+  color: var(--ink);
+  box-shadow: 0 4px 20px #0005;
+  backdrop-filter: blur(12px);
+  text-align: left;
+}
+.live-pin.is-active {
+  border-color: var(--accent);
+}
+.live-pin > i {
+  display: grid;
+  place-items: center;
+  width: 23px;
+  height: 23px;
+  flex: 0 0 23px;
   border-radius: 50%;
-  width: 31px;
-  height: 31px;
-  font-size: 13px;
+  background: var(--accent);
+  color: #142000;
+  font-size: 11px;
+  font-style: normal;
   font-weight: 650;
-  border: 3px solid #e4ff9e;
-  box-shadow: 0 0 0 5px #d2fa6925;
 }
 .live-pin > span {
-  position: absolute;
-  left: 36px;
-  top: -2px;
+  min-width: 0;
+}
+.live-pin strong,
+.live-pin small {
   display: block;
-  white-space: nowrap;
-  font-size: 10px;
-  padding: 8px 10px;
-  border-radius: 5px;
-  background: #111b07e8;
-  color: var(--accent);
-  max-width: 150px;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.live-pin strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+.live-pin small {
+  font-size: 9px;
+  color: #c2c9b6;
+  margin-top: 3px;
 }
 .source-empty {
   display: flex;
@@ -1775,4 +1799,292 @@ em {
 }
 .marketplace-link {
   margin-top: 20px;
+}
+
+/* Keep prices and model actions close to the active feed. */
+.has-feed .live-stage {
+  height: var(--view-height);
+  min-height: 0;
+  aspect-ratio: auto !important;
+}
+.has-feed .media-panel {
+  position: sticky;
+  top: 20px;
+}
+.scan-results {
+  max-height: calc(100dvh - 200px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.scan-result.is-active {
+  background: #d2fa6908;
+  box-shadow: inset 3px 0 var(--accent);
+}
+.current-find {
+  margin: 14px 0 0;
+  padding: 17px;
+  border: 1px solid #3b4530;
+  border-radius: 12px;
+  background: #151a11;
+}
+.find-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+.find-card-heading > div:first-child {
+  min-width: 0;
+}
+.find-brand {
+  color: #a9b397;
+  display: block;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.find-title,
+.current-find h2 {
+  display: block;
+  padding: 0;
+  margin: 6px 0 0;
+  text-align: left;
+  font-size: 17px;
+  font-weight: 550;
+  letter-spacing: -0.03em;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.find-title:hover {
+  color: var(--accent);
+}
+.find-price {
+  text-align: right;
+  flex-shrink: 0;
+  max-width: 135px;
+}
+.find-price strong {
+  color: var(--accent);
+  display: block;
+  font-size: 23px;
+  font-weight: 550;
+  letter-spacing: -0.045em;
+  white-space: nowrap;
+}
+.find-price small {
+  display: block;
+  font-size: 9px;
+  color: #b0b99f;
+  margin-top: 3px;
+}
+.scan-result p.find-variant {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: #a3ab99;
+}
+.scan-result p.result-note,
+.current-find p.result-note,
+.current-find .searching-price {
+  font-size: 11px;
+  margin: 9px 0 0;
+  line-height: 1.5;
+  color: #b3bca7;
+}
+.scan-result p.result-error,
+.current-find p.result-error {
+  color: #dac4a2;
+}
+.scan-result p.find-evidence {
+  font-size: 10px;
+  color: #a5af99;
+  margin: 10px 0 0;
+}
+.find-evidence > span {
+  display: block;
+  color: var(--accent);
+  margin-top: 5px;
+}
+.find-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-top: 10px;
+}
+.find-actions:empty {
+  display: none;
+}
+.find-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid #38412e;
+  border-radius: 7px;
+  font-size: 11px;
+  color: #cbd4be;
+}
+.find-action.primary-action {
+  color: var(--accent);
+  border-color: #667e3c;
+  background: #d2fa6908;
+}
+.find-action:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.model-reason {
+  margin: 10px 0 2px;
+  color: #b3bba7;
+  font-size: 12px;
+}
+.model-reason summary {
+  min-height: 32px;
+  padding: 7px 0;
+  cursor: pointer;
+}
+.model-reason p {
+  margin: 5px 0 12px;
+}
+.model-choice-actions .text-link {
+  min-height: 44px;
+  margin-top: 0;
+}
+.model-choice-actions .text-link:first-child {
+  background: var(--accent);
+  color: #172207;
+  padding: 0 12px;
+  border-radius: 7px;
+  font-weight: 600;
+}
+.model-dialog .dialog-content > h2 {
+  font-size: 28px;
+}
+.model-dialog .dialog-head {
+  margin-bottom: 20px;
+}
+@media (max-width: 1000px) {
+  .scan-results {
+    max-height: none;
+  }
+  .has-feed .media-panel {
+    position: static;
+  }
+}
+@media (max-width: 680px) {
+  .live-scanner.has-feed {
+    --view-height: clamp(220px, calc(100svh - 440px), 440px);
+    padding-top: 14px;
+  }
+  .has-feed .scanner-heading {
+    margin-bottom: 12px;
+  }
+  .has-feed .scanner-heading .eyebrow {
+    display: none;
+  }
+  .has-feed .scanner-heading h1 {
+    font-size: 23px;
+    margin: 0;
+  }
+  .has-feed .market-select {
+    font-size: 0;
+    gap: 0;
+  }
+  .has-feed .market-select select {
+    font-size: 11px;
+    min-height: 36px;
+  }
+  .has-feed .source-buttons {
+    display: none;
+  }
+  .has-feed .scanner-toolbar {
+    margin-bottom: 12px;
+  }
+  .has-feed .mode-switch > button {
+    min-height: 40px;
+    padding: 8px;
+  }
+  .has-feed .live-stage {
+    border-radius: 13px;
+  }
+  .has-feed .scan-actions {
+    margin: 10px 0;
+  }
+  .has-feed .scan-status {
+    font-size: 10px;
+    line-height: 1.4;
+  }
+  .current-find {
+    padding: 13px;
+    margin-top: 10px;
+  }
+  .current-find h2 {
+    font-size: 15px;
+    max-width: 215px;
+  }
+  .current-find .find-price strong {
+    font-size: 22px;
+  }
+  .current-find .find-actions {
+    margin-top: 8px;
+  }
+  .current-find .find-action {
+    min-height: 36px;
+  }
+  .has-feed .media-privacy {
+    margin-top: 10px;
+  }
+  .scan-result {
+    padding: 16px;
+  }
+  .scan-result .find-title {
+    font-size: 17px;
+  }
+  .model-dialog {
+    width: calc(100% - 20px);
+    max-height: calc(100dvh - 32px);
+  }
+  .model-dialog .dialog-content {
+    padding: 20px;
+  }
+  .model-dialog .dialog-content > h2 {
+    font-size: 25px;
+  }
+}
+
+.live-pin small {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.3;
+  font-size: 10px;
+}
+.find-price small {
+  font-size: 10px;
+  line-height: 1.4;
+}
+.find-price small > span {
+  display: block;
+  color: #c7cdbf;
+}
+.find-brand {
+  font-size: 10px;
+}
+.scan-result p.result-note,
+.current-find p.result-note,
+.current-find .searching-price {
+  font-size: 12px;
+}
+.find-action {
+  font-size: 12px;
+  min-height: 44px;
+}
+@media (max-width: 680px) {
+  .current-find .find-action {
+    min-height: 40px;
+  }
+  .has-feed .scan-status {
+    font-size: 11px;
+  }
 }

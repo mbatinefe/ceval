@@ -21,8 +21,10 @@ import {
 } from "../../shared/scan";
 import { formatPrice } from "../../shared/demo";
 import { ComparisonDialog } from "../components/ComparisonDialog";
-import { ModelChoices } from "../components/ModelChoices";
-import { useScanner } from "../scanner/useScanner";
+import { ModelChoiceDialog } from "../components/ModelChoiceDialog";
+import { ScanResultCard } from "../components/ScanResultCard";
+import { offerSummary } from "../scanner/presentation";
+import { useScanner, type FoundProduct } from "../scanner/useScanner";
 import { clips } from "../../../public/demo/manifest.json";
 export function Scanner() {
   const [mode, setMode] = useState<Mode>("buy"),
@@ -30,11 +32,47 @@ export function Scanner() {
     [selected, setSelected] = useState<Comparison | null>(null);
   const upload = useRef<HTMLInputElement>(null),
     scan = useScanner(mode, market);
+  const [focusedKey, setFocusedKey] = useState<string | null>(null);
+  const [choiceKey, setChoiceKey] = useState<string | null>(null);
+  const resumeAfterDetails = useRef(false);
+  const rowKey = (row: FoundProduct) => row.rowId || row.product.id;
+  const focused =
+    scan.found.find((row) => rowKey(row) === focusedKey) ||
+    scan.found.find((row) =>
+      scan.pins.some((pin) => pin.id === row.product.id),
+    ) ||
+    scan.found[0];
+  const choice = scan.found.find((row) => rowKey(row) === choiceKey);
+  function pauseForDetails() {
+    resumeAfterDetails.current = Boolean(
+      scan.video.current && !scan.video.current.paused,
+    );
+    scan.video.current?.pause();
+  }
+  function closeDetails() {
+    setSelected(null);
+    setChoiceKey(null);
+    if (resumeAfterDetails.current && scan.running)
+      void scan.video.current?.play().catch(() => {
+        scan.setError("Tap the video to resume playback.");
+      });
+    resumeAfterDetails.current = false;
+  }
+  function review(comparison: Comparison) {
+    pauseForDetails();
+    setSelected(comparison);
+  }
+  function choose(row: FoundProduct) {
+    pauseForDetails();
+    setChoiceKey(rowKey(row));
+  }
   return (
-    <main className="live-scanner app-wrap">
+    <main className={`live-scanner app-wrap${scan.source ? " has-feed" : ""}`}>
       <div className="scanner-heading">
         <div>
-          <span className="eyebrow">YOUR FIELD OF VIEW</span>
+          <span className="eyebrow">
+            {scan.source ? "YOUR FIELD OF VIEW" : "CEVAL SCANNER"}
+          </span>
           <h1>
             Look closer<span className="accent">.</span>
           </h1>
@@ -97,10 +135,12 @@ export function Scanner() {
           />
         </div>
       </div>
-      <p className="source-consent">
-        Choosing a camera, video, or sample starts analysis. Selected frames go
-        to Meta; your full video stays on this device.
-      </p>
+      {!scan.source && (
+        <p className="source-consent">
+          Choose a camera or video to start. Selected frames go to Meta; your
+          video stays on your device.
+        </p>
+      )}
       {(scan.cameraPending || scan.cameraProblem) && (
         <div
           className="camera-notice"
@@ -184,33 +224,49 @@ export function Scanner() {
                 }
               />
               <div className="live-pins">
-                {scan.pins.map((product, index) => (
-                  <button
-                    key={product.id}
-                    className="live-pin"
-                    style={{
-                      left: `${(product.box.x + product.box.width / 2) * 100}%`,
-                      top: `${(product.box.y + product.box.height / 2) * 100}%`,
-                    }}
-                    aria-label={`Inspect ${product.label}`}
-                    onClick={() => {
-                      const row = scan.found.find(
-                        (r) => r.product.id === product.id,
-                      );
-                      if (row?.comparison) setSelected(row.comparison);
-                      else
-                        document
-                          .getElementById(`result-${product.id}`)
-                          ?.scrollIntoView({
-                            behavior: "smooth",
-                            block: "center",
-                          });
-                    }}
-                  >
-                    {index + 1}
-                    <span>{product.model || product.label}</span>
-                  </button>
-                ))}
+                {scan.pins.map((product, index) => {
+                  const row = scan.found.find(
+                    (item) => item.product.id === product.id,
+                  );
+                  const summary = offerSummary(row?.comparison);
+                  return (
+                    <button
+                      key={product.id}
+                      className={`live-pin${row && focused && rowKey(row) === rowKey(focused) ? " is-active" : ""}`}
+                      style={{
+                        left: `clamp(78px, ${(product.box.x + product.box.width / 2) * 100}%, calc(100% - 78px))`,
+                        top: `${Math.max(0.12, Math.min(0.85, product.box.y + product.box.height / 2)) * 100}%`,
+                      }}
+                      aria-label={`Inspect ${product.model || product.label}`}
+                      onClick={() => {
+                        if (row) setFocusedKey(rowKey(row));
+                      }}
+                    >
+                      <i>{index + 1}</i>
+                      <span>
+                        <strong>
+                          {summary
+                            ? formatPrice(
+                                summary.offer.priceMinor,
+                                summary.offer.currency,
+                              )
+                            : product.model || "Identify item"}
+                        </strong>
+                        <small>
+                          {summary
+                            ? [summary.shortLabel, summary.qualification]
+                                .filter(Boolean)
+                                .join(" · ")
+                            : row?.searching
+                              ? "Checking prices"
+                              : product.candidates?.length
+                                ? "Choose model"
+                                : "Tap to inspect"}
+                        </small>
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
             {!scan.source && (
@@ -287,12 +343,18 @@ export function Scanner() {
             scan.finishing ||
             scan.startupState === "waiting" ||
             scan.startupState === "starting" ? (
-              <button className="button dark small" onClick={scan.stopAnalysis}>
+              <button
+                className="button dark small"
+                onClick={() => {
+                  scan.stopAnalysis();
+                  scan.video.current?.pause();
+                }}
+              >
                 <Square size={15} />
                 {scan.finishing
                   ? "Cancel remaining"
                   : scan.running
-                    ? "Stop scanning"
+                    ? "Pause scan"
                     : "Cancel start"}
               </button>
             ) : (
@@ -310,6 +372,20 @@ export function Scanner() {
               </button>
             )}
           </div>
+          {focused && (
+            <ScanResultCard
+              row={focused}
+              compact
+              onChoose={() => choose(focused)}
+              onReview={review}
+              onRetry={
+                focused.retryable
+                  ? () =>
+                      scan.retryComparison(focused.product.id, focused.rowId)
+                  : undefined
+              }
+            />
+          )}
           {scan.error && (
             <p role="alert" className="form-error scanner-error">
               {scan.error}
@@ -338,78 +414,36 @@ export function Scanner() {
           {scan.found.length === 0 ? (
             <div className="results-empty">
               <Tag size={25} />
-              <h2>Nothing in view.</h2>
+              <h2>
+                {scan.source
+                  ? "Looking for your first find"
+                  : "Your finds appear here"}
+              </h2>
               <p>
-                Show a product. We’ll help identify its model and compare
-                prices.
+                Clear labels help identify the right model. Tap a result to
+                compare prices.
               </p>
             </div>
           ) : (
             scan.found.map((row) => (
-              <article
-                className="scan-result"
-                key={row.product.id}
-                id={`result-${row.product.id}`}
-              >
-                <small>
-                  {row.product.brand || "Product"}
-                  {scan.source !== "camera"
-                    ? ` · ${Math.floor(row.time / 60)}:${String(Math.floor(row.time % 60)).padStart(2, "0")}`
-                    : ""}
-                </small>
-                <h2>{row.product.model || row.product.label}</h2>
-                <p>{row.product.variant}</p>
-                {row.product.identification === "user_selected" && (
-                  <small>Model selected by you</small>
-                )}
-                {row.searching || row.selecting ? (
-                  <p className="searching-price">
-                    <LoaderCircle size={14} className="spin" />
-                    {row.selecting
-                      ? "Selecting this model…"
-                      : "Searching matching listings…"}
-                  </p>
-                ) : row.error ? (
-                  <p className="result-note">{row.error}</p>
-                ) : row.comparison ? (
-                  <>
-                    <p className="result-price">
-                      {row.comparison.offers.length
-                        ? `${row.comparison.offers.length} sourced ${row.comparison.mode === "buy" ? "offers" : "listings"}`
-                        : "No supported offers found"}
-                    </p>
-                    {row.comparison.offers[0] && (
-                      <small>
-                        {row.comparison.offers[0].evidenceType ===
-                        "cited_summary"
-                          ? "Lowest search-reported:"
-                          : "Lowest listed:"}{" "}
-                        {formatPrice(
-                          row.comparison.offers[0].priceMinor,
-                          row.comparison.offers[0].currency,
-                        )}
-                      </small>
-                    )}
-                    <button
-                      className="text-link"
-                      onClick={() => setSelected(row.comparison!)}
-                    >
-                      Review sources
-                      <ArrowUpRight size={16} />
-                    </button>
-                  </>
-                ) : row.product.candidates?.length ? null : (
-                  <p className="result-note">Waiting for price comparison.</p>
-                )}
-                {!row.searching &&
-                  !row.selecting &&
-                  Boolean(row.product.candidates?.length) && (
-                    <ModelChoices
-                      candidates={row.product.candidates!}
-                      onChoose={(key) => scan.selectModel(row.product.id, key)}
-                    />
-                  )}
-              </article>
+              <ScanResultCard
+                key={rowKey(row)}
+                row={row}
+                active={focused && rowKey(row) === rowKey(focused)}
+                onFocus={() => {
+                  setFocusedKey(rowKey(row));
+                  document
+                    .querySelector(".current-find")
+                    ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+                }}
+                onChoose={() => choose(row)}
+                onReview={review}
+                onRetry={
+                  row.retryable
+                    ? () => scan.retryComparison(row.product.id, row.rowId)
+                    : undefined
+                }
+              />
             ))
           )}
           <a href="/app/finds" className="shelf-link">
@@ -437,7 +471,7 @@ export function Scanner() {
                 scan.sample(clip);
                 document
                   .querySelector(".live-stage")
-                  ?.scrollIntoView({ block: "center", behavior: "smooth" });
+                  ?.scrollIntoView({ block: "start", behavior: "smooth" });
               }}
             >
               <img src={clip.poster} alt={clip.title} loading="lazy" />
@@ -452,11 +486,21 @@ export function Scanner() {
           ))}
         </div>
       </details>
+      {choice && (
+        <ModelChoiceDialog
+          product={choice.product}
+          onChoose={(key) => {
+            scan.selectModel(choice.product.id, key, choice.rowId);
+            closeDetails();
+          }}
+          onClose={closeDetails}
+        />
+      )}
       {selected && (
         <ComparisonDialog
           key={selected.id}
           comparison={selected}
-          onClose={() => setSelected(null)}
+          onClose={closeDetails}
         />
       )}
     </main>
