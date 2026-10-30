@@ -2,7 +2,7 @@ import { metaKey } from "../providers/config.ts";
 import type { Comparison, Market, Mode, Product } from "../../shared/scan.ts";
 import { modelCandidateKey } from "../../shared/scan.ts";
 import { recognizeFrame, searchOffers } from "../providers/meta.ts";
-import { reserveScan, settleScan } from "./budget.ts";
+import { finishScanReservation, reserveScan, settleScan } from "./budget.ts";
 import type { UsageReporter } from "../providers/usage.ts";
 import { ScanError } from "./errors.ts";
 import { MAX_FRAME_BYTES } from "./validation.ts";
@@ -84,7 +84,7 @@ async function job<T>(
   let reservation: Awaited<ReturnType<typeof reserveScan>> | undefined;
   try {
     requireProvider(env);
-    reservation = await reserveScan(env, userId, kind);
+    reservation = await reserveScan(env, userId, kind, id);
     const reserved = reservation;
     const result = await run((micros) => settleScan(env, reserved, micros));
     await env.DB.prepare(
@@ -114,6 +114,15 @@ async function job<T>(
       )
       .run();
     throw error;
+  } finally {
+    if (reservation) {
+      try {
+        await finishScanReservation(env, reservation);
+      } catch {
+        // The retained amount still counts; stale pending holds become unresolved.
+        console.warn("Scan reservation status update failed.");
+      }
+    }
   }
 }
 export async function recognize(

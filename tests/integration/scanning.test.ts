@@ -322,10 +322,63 @@ test("provider errors never expose upstream secrets and remain reserved", async 
 test("a completed recognition settles its reservation against reported usage", async () => {
   assert.equal((await recognize()).status, 200);
   const spend = await env.DB.prepare(
-    "SELECT SUM(amount) AS n FROM scan_spend",
-  ).first<{ n: number }>();
-  assert.equal(spend?.n, 550);
+    "SELECT s.amount,s.reserved_amount,s.status,s.settled_at,j.status AS job_status FROM scan_spend s JOIN scan_jobs j ON j.id=s.job_id",
+  ).first<{
+    amount: number;
+    reserved_amount: number;
+    status: string;
+    settled_at: number;
+    job_status: string;
+  }>();
+  assert.equal(spend?.amount, 550);
+  assert.equal(spend?.reserved_amount, 50000);
+  assert.equal(spend?.status, "estimated");
+  assert.equal(spend?.job_status, "done");
+  assert.ok(spend.settled_at > 0);
 });
+for (const outcome of ["success", "failure"] as const)
+  test(`reservation cleanup failure preserves the provider ${outcome}`, async (t) => {
+    const db = env.DB;
+    env.DB = new Proxy(db, {
+      get(target, key) {
+        if (key === "prepare")
+          return (sql: string) => {
+            if (
+              sql.startsWith(
+                "UPDATE scan_spend SET status='unresolved' WHERE id=",
+              )
+            )
+              throw new Error("simulated cleanup failure");
+            return db.prepare(sql);
+          };
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    t.after(() => {
+      env.DB = db;
+    });
+    const warning = t.mock.method(console, "warn", () => {});
+    if (outcome === "failure")
+      provider = async () =>
+        new Response("private diagnostics", { status: 429 });
+    const result = await recognize();
+    assert.equal(result.status, outcome === "success" ? 200 : 503);
+    if (outcome === "failure")
+      assert.equal((await result.json()).code, "provider_rate_limited");
+    const spend = await env.DB.prepare(
+      "SELECT amount,status FROM scan_spend",
+    ).first<{ amount: number; status: string }>();
+    assert.equal(spend?.amount, outcome === "success" ? 550 : 50000);
+    assert.equal(
+      spend?.status,
+      outcome === "success" ? "estimated" : "pending",
+    );
+    assert.equal(warning.mock.callCount(), 1);
+    assert.deepEqual(warning.mock.calls[0].arguments, [
+      "Scan reservation status update failed.",
+    ]);
+  });
 for (const kind of ["recognize", "compare"] as const)
   test(`disconnecting after paid ${kind} begins keeps its usage settlement alive`, async () => {
     const productId = kind === "compare" ? await identified() : null;
@@ -445,9 +498,17 @@ test("a failed search with unknown tool billing keeps the full reservation", asy
   });
   assert.equal(result.status, 502);
   const spend = await env.DB.prepare(
-    "SELECT amount FROM scan_spend WHERE kind='compare'",
-  ).first<{ amount: number }>();
+    "SELECT s.amount,s.status,s.settled_at,j.status AS job_status FROM scan_spend s JOIN scan_jobs j ON j.id=s.job_id WHERE s.kind='compare'",
+  ).first<{
+    amount: number;
+    status: string;
+    settled_at: number | null;
+    job_status: string;
+  }>();
   assert.equal(spend?.amount, 2000000);
+  assert.equal(spend?.status, "unresolved");
+  assert.equal(spend?.settled_at, null);
+  assert.equal(spend?.job_status, "error");
 });
 test("nonterminal usage cannot reduce a reservation before billing is final", async () => {
   provider = async () =>
@@ -487,11 +548,11 @@ test("provider throttling keeps its specific safe error during the retry cooldow
   assert.equal(calls.length, 1);
 });
 test("a preflight budget denial does not cache a failed job or spend another reservation", async () => {
-  env.SCAN_DAILY_BUDGET_MICROS = "1";
+  env.SCAN_TOTAL_BUDGET_MICROS = "1";
   try {
     const blocked = await recognize();
     assert.equal(blocked.status, 429);
-    assert.equal((await blocked.json()).code, "daily_budget_exhausted");
+    assert.equal((await blocked.json()).code, "total_budget_exhausted");
     const jobs = await env.DB.prepare(
       "SELECT COUNT(*) AS n FROM scan_jobs",
     ).first<{ n: number }>();
@@ -500,33 +561,42 @@ test("a preflight budget denial does not cache a failed job or spend another res
     ).first<{ n: number }>();
     assert.equal(jobs?.n, 0);
     assert.equal(spend?.n, 0);
-    env.SCAN_DAILY_BUDGET_MICROS = "10000000";
+    env.SCAN_TOTAL_BUDGET_MICROS = "100000000";
     assert.equal((await recognize()).status, 200);
     assert.equal(calls.length, 1);
   } finally {
-    env.SCAN_DAILY_BUDGET_MICROS = "10000000";
+    env.SCAN_TOTAL_BUDGET_MICROS = "100000000";
   }
 });
-for (const [kind, limit] of [
+for (const [kind, formerLimit] of [
   ["recognize", 120],
   ["compare", 30],
 ] as const) {
-  test(`daily ${kind} allowance supports repeated walkthroughs and remains bounded per account`, async () => {
+  test(`daily ${kind} counts no longer block a funded account`, async () => {
     await env.DB.prepare(
       `WITH RECURSIVE counts(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM counts WHERE n<?)
       INSERT INTO scan_spend (id,user_id,kind,amount,created_at) SELECT 'earlier-'||n,'shopper',?,1,? FROM counts`,
     )
-      .bind(limit - 1, kind, Date.now())
+      .bind(formerLimit + 1, kind, Date.now())
       .run();
-    const final = await reserveScan(env, "shopper", kind);
-    await settleScan(env, final, 1);
-    await assert.rejects(reserveScan(env, "shopper", kind), {
-      code: "account_allowance_exhausted",
-    });
+    const first = await reserveScan(env, "shopper", kind);
+    await settleScan(env, first, 1);
+    assert.ok((await reserveScan(env, "shopper", kind)).id);
     assert.ok((await reserveScan(env, "other", kind)).id);
   });
 }
-test("an exhausted lifetime budget is identified separately and cannot be bypassed by a new day", async () => {
+test("spending beyond the former daily ceiling remains available below the total budget", async () => {
+  await env.DB.prepare(
+    "INSERT INTO scan_spend (id,user_id,kind,amount,created_at) VALUES ('used','other','compare',15000000,?)",
+  )
+    .bind(Date.now())
+    .run();
+  assert.equal(
+    (await reserveScan(env, "shopper", "compare")).reserved,
+    2000000,
+  );
+});
+test("an exhausted total budget cannot be bypassed by a new day", async () => {
   await env.DB.prepare(
     "INSERT INTO scan_spend (id,user_id,kind,amount,created_at) VALUES ('old','other','compare',100000000,?)",
   )
@@ -536,60 +606,52 @@ test("an exhausted lifetime budget is identified separately and cannot be bypass
     code: "total_budget_exhausted",
   });
 });
-test("the configured 15-dollar daily ceiling stays atomic without expanding the lifetime ceiling", async () => {
-  env.SCAN_DAILY_BUDGET_MICROS = "15000000";
+test("the 100-dollar total ceiling remains atomic and cannot be configured higher", async () => {
+  await env.DB.prepare(
+    "INSERT INTO scan_spend (id,user_id,kind,amount,created_at) VALUES ('used','other','compare',99950000,?)",
+  )
+    .bind(Date.now())
+    .run();
+  const results = await Promise.allSettled([
+    reserveScan(env, "shopper", "recognize"),
+    reserveScan(env, "other", "recognize"),
+  ]);
+  assert.equal(
+    results.filter((result) => result.status === "fulfilled").length,
+    1,
+  );
+  const rejected = results.find((result) => result.status === "rejected");
+  assert.equal(rejected?.reason.code, "total_budget_exhausted");
+  const spend = await env.DB.prepare(
+    "SELECT SUM(amount) AS amount FROM scan_spend",
+  ).first<{ amount: number }>();
+  assert.equal(spend?.amount, 100000000);
   try {
-    await env.DB.prepare(
-      "INSERT INTO scan_spend (id,user_id,kind,amount,created_at) VALUES ('used','other','compare',14950000,?)",
-    )
-      .bind(Date.now())
-      .run();
-    const results = await Promise.allSettled([
-      reserveScan(env, "shopper", "recognize"),
-      reserveScan(env, "shopper", "recognize"),
-    ]);
-    assert.equal(
-      results.filter((result) => result.status === "fulfilled").length,
-      1,
-    );
-    const rejected = results.find((result) => result.status === "rejected");
-    assert.equal(rejected?.reason.code, "daily_budget_exhausted");
-    const spend = await env.DB.prepare(
-      "SELECT SUM(amount) AS amount FROM scan_spend",
-    ).first<{ amount: number }>();
-    assert.equal(spend?.amount, 15000000);
-    env.SCAN_DAILY_BUDGET_MICROS = "15000001";
-    await assert.rejects(reserveScan(env, "shopper", "recognize"), {
-      code: "analysis_disabled",
-    });
-    env.SCAN_DAILY_BUDGET_MICROS = "15000000";
-    env.SCAN_TOTAL_BUDGET_MICROS = "100000001";
-    await assert.rejects(reserveScan(env, "shopper", "recognize"), {
-      code: "analysis_disabled",
-    });
+    for (const value of ["100000001", "0", "invalid", "1.5"]) {
+      env.SCAN_TOTAL_BUDGET_MICROS = value;
+      await assert.rejects(reserveScan(env, "shopper", "recognize"), {
+        code: "analysis_disabled",
+      });
+    }
   } finally {
-    env.SCAN_DAILY_BUDGET_MICROS = "10000000";
     env.SCAN_TOTAL_BUDGET_MICROS = "100000000";
   }
 });
-test("a price reservation cannot consume the last frame-analysis allowance", async () => {
-  env.SCAN_DAILY_BUDGET_MICROS = "15000000";
-  try {
-    await env.DB.prepare(
-      "INSERT INTO scan_spend (id,user_id,kind,amount,created_at) VALUES ('used','other','compare',12960000,?)",
-    )
-      .bind(Date.now())
-      .run();
-    await assert.rejects(reserveScan(env, "shopper", "compare"), {
-      code: "daily_budget_exhausted",
-    });
-    const recognition = await reserveScan(env, "shopper", "recognize");
-    assert.equal(recognition.reserved, 50000);
-  } finally {
-    env.SCAN_DAILY_BUDGET_MICROS = "10000000";
-  }
+test("a price reservation leaves room for a frame at the total ceiling", async () => {
+  await env.DB.prepare(
+    "INSERT INTO scan_spend (id,user_id,kind,amount,created_at) VALUES ('used','other','compare',97960000,?)",
+  )
+    .bind(Date.now())
+    .run();
+  await assert.rejects(reserveScan(env, "shopper", "compare"), {
+    code: "total_budget_exhausted",
+  });
+  assert.equal(
+    (await reserveScan(env, "shopper", "recognize")).reserved,
+    50000,
+  );
 });
-test("price reservation headroom also protects recognition at the lifetime ceiling", async () => {
+test("a lower configured total ceiling also preserves the next frame", async () => {
   env.SCAN_TOTAL_BUDGET_MICROS = "3000000";
   try {
     await env.DB.prepare(
@@ -609,36 +671,31 @@ test("price reservation headroom also protects recognition at the lifetime ceili
   }
 });
 test("concurrent price reservations atomically preserve a full recognition slot", async () => {
-  env.SCAN_DAILY_BUDGET_MICROS = "15000000";
-  try {
-    await env.DB.prepare(
-      "INSERT INTO scan_spend (id,user_id,kind,amount,created_at) VALUES ('used','other','compare',10960000,?)",
-    )
-      .bind(Date.now())
-      .run();
-    const prices = await Promise.allSettled([
-      reserveScan(env, "shopper", "compare"),
-      reserveScan(env, "other", "compare"),
-    ]);
-    assert.equal(
-      prices.filter((result) => result.status === "fulfilled").length,
-      1,
-    );
-    assert.equal(
-      (await reserveScan(env, "shopper", "recognize")).reserved,
-      50000,
-    );
-    const spent = await env.DB.prepare(
-      "SELECT SUM(amount) AS amount FROM scan_spend",
-    ).first<{ amount: number }>();
-    assert.equal(
-      spent?.amount,
-      13010000,
-      "the recognition margin is not recorded as a provider charge",
-    );
-  } finally {
-    env.SCAN_DAILY_BUDGET_MICROS = "10000000";
-  }
+  await env.DB.prepare(
+    "INSERT INTO scan_spend (id,user_id,kind,amount,created_at) VALUES ('used','other','compare',95960000,?)",
+  )
+    .bind(Date.now())
+    .run();
+  const prices = await Promise.allSettled([
+    reserveScan(env, "shopper", "compare"),
+    reserveScan(env, "other", "compare"),
+  ]);
+  assert.equal(
+    prices.filter((result) => result.status === "fulfilled").length,
+    1,
+  );
+  assert.equal(
+    (await reserveScan(env, "shopper", "recognize")).reserved,
+    50000,
+  );
+  const spent = await env.DB.prepare(
+    "SELECT SUM(amount) AS amount FROM scan_spend",
+  ).first<{ amount: number }>();
+  assert.equal(
+    spent?.amount,
+    98010000,
+    "the frame margin is not a provider charge",
+  );
 });
 async function identified() {
   const r = await recognize();
@@ -1134,7 +1191,7 @@ test("a sold-out retail page is not a completed resale transaction", async () =>
   assert.equal((await r.json()).offers.length, 0);
 });
 test("atomic reservations cap concurrent distinct paid requests", async () => {
-  env.SCAN_DAILY_BUDGET_MICROS = "50000";
+  env.SCAN_TOTAL_BUDGET_MICROS = "50000";
   try {
     const results = await Promise.all([
       request("/api/scan/recognize", {
@@ -1151,7 +1208,7 @@ test("atomic reservations cap concurrent distinct paid requests", async () => {
     assert.deepEqual(results.map((r) => r.status).sort(), [200, 429]);
     assert.equal(calls.length, 1);
   } finally {
-    env.SCAN_DAILY_BUDGET_MICROS = "10000000";
+    env.SCAN_TOTAL_BUDGET_MICROS = "100000000";
   }
 });
 test("a reused request ID cannot charge for a different frame or market", async () => {

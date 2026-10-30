@@ -1,38 +1,41 @@
 import { ScanError } from "./errors.ts";
-// Allow repeated store walkthroughs while keeping both spend caps independent.
-const ACCOUNT_DAILY_REQUESTS = { recognize: 120, compare: 30 } as const;
-export async function reserveScan(
-  env: Env,
-  userId: string,
-  kind: "recognize" | "compare",
-) {
-  const now = Date.now(),
-    start = now - 86400000;
-  const amount = kind === "recognize" ? 50000 : 2000000;
-  // Starting a price search must leave room for the next frame reservation.
-  const required = amount + (kind === "compare" ? 50000 : 0);
-  const daily = Number(env.SCAN_DAILY_BUDGET_MICROS),
-    total = Number(env.SCAN_TOTAL_BUDGET_MICROS);
-  if (
-    !Number.isSafeInteger(daily) ||
-    daily <= 0 ||
-    daily > 15_000_000 ||
-    !Number.isSafeInteger(total) ||
-    total <= 0 ||
-    total > 100_000_000
-  )
+
+type Reservation = { id: string; reserved: number };
+const PENDING_LIFETIME_MS = 60000;
+
+function budgetLimit(env: Env) {
+  const total = Number(env.SCAN_TOTAL_BUDGET_MICROS);
+  if (!Number.isSafeInteger(total) || total <= 0 || total > 100_000_000)
     throw new ScanError(
       "analysis_disabled",
       "Analysis is not enabled yet.",
       503,
     );
-  // A single conditional write makes the lifetime, daily and account reservation atomic.
+  return total;
+}
+
+export async function reserveScan(
+  env: Env,
+  userId: string,
+  kind: "recognize" | "compare",
+  jobId?: string,
+): Promise<Reservation> {
+  const total = budgetLimit(env);
+  const now = Date.now();
+  const amount = kind === "recognize" ? 50000 : 2000000;
+  // Leave room for the next frame while a price search is running.
+  const required = amount + (kind === "compare" ? 50000 : 0);
+  await env.DB.prepare(
+    "UPDATE scan_spend SET status='unresolved' WHERE status='pending' AND created_at<?",
+  )
+    .bind(now - PENDING_LIFETIME_MS)
+    .run();
+  // One conditional write protects the total across users and concurrent requests.
+  // Amounts without terminal usage remain exposure, never confirmed provider charges.
   const row = await env.DB.prepare(
-    `INSERT INTO scan_spend (id,user_id,kind,amount,created_at)
-    SELECT ?,?,?,?,? WHERE
-    (SELECT COALESCE(SUM(amount),0) FROM scan_spend)+?<=? AND
-    (SELECT COALESCE(SUM(amount),0) FROM scan_spend WHERE created_at>=?)+?<=? AND
-    (SELECT COUNT(*) FROM scan_spend WHERE user_id=? AND kind=? AND created_at>=?)<?
+    `INSERT INTO scan_spend (id,user_id,kind,amount,reserved_amount,status,job_id,created_at)
+    SELECT ?,?,?,?,?,'pending',?,? WHERE
+    (SELECT COALESCE(SUM(amount),0) FROM scan_spend)+?<=?
     RETURNING id`,
   )
     .bind(
@@ -40,62 +43,67 @@ export async function reserveScan(
       userId,
       kind,
       amount,
+      amount,
+      jobId ?? null,
       now,
       required,
       total,
-      start,
-      required,
-      daily,
-      userId,
-      kind,
-      start,
-      ACCOUNT_DAILY_REQUESTS[kind],
     )
     .first<{ id: string }>();
-  if (!row) {
-    const usage = await env.DB.prepare(
-      `SELECT COALESCE(SUM(amount),0) AS total,
-      COALESCE(SUM(CASE WHEN created_at>=? THEN amount ELSE 0 END),0) AS daily,
-      COUNT(CASE WHEN user_id=? AND kind=? AND created_at>=? THEN 1 END) AS requests
-      FROM scan_spend`,
-    )
-      .bind(start, userId, kind, start)
-      .first<{ total: number; daily: number; requests: number }>();
-    if (usage && usage.total + required > total)
-      throw new ScanError(
-        "total_budget_exhausted",
-        "Analysis is paused because the service allowance is used up. Existing results are still available.",
-        429,
-      );
-    if (usage && usage.daily + required > daily)
-      throw new ScanError(
-        "daily_budget_exhausted",
-        "Today's analysis budget is in use. Try again later; existing results are still available.",
-        429,
-      );
-    if (usage && usage.requests >= ACCOUNT_DAILY_REQUESTS[kind])
-      throw new ScanError(
-        "account_allowance_exhausted",
-        kind === "recognize"
-          ? "Your daily frame analysis allowance is used up. You can still review products already found."
-          : "Your daily price-search allowance is used up. Existing comparisons are still available.",
-        429,
-      );
+  if (!row)
     throw new ScanError(
-      "allowance_exhausted",
-      "The analysis allowance is used up. Existing results are still available.",
+      "total_budget_exhausted",
+      "Analysis is paused because its total budget is used or reserved. Existing results are still available.",
       429,
     );
-  }
   return { id: row.id, reserved: amount };
 }
+
 export async function settleScan(
   env: Env,
-  reservation: { id: string; reserved: number },
+  reservation: Reservation,
   micros: number,
 ) {
   if (!Number.isSafeInteger(micros) || micros <= 0) return;
-  await env.DB.prepare("UPDATE scan_spend SET amount=? WHERE id=? AND amount=?")
-    .bind(micros, reservation.id, reservation.reserved)
+  await env.DB.prepare(
+    "UPDATE scan_spend SET amount=?,status='estimated',settled_at=? WHERE id=? AND reserved_amount=? AND status IN ('pending','unresolved')",
+  )
+    .bind(micros, Date.now(), reservation.id, reservation.reserved)
     .run();
+}
+
+export async function finishScanReservation(
+  env: Env,
+  reservation: Reservation,
+) {
+  await env.DB.prepare(
+    "UPDATE scan_spend SET status='unresolved' WHERE id=? AND status='pending'",
+  )
+    .bind(reservation.id)
+    .run();
+}
+
+export async function scanBudgetSummary(env: Env) {
+  const cutoff = Date.now() - PENDING_LIFETIME_MS;
+  const values = await env.DB.prepare(
+    `SELECT
+    COALESCE(SUM(CASE WHEN status='estimated' THEN amount ELSE 0 END),0) AS estimatedUsageMicros,
+    COALESCE(SUM(CASE WHEN status='pending' AND created_at>=? THEN amount ELSE 0 END),0) AS pendingReservationMicros,
+    COALESCE(SUM(CASE WHEN status='unresolved' OR (status='pending' AND created_at<?) THEN amount ELSE 0 END),0) AS unresolvedReservationMicros,
+    COALESCE(SUM(amount),0) AS exposureMicros FROM scan_spend`,
+  )
+    .bind(cutoff, cutoff)
+    .first<{
+      estimatedUsageMicros: number;
+      pendingReservationMicros: number;
+      unresolvedReservationMicros: number;
+      exposureMicros: number;
+    }>();
+  return {
+    estimatedUsageMicros: values?.estimatedUsageMicros ?? 0,
+    pendingReservationMicros: values?.pendingReservationMicros ?? 0,
+    unresolvedReservationMicros: values?.unresolvedReservationMicros ?? 0,
+    exposureMicros: values?.exposureMicros ?? 0,
+    limitMicros: budgetLimit(env),
+  };
 }
