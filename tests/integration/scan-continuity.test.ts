@@ -511,3 +511,161 @@ test("two unresolved no-candidate objects in one frame cannot claim one earlier 
   assert.equal(next.rows.length, 2);
   assert.equal(new Set(next.sightings.map((row) => row.rowId)).size, 2);
 });
+
+test("a unique exact model gains its missing variant despite detector box jitter in the same scene", () => {
+  const first = see(
+    [],
+    [
+      product({
+        variant: "",
+        box: { x: 0.1, y: 0.1, width: 0.6, height: 0.6 },
+      }),
+    ],
+  );
+  const next = see(
+    first.rows,
+    [
+      product({
+        id: "black-label",
+        box: { x: 0.12, y: 0.13, width: 0.59, height: 0.58 },
+      }),
+    ],
+    14000,
+  );
+  assert.equal(next.rows.length, 1);
+  assert.equal(next.rows[0].product.id, "black-label");
+  assert.equal(next.rows[0].product.variant, "Black");
+});
+
+test("a missing variant cannot choose between multiple established colorways", () => {
+  const first = see(
+    [],
+    [product(), product({ id: "white", variant: "White" })],
+  );
+  const next = see(
+    first.rows,
+    [product({ id: "unreadable-color", variant: "" })],
+    14000,
+  );
+  assert.equal(next.rows.length, 3);
+});
+
+test("Sony alpha notation refers to the same camera while different generations remain separate", () => {
+  const camera = product({
+    brand: "Sony",
+    model: "a6000",
+    variant: "Black, body only",
+  });
+  let rows = see([], [camera]).rows;
+  for (const model of ["α6000", "Alpha 6000"])
+    rows = see(
+      rows,
+      [product({ brand: "Sony", model, variant: "Black", id: model })],
+      14000,
+    ).rows;
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].product.variant, "Black, body only");
+  assert.equal(
+    see(
+      rows,
+      [product({ brand: "Sony", model: "a6100", id: "next-generation" })],
+      15000,
+    ).rows.length,
+    2,
+  );
+});
+
+test("bare Sony camera numbers require unique visual evidence and cannot normalize other brands", () => {
+  const camera = product({ brand: "Sony", model: "α6000" });
+  const first = see([], [camera]);
+  const next = see(
+    first.rows,
+    [{ ...camera, id: "bare", model: "6000" }],
+    14000,
+  );
+  assert.equal(next.rows.length, 1);
+  const other = {
+    ...frame,
+    pixels: Uint8Array.from(frame.pixels, (value) => 255 - value),
+  };
+  assert.equal(
+    see(
+      first.rows,
+      [{ ...camera, id: "different", model: "6000" }],
+      14000,
+      other,
+    ).rows.length,
+    2,
+  );
+  const anotherBrand = see([], [{ ...camera, brand: "Acme" }]);
+  assert.equal(
+    see(
+      anotherBrand.rows,
+      [{ ...camera, brand: "Acme", model: "6000", id: "different" }],
+      14000,
+    ).rows.length,
+    2,
+  );
+});
+
+test("uncertain carrying-case wording can vary when the branded object appearance is unchanged", () => {
+  const carryingCase = product({
+    brand: "Sony",
+    model: "",
+    confidence: 0.3,
+    label: "Sony Headphone Carrying Case (Black)",
+    candidates: [],
+  });
+  let rows = see([], [carryingCase]).rows;
+  for (const [index, label] of [
+    "Sony headphone carrying case",
+    "Sony black zip headphone carrying case",
+  ].entries()) {
+    rows = see(
+      rows,
+      [{ ...carryingCase, id: `case-${index}`, label }],
+      14000,
+    ).rows;
+    assert.equal(rows.length, 1);
+  }
+  assert.equal(rows[0].product.model, "");
+  assert.equal(rows[0].product.confidence, 0.3);
+});
+
+test("a repeated unknown case tolerates a slightly shifted detection crop within the same scene", () => {
+  let seed = 12532;
+  const detailed = {
+    ...frame,
+    pixels: Uint8Array.from(frame.pixels, () => {
+      seed ^= seed << 13;
+      seed ^= seed >>> 17;
+      seed ^= seed << 5;
+      return seed & 255;
+    }),
+  };
+  const carryingCase = product({
+    brand: "Sony",
+    model: "",
+    confidence: 0.3,
+    label: "Sony headphone carrying case",
+    candidates: [],
+    box: { x: 0, y: 0, width: 0.75, height: 0.75 },
+  });
+  const first = see([], [carryingCase], 1000, detailed);
+  const next = see(
+    first.rows,
+    [
+      {
+        ...carryingCase,
+        id: "new-crop",
+        label: "Sony black zip headphone carrying case",
+        box: { x: 0.0625, y: 0.0625, width: 0.75, height: 0.75 },
+      },
+    ],
+    140000,
+    detailed,
+  );
+  assert.equal(next.rows.length, 1);
+  assert.equal(next.rows[0].rowId, first.rows[0].rowId);
+  assert.equal(next.rows[0].product.model, "");
+});

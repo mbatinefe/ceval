@@ -1,5 +1,6 @@
 import type { Comparison, Market, Mode, Product } from "../../shared/scan.ts";
 import type { GrayFrame } from "./tracking.ts";
+import { frameDifference } from "./tracking.ts";
 import { cachedComparison, comparisonKey } from "./state.ts";
 
 export type FoundProduct = {
@@ -12,7 +13,12 @@ export type FoundProduct = {
   searching?: boolean;
   time: number;
   selecting?: boolean;
-  sighting?: { product: Product; at: number; appearance: number[] };
+  sighting?: {
+    product: Product;
+    at: number;
+    appearance: number[];
+    frame?: GrayFrame;
+  };
 };
 
 function normalize(value: string) {
@@ -37,6 +43,8 @@ function variantsCompatible(a: string, b: string) {
     "finish",
     "color",
     "colour",
+    "body",
+    "only",
   ]);
   const subsetWithDescriptors = (a: string[], b: string[]) =>
     a.every((word) => b.includes(word)) &&
@@ -64,9 +72,25 @@ function sameModel(
   return (
     !!brand(a.brand) &&
     brand(a.brand) === brand(b.brand) &&
-    !!normalize(a.model) &&
-    normalize(a.model).replaceAll(" ", "") ===
-      normalize(b.model).replaceAll(" ", "")
+    !!modelName(a) &&
+    modelName(a) === modelName(b)
+  );
+}
+function modelName(product: { brand: string; model: string }) {
+  const name = normalize(product.model).replaceAll(" ", "");
+  return brand(product.brand) === "sony"
+    ? name.replace(/^(alpha|α)(?=\d)/, "a")
+    : name;
+}
+function sameSonyNumber(a: Product, b: Product) {
+  if (brand(a.brand) !== "sony" || brand(b.brand) !== "sony") return false;
+  const left = modelName(a),
+    right = modelName(b);
+  return (
+    /^a?\d{4}$/.test(left) &&
+    /^a?\d{4}$/.test(right) &&
+    left !== right &&
+    left.replace(/^a/, "") === right.replace(/^a/, "")
   );
 }
 function candidateOverlap(a: Product, b: Product) {
@@ -101,11 +125,26 @@ function familyOverlap(a: Product, b: Product) {
 function sameUnresolvedDescription(a: Product, b: Product) {
   if (exact(a) || exact(b) || a.candidates?.length || b.candidates?.length)
     return false;
-  const label = normalize(a.label);
+  const describe = (product: Product) => {
+    const omitted = new Set([
+      ...normalize(product.brand).split(" "),
+      ...normalize(product.variant).split(" "),
+    ]);
+    const words = normalize(product.label).split(" ");
+    if (words.includes("case")) {
+      omitted.add("zip");
+      omitted.add("zippered");
+    }
+    return words
+      .filter((word) => !omitted.has(word))
+      .sort()
+      .join(" ");
+  };
+  const label = describe(a);
   const proportions = a.box.width / a.box.height / (b.box.width / b.box.height);
   return (
     label.length > 0 &&
-    label === normalize(b.label) &&
+    label === describe(b) &&
     brand(a.brand) === brand(b.brand) &&
     normalize(a.model) === normalize(b.model) &&
     proportions >= 0.8 &&
@@ -155,15 +194,61 @@ function visualDistance(a: number[], b: number[]) {
     a.map((value, index) => Math.abs(value - left - (b[index] - right))),
   );
 }
+function registeredDistance(a: number[], b: number[]) {
+  let best = Infinity;
+  for (const scale of [0.9, 1, 1.1])
+    for (let dy = -2; dy <= 2; dy++)
+      for (let dx = -2; dx <= 2; dx++) {
+        const left: number[] = [],
+          right: number[] = [];
+        for (let y = 2; y < 10; y++)
+          for (let x = 2; x < 10; x++) {
+            const px = 5.5 + (x - 5.5) * scale + dx,
+              py = 5.5 + (y - 5.5) * scale + dy;
+            if (px < 0 || py < 0 || px >= 11 || py >= 11) continue;
+            const lx = Math.floor(px),
+              ly = Math.floor(py),
+              fx = px - lx,
+              fy = py - ly;
+            left.push(a[y * 12 + x]);
+            right.push(
+              b[ly * 12 + lx] * (1 - fx) * (1 - fy) +
+                b[ly * 12 + lx + 1] * fx * (1 - fy) +
+                b[(ly + 1) * 12 + lx] * (1 - fx) * fy +
+                b[(ly + 1) * 12 + lx + 1] * fx * fy,
+            );
+          }
+        if (left.length < 49) continue;
+        best = Math.min(
+          best,
+          visualDistance(left, right) +
+            (Math.abs(dx) + Math.abs(dy)) * 0.5 +
+            Math.abs(scale - 1) * 5,
+        );
+      }
+  return best;
+}
 function matchScore(
   row: FoundProduct,
   incoming: Product,
   visual: number[],
   now: number,
+  frame: GrayFrame,
+  uniqueModel: boolean,
 ) {
   const old = row.product;
   if (!variantsCompatible(old.variant, incoming.variant)) return 0;
-  if (exact(old) && exact(incoming) && !sameModel(old, incoming)) return 0;
+  const sonyNumber =
+    exact(old) && exact(incoming) && sameSonyNumber(old, incoming);
+  const variantMissing =
+    exact(old) &&
+    exact(incoming) &&
+    sameModel(old, incoming) &&
+    (!old.variant || !incoming.variant) &&
+    old.variant !== incoming.variant;
+  if ((sonyNumber || variantMissing) && !uniqueModel) return 0;
+  if (exact(old) && exact(incoming) && !sameModel(old, incoming) && !sonyNumber)
+    return 0;
   if (old.id === incoming.id && exact(old) && exact(incoming)) return 120;
   if (
     exact(old) &&
@@ -174,19 +259,48 @@ function matchScore(
     return 100;
   const sighting = row.sighting;
   if (!sighting) return 0;
-  const distance = visualDistance(sighting.appearance, visual);
+  if (
+    variantMissing &&
+    sighting.frame &&
+    frameDifference(sighting.frame, frame) < 10
+  ) {
+    const a = sighting.product.box,
+      b = incoming.box;
+    const intersection =
+      Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)) *
+      Math.max(
+        0,
+        Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y),
+      );
+    const overlap =
+      intersection / (a.width * a.height + b.width * b.height - intersection);
+    if (overlap >= 0.55) return 85;
+  }
   const nearby = now >= sighting.at && now - sighting.at <= 20000;
+  const unresolvedDescription = sameUnresolvedDescription(
+    sighting.product,
+    incoming,
+  );
+  const identityEvidence =
+    candidateOverlap(old, incoming) ||
+    candidateOverlap(sighting.product, incoming) ||
+    familyOverlap(sighting.product, incoming) ||
+    sonyNumber;
+  if (!identityEvidence && !unresolvedDescription) return 0;
+  let distance = visualDistance(sighting.appearance, visual);
+  if (
+    distance > (unresolvedDescription ? (nearby ? 8 : 4) : nearby ? 18 : 8) &&
+    sighting.frame &&
+    frameDifference(sighting.frame, frame) < 18
+  )
+    distance = Math.min(
+      distance,
+      registeredDistance(sighting.appearance, visual),
+    );
   if (distance > (nearby ? 18 : 8)) return 0;
   const strongUnresolvedMatch =
-    distance <= (nearby ? 8 : 4) &&
-    sameUnresolvedDescription(sighting.product, incoming);
-  if (
-    !candidateOverlap(old, incoming) &&
-    !candidateOverlap(sighting.product, incoming) &&
-    !familyOverlap(sighting.product, incoming) &&
-    !strongUnresolvedMatch
-  )
-    return 0;
+    distance <= (nearby ? 8 : 4) && unresolvedDescription;
+  if (!identityEvidence && !strongUnresolvedMatch) return 0;
   const displacement =
     Math.abs(sighting.product.box.x - incoming.box.x) +
     Math.abs(sighting.product.box.y - incoming.box.y);
@@ -209,9 +323,14 @@ function keepSnapshot(row: FoundProduct, incoming: Product) {
   return (
     exact(row.product) &&
     exact(incoming) &&
-    sameModel(row.product, incoming) &&
-    (normalize(row.product.variant) === normalize(incoming.variant) ||
-      !incoming.variant)
+    (sameModel(row.product, incoming) ||
+      (sameSonyNumber(row.product, incoming) &&
+        modelName(row.product).startsWith("a"))) &&
+    variantsCompatible(row.product.variant, incoming.variant) &&
+    normalize(incoming.variant)
+      .split(" ")
+      .filter(Boolean)
+      .every((word) => normalize(row.product.variant).split(" ").includes(word))
   );
 }
 type SightingContext = {
@@ -232,12 +351,26 @@ export function reconcileSightings(
   const appearances = products.map((product) =>
     appearance(context.frame, product),
   );
+  const related = (a: Product, b: Product) =>
+    exact(a) &&
+    exact(b) &&
+    (sameModel(a, b) || sameSonyNumber(a, b)) &&
+    variantsCompatible(a.variant, b.variant);
   const matches = products
     .flatMap((product, p) =>
       existing.map((row, r) => ({
         p,
         r,
-        score: matchScore(row, product, appearances[p], context.now),
+        score: matchScore(
+          row,
+          product,
+          appearances[p],
+          context.now,
+          context.frame,
+          existing.filter((other) => related(other.product, product)).length ===
+            1 &&
+            products.filter((other) => related(other, product)).length === 1,
+        ),
       })),
     )
     .filter((match) => match.score > 0)
@@ -293,6 +426,7 @@ export function reconcileSightings(
         product: incoming,
         at: context.now,
         appearance: appearances[index],
+        frame: context.frame,
       },
     };
     if (
