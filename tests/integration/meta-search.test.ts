@@ -4,7 +4,7 @@ import {
   recognizeFrame,
   searchOffers,
 } from "../../src/server/providers/meta.ts";
-import type { Product } from "../../src/shared/scan.ts";
+import type { Product, ProductSource } from "../../src/shared/scan.ts";
 
 const product: Product = {
   id: "selected-laptop",
@@ -131,4 +131,114 @@ test("one metered search can return public marketplace evidence after selecting 
   assert.equal(found[0]?.kind, "asking");
   assert.equal(found[0]?.match, "possible");
   assert.equal(found[0]?.evidenceType, "cited_summary");
+});
+test("an empty price result reports only retrieved product links from the same metered search", async (t) => {
+  const url = "https://shop.example.com/product/macbook";
+  const title = 'Apple MacBook Pro 16.2" M1 Pro laptop';
+  let calls = 0;
+  let sources: ProductSource[] = [];
+  const charges: number[] = [];
+  t.mock.method(
+    globalThis,
+    "fetch",
+    async (_url: string, init: RequestInit) => {
+      calls++;
+      assert.equal(JSON.parse(String(init.body)).max_tool_calls, 2);
+      return Response.json({
+        status: "completed",
+        usage: { input_tokens: 100, output_tokens: 100 },
+        output: [
+          {
+            type: "web_search_call",
+            status: "completed",
+            action: { type: "search", queries: ["MacBook Pro M1 Pro"] },
+            results: [{ type: "text_result", url, title, snippet: "" }],
+          },
+          {
+            type: "message",
+            content: [
+              {
+                type: "output_text",
+                text: '{"offers":[],"sources":[{"url":"https://invented.example.com/product/laptop","title":"Apple MacBook Pro M1 Pro"}]}',
+              },
+            ],
+          },
+        ],
+      });
+    },
+  );
+  const offers = await searchOffers(
+    { META_API_KEY: "test-key" } as Env,
+    product,
+    "buy",
+    "US",
+    undefined,
+    async (charge) => {
+      charges.push(charge);
+    },
+    (found) => {
+      sources = found;
+    },
+  );
+  assert.deepEqual(offers, []);
+  assert.deepEqual(sources, [{ title, url }]);
+  assert.deepEqual(charges, [3050]);
+  assert.equal(calls, 1);
+});
+test("uncompleted searches and generated citations cannot manufacture product links", async (t) => {
+  let sources: ProductSource[] = [];
+  const url = "https://shop.example.com/product/macbook";
+  t.mock.method(globalThis, "fetch", async () =>
+    Response.json({
+      status: "completed",
+      usage: { input_tokens: 100, output_tokens: 100 },
+      output: [
+        {
+          type: "web_search_call",
+          status: "failed",
+          results: [
+            {
+              type: "text_result",
+              url,
+              title: "Apple MacBook Pro M1 Pro",
+              snippet: "",
+            },
+          ],
+        },
+        {
+          type: "message",
+          content: [
+            {
+              type: "output_text",
+              text: '{"offers":[]}',
+              annotations: [
+                {
+                  type: "url_citation",
+                  url,
+                  title: "Apple MacBook Pro M1 Pro",
+                  start_index: 0,
+                  end_index: 13,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    }),
+  );
+  assert.deepEqual(
+    await searchOffers(
+      { META_API_KEY: "test-key" } as Env,
+      product,
+      "buy",
+      "US",
+      undefined,
+      undefined,
+      (found) => {
+        sources = found;
+      },
+    ),
+    [],
+  );
+  assert.deepEqual(sources, []);
 });

@@ -1076,6 +1076,7 @@ test("only sourced prices survive and saved comparisons are owner-scoped", async
   assert.equal(comparison.offers.length, 1);
   assert.equal(comparison.offers[0].priceMinor, 24999);
   assert.equal(comparison.offers[0].match, "exact");
+  assert.equal(comparison.sources, undefined);
   assert.equal(calls[1].max_tool_calls, 2);
   assert.equal((await request("/api/scan/compare", body)).status, 200);
   assert.equal(calls.length, 2);
@@ -1156,6 +1157,57 @@ test("retailer links without source text cannot substantiate a generated price",
   const comparison = await result.json();
   assert.equal(comparison.status, "no_evidence");
   assert.deepEqual(comparison.offers, []);
+});
+test("unpriced native product links are persisted and old empty-price caches refresh", async () => {
+  const productId = await identified();
+  const legacyKey = createHash("sha256")
+    .update(
+      JSON.stringify([
+        "public-offers-v2",
+        productId,
+        "buy",
+        "US",
+        product.shelfPriceMinor,
+        product.shelfCurrency,
+      ]),
+    )
+    .digest("hex");
+  await env.DB.prepare(
+    "INSERT INTO scan_jobs (id,user_id,kind,request_key,status,result,expires_at,created_at) VALUES (?,?,?,?,'done',?,?,?)",
+  )
+    .bind(
+      crypto.randomUUID(),
+      "shopper",
+      "compare",
+      legacyKey,
+      JSON.stringify({ id: "legacy-empty", offers: [], status: "no_evidence" }),
+      Date.now() + 900000,
+      Date.now(),
+    )
+    .run();
+  provider = async () => offerResponse("");
+  const body = { productId, mode: "buy", market: "US" };
+  const comparison = await (await request("/api/scan/compare", body)).json();
+  const sources = [
+    {
+      title: "Sony WH-1000XM5 Black",
+      url: "https://shop.example.com/headphones",
+    },
+  ];
+  assert.notEqual(comparison.id, "legacy-empty");
+  assert.equal(comparison.status, "no_evidence");
+  assert.deepEqual(comparison.offers, []);
+  assert.deepEqual(comparison.sources, sources);
+  const stored = await env.DB.prepare(
+    "SELECT data FROM scan_comparisons WHERE id=? AND user_id=?",
+  )
+    .bind(comparison.id, "shopper")
+    .first<{ data: string }>();
+  assert.deepEqual(JSON.parse(stored!.data).sources, sources);
+  const cached = await (await request("/api/scan/compare", body)).json();
+  assert.equal(cached.id, comparison.id);
+  assert.deepEqual(cached.sources, sources);
+  assert.equal(calls.length, 2);
 });
 test("Meta price records with native citations work without strict JSON output", async () => {
   const productId = await identified();

@@ -87,8 +87,10 @@ export function ComparisonDialog({
         {comparison.offers.length === 0 ? (
           <div className="offer-empty">
             <p>
-              We searched shops and public listings but couldn’t verify a price
-              for this model. Check the listings below, or scan its model label.
+              We couldn’t verify a price for this model.
+              {comparison.sources?.length
+                ? " These product pages may help. Check the model, condition and price with the seller."
+                : " Try the model label or search Marketplace below."}
             </p>
           </div>
         ) : (
@@ -165,6 +167,23 @@ export function ComparisonDialog({
             );
           })
         )}
+        {comparison.sources?.length ? (
+          <section className="offer-group related-sources">
+            <h3>Related product pages</h3>
+            <p className="source-note">Model and price unverified</p>
+            {comparison.sources.map((source) => (
+              <article className="offer-card" key={source.url}>
+                <a href={source.url} target="_blank" rel="noopener noreferrer">
+                  <strong>{source.title}</strong>
+                  <ArrowUpRight size={16} />
+                </a>
+                <small>
+                  {new URL(source.url).hostname.replace(/^www\./, "")}
+                </small>
+              </article>
+            ))}
+          </section>
+        ) : null}
         <a
           className="text-link marketplace-link"
           href={marketplaceSearch(comparison.product)}

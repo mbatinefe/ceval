@@ -2418,3 +2418,35 @@ em {
     line-height: 1.5;
   }
 }
+.related-sources .offer-card > a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 44px;
+  line-height: 1.5;
+  font-size: 13px;
+}
+.related-sources .offer-card > a svg {
+  flex-shrink: 0;
+}
+.related-sources .offer-card > small {
+  display: block;
+  color: #aeb7a2;
+  margin-top: 6px;
+}
+.history-card .secondary-search {
+  width: auto;
+  min-height: 44px;
+  margin: 0;
+  font-size: 11px;
+}
+.history-card .find-actions {
+  margin-top: 8px;
+  padding-top: 8px;
+}
+.related-sources .offer-card strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 500;
+}

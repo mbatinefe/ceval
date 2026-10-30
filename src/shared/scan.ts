@@ -38,12 +38,14 @@ export type Offer = {
   evidence: string;
   evidenceType?: "cited_summary";
 };
+export type ProductSource = { title: string; url: string };
 export type Comparison = {
   id: string;
   product: Product;
   mode: Mode;
   market: Market;
   offers: Offer[];
+  sources?: ProductSource[];
   checkedAt: number;
   expiresAt: number;
   status: "found" | "no_evidence";

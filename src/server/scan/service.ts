@@ -1,5 +1,11 @@
 import { metaKey } from "../providers/config.ts";
-import type { Comparison, Market, Mode, Product } from "../../shared/scan.ts";
+import type {
+  Comparison,
+  Market,
+  Mode,
+  Product,
+  ProductSource,
+} from "../../shared/scan.ts";
 import { modelCandidateKey } from "../../shared/scan.ts";
 import { recognizeFrame, searchOffers } from "../providers/meta.ts";
 import { finishScanReservation, reserveScan, settleScan } from "./budget.ts";
@@ -278,7 +284,7 @@ export async function compare(
     "compare",
     await digest(
       JSON.stringify([
-        "public-offers-v2",
+        "public-offers-v3",
         productId,
         mode,
         market,
@@ -288,6 +294,7 @@ export async function compare(
     ),
     900000,
     async (onUsage) => {
+      let sources: ProductSource[] = [];
       const offers = await searchOffers(
         env,
         product,
@@ -295,6 +302,9 @@ export async function compare(
         market,
         signal,
         onUsage,
+        (found) => {
+          sources = found;
+        },
       );
       const result: Comparison = {
         id: crypto.randomUUID(),
@@ -302,6 +312,7 @@ export async function compare(
         mode,
         market,
         offers,
+        ...(!offers.length && sources.length ? { sources } : {}),
         checkedAt: Date.now(),
         expiresAt: Date.now() + 900000,
         status: offers.length ? "found" : "no_evidence",

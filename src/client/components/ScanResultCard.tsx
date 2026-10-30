@@ -104,7 +104,9 @@ export function ScanResultCard({
         !summary && (
           <p className="result-note">
             {row.comparison
-              ? "No verified price yet. Check listings or show the model label."
+              ? row.comparison.sources?.length
+                ? "Product pages found. Confirm the model and price with the seller."
+                : "No verified price yet. Check listings or show the model label."
               : unidentified
                 ? "Show the model label for a reliable match."
                 : "Ready to compare."}
@@ -151,7 +153,9 @@ export function ScanResultCard({
           >
             {row.comparison.offers.length
               ? `View ${row.comparison.mode === "buy" ? "prices" : "listings"}`
-              : "Search options"}{" "}
+              : row.comparison.sources?.length
+                ? "See product pages"
+                : "Search options"}{" "}
             <ArrowUpRight size={14} />
           </button>
         )}

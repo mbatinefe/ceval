@@ -269,25 +269,31 @@ export function Finds() {
                         {product.variant && (
                           <p className="history-variant">{product.variant}</p>
                         )}
-                        <time
-                          className="history-time"
-                          dateTime={new Date(entry.updatedAt).toISOString()}
-                        >
-                          Updated {new Date(entry.updatedAt).toLocaleString()}
-                        </time>
-                        <p className="history-result">
-                          {searching
-                            ? "Confirming model and searching prices…"
-                            : uncertain
-                              ? hasCandidates
-                                ? "Choose your model to search prices."
-                                : "Model unconfirmed · show the label for a clearer match."
-                              : comparison
-                                ? comparison.offers.length
-                                  ? `${comparison.offers.length} sourced listings`
-                                  : "No supported prices found."
-                                : "Detected · no price result yet."}
-                        </p>
+                        {!comparison && (
+                          <time
+                            className="history-time"
+                            dateTime={new Date(entry.updatedAt).toISOString()}
+                          >
+                            Updated {new Date(entry.updatedAt).toLocaleString()}
+                          </time>
+                        )}
+                        {(!summary || searching) && (
+                          <p className="history-result">
+                            {searching
+                              ? "Confirming model and searching prices…"
+                              : uncertain
+                                ? hasCandidates
+                                  ? "Choose your model to search prices."
+                                  : "Model unconfirmed · show the label for a clearer match."
+                                : comparison
+                                  ? comparison.offers.length
+                                    ? `${comparison.offers.length} sourced listings`
+                                    : comparison.sources?.length
+                                      ? `${comparison.sources.length} related product pages · price unverified`
+                                      : "No supported prices found."
+                                  : "Detected · no price result yet."}
+                          </p>
+                        )}
                         {summary && (
                           <div className="history-price">
                             <strong>
@@ -360,7 +366,11 @@ export function Finds() {
                           )}
                         {(hasCandidates || !uncertain) && (
                           <button
-                            className="button dark small history-search"
+                            className={
+                              comparison
+                                ? "text-link history-search secondary-search"
+                                : "button dark small history-search"
+                            }
                             disabled={busy !== null || !market}
                             onClick={() =>
                               hasCandidates
@@ -394,7 +404,12 @@ export function Finds() {
                                 })
                               }
                             >
-                              Review comparison <ArrowUpRight size={16} />
+                              {comparison.offers.length
+                                ? "View prices"
+                                : comparison.sources?.length
+                                  ? "See product pages"
+                                  : "Search options"}{" "}
+                              <ArrowUpRight size={16} />
                             </button>
                           ) : (
                             <a className="text-link" href="/app">
