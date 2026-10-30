@@ -31,7 +31,7 @@ import {
   recognitionRetryAt,
   findActionRow,
 } from "./state";
-import { reconcileSightings, type FoundProduct } from "./continuity";
+import { reconcileCurrentSightings, type FoundProduct } from "./continuity";
 import { ScanWork } from "./work";
 import {
   MediaStartup,
@@ -523,8 +523,8 @@ export function useScanner(mode: Mode, market: Market) {
         if (epoch !== generation.current) return;
         setError("");
         recognitionRecovery.current.retryAt = 0;
-        const reconciled = reconcileSightings(
-          resultsRef.current,
+        const reconciled = await reconcileCurrentSightings(
+          () => resultsRef.current,
           result.products,
           {
             time,
@@ -534,8 +534,12 @@ export function useScanner(mode: Mode, market: Market) {
             market,
             cache: cache.current,
           },
+          signal,
+          () => epoch === generation.current,
+          (value) => updateResults(value.rows),
         );
-        updateResults(reconciled.rows);
+        if (!reconciled || epoch !== generation.current || signal.aborted)
+          return;
         detectionTrail.append(grayFrame(element));
         const projected = await detectionTrail.projectMany(
           reconciled.sightings.map(({ product }) => product.box),

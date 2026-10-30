@@ -1,6 +1,12 @@
-import type { Comparison, Market, Mode, Product } from "../../shared/scan.ts";
+import type {
+  Box,
+  Comparison,
+  Market,
+  Mode,
+  Product,
+} from "../../shared/scan.ts";
 import type { GrayFrame } from "./tracking.ts";
-import { frameDifference } from "./tracking.ts";
+import { frameDifference, trackDetection } from "./tracking.ts";
 import { cachedComparison, comparisonKey } from "./state.ts";
 
 export type FoundProduct = {
@@ -151,7 +157,7 @@ function sameUnresolvedDescription(a: Product, b: Product) {
     proportions <= 1.25
   );
 }
-function appearance(frame: GrayFrame, product: Product) {
+function appearance(frame: GrayFrame, product: Pick<Product, "box">) {
   const result: number[] = [];
   for (let y = 0; y < 12; y++)
     for (let x = 0; x < 12; x++) {
@@ -228,6 +234,78 @@ function registeredDistance(a: number[], b: number[]) {
       }
   return best;
 }
+function overlap(a: Box, b: Box) {
+  const intersection =
+    Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)) *
+    Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
+  return (
+    intersection / (a.width * a.height + b.width * b.height - intersection)
+  );
+}
+function continuousPosition(
+  previous: GrayFrame,
+  current: GrayFrame,
+  before: Box,
+  after: Box,
+  minimumOverlap: number,
+) {
+  const original = appearance(previous, { box: before });
+  const matchesObject = (position: Box) => {
+    if (overlap(position, after) < minimumOverlap) return false;
+    const currentCrop = appearance(current, { box: position });
+    const limit = minimumOverlap >= 0.7 ? 8 : 18;
+    if (visualDistance(original, currentCrop) > limit) return false;
+    const exposure =
+      original.reduce((sum, value, i) => sum + value - currentCrop[i], 0) /
+      original.length;
+    let centerDifference = 0;
+    for (let y = 3; y < 9; y++)
+      for (let x = 3; x < 9; x++)
+        centerDifference += Math.abs(
+          original[y * 12 + x] - currentCrop[y * 12 + x] - exposure,
+        );
+    return centerDifference / 36 <= limit;
+  };
+  const direct = trackDetection(previous, current, before);
+  if (direct && matchesObject(direct)) return true;
+  if (previous.width !== current.width || previous.height !== current.height)
+    return false;
+  const dx = Math.round(
+    (after.x + after.width / 2 - before.x - before.width / 2) * current.width,
+  );
+  const dy = Math.round(
+    (after.y + after.height / 2 - before.y - before.height / 2) *
+      current.height,
+  );
+  if (
+    (!dx && !dy) ||
+    Math.abs(dx) > current.width * 0.2 ||
+    Math.abs(dy) > current.height * 0.2
+  )
+    return false;
+  // Recenter for a larger pan, then require matching texture, not box location alone.
+  const shifted: GrayFrame = {
+    ...current,
+    pixels: new Uint8Array(current.pixels.length),
+  };
+  for (let y = 0; y < current.height; y++)
+    for (let x = 0; x < current.width; x++) {
+      const sx = x + dx,
+        sy = y + dy;
+      if (sx >= 0 && sy >= 0 && sx < current.width && sy < current.height)
+        shifted.pixels[y * current.width + x] =
+          current.pixels[sy * current.width + sx];
+    }
+  const registered = trackDetection(previous, shifted, before);
+  return (
+    !!registered &&
+    matchesObject({
+      ...registered,
+      x: registered.x + dx / current.width,
+      y: registered.y + dy / current.height,
+    })
+  );
+}
 function matchScore(
   row: FoundProduct,
   incoming: Product,
@@ -288,6 +366,23 @@ function matchScore(
     familyOverlap(sighting.product, incoming) ||
     sonyNumber;
   if (!identityEvidence && !unresolvedDescription) return 0;
+  // Detector crops can change while the same textured object stays in view.
+  // Match its image features before comparing independently resized crops.
+  if (
+    sighting.frame &&
+    Number.isFinite(visualDistance(sighting.appearance, sighting.appearance))
+  ) {
+    if (
+      continuousPosition(
+        sighting.frame,
+        frame,
+        sighting.product.box,
+        incoming.box,
+        nearby ? 0.55 : 0.7,
+      )
+    )
+      return 78;
+  }
   let distance = visualDistance(sighting.appearance, visual);
   if (
     distance > (unresolvedDescription ? (nearby ? 8 : 4) : nearby ? 18 : 8) &&
@@ -342,11 +437,12 @@ type SightingContext = {
   market: Market;
   cache: Map<string, Comparison>;
 };
-export function reconcileSightings(
+type ReconciledSightings = { rows: FoundProduct[]; sightings: FoundProduct[] };
+function* reconciliationSteps(
   existing: FoundProduct[],
   products: Product[],
   context: SightingContext,
-) {
+): Generator<void, ReconciledSightings> {
   const rows = [...existing],
     sightings: FoundProduct[] = [];
   const appearances = products.map((product) =>
@@ -357,25 +453,25 @@ export function reconcileSightings(
     exact(b) &&
     (sameModel(a, b) || sameSonyNumber(a, b)) &&
     variantsCompatible(a.variant, b.variant);
-  const matches = products
-    .flatMap((product, p) =>
-      existing.map((row, r) => ({
-        p,
-        r,
-        score: matchScore(
-          row,
-          product,
-          appearances[p],
-          context.now,
-          context.frame,
-          existing.filter((other) => related(other.product, product)).length ===
-            1 &&
-            products.filter((other) => related(other, product)).length === 1,
-        ),
-      })),
-    )
-    .filter((match) => match.score > 0)
-    .sort((a, b) => b.score - a.score);
+  const matches: { p: number; r: number; score: number }[] = [];
+  for (const [p, product] of products.entries()) {
+    const uniqueModel =
+      existing.filter((other) => related(other.product, product)).length ===
+        1 && products.filter((other) => related(other, product)).length === 1;
+    for (const [r, row] of existing.entries()) {
+      const score = matchScore(
+        row,
+        product,
+        appearances[p],
+        context.now,
+        context.frame,
+        uniqueModel,
+      );
+      if (score > 0) matches.push({ p, r, score });
+      yield;
+    }
+  }
+  matches.sort((a, b) => b.score - a.score);
   const assigned = new Map<number, number>(),
     claimed = new Set<number>();
   for (const match of matches) {
@@ -455,4 +551,48 @@ export function reconcileSightings(
   });
   rows.sort((a, b) => (b.sighting?.at || 0) - (a.sighting?.at || 0));
   return { rows: rows.slice(0, 30), sightings };
+}
+
+export function reconcileSightings(
+  existing: FoundProduct[],
+  products: Product[],
+  context: SightingContext,
+) {
+  const steps = reconciliationSteps(existing, products, context);
+  for (;;) {
+    const step = steps.next();
+    if (step.done) return step.value;
+  }
+}
+
+export async function reconcileCurrentSightings(
+  getRows: () => FoundProduct[],
+  products: Product[],
+  context: SightingContext,
+  signal: AbortSignal,
+  isCurrent: () => boolean,
+  publish: (result: ReconciledSightings) => void,
+): Promise<ReconciledSightings | null> {
+  const active = () => !signal.aborted && isCurrent();
+  while (active()) {
+    const snapshot = getRows();
+    const steps = reconciliationSteps(snapshot, products, context);
+    let sliceStarted = performance.now();
+    for (;;) {
+      if (!active()) return null;
+      // A completed search or model choice must survive work done across a yield.
+      if (getRows() !== snapshot) break;
+      const step = steps.next();
+      if (step.done) {
+        // Publish in the same turn as the snapshot check, before promise callbacks.
+        publish(step.value);
+        return step.value;
+      }
+      if (performance.now() - sliceStarted >= 4) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+        sliceStarted = performance.now();
+      }
+    }
+  }
+  return null;
 }

@@ -6,6 +6,7 @@ import {
 } from "../../src/client/scanner/continuity.ts";
 import type { Product, Comparison } from "../../src/shared/scan.ts";
 import type { GrayFrame } from "../../src/client/scanner/tracking.ts";
+import * as continuity from "../../src/client/scanner/continuity.ts";
 
 const frame: GrayFrame = {
   width: 48,
@@ -63,6 +64,297 @@ function comparison(p: Product): Comparison {
     expiresAt: Date.now() + 60000,
   };
 }
+
+function detailedFrame(seed = 72183): GrayFrame {
+  return {
+    width: 160,
+    height: 90,
+    pixels: Uint8Array.from({ length: 160 * 90 }, () => {
+      seed ^= seed << 13;
+      seed ^= seed >>> 17;
+      seed ^= seed << 5;
+      return seed & 255;
+    }),
+  };
+}
+
+test("unchanged background cannot carry a selected model and price onto a replaced object", () => {
+  const visual = detailedFrame(2);
+  const unknown = product({
+    model: "",
+    confidence: 0.4,
+    candidates: [candidate("Logitech", "MX Master 3S")],
+    box: { x: 0.2, y: 0.2, width: 0.5, height: 0.6 },
+  });
+  const first = see([], [unknown], 1000, visual);
+  const selected = product({
+    ...unknown,
+    id: "selected",
+    model: "MX Master 3S",
+    confidence: 1,
+    identification: "user_selected",
+    candidates: undefined,
+  });
+  first.rows[0] = {
+    ...first.rows[0],
+    product: selected,
+    comparison: comparison(selected),
+  };
+  const replaced = { ...visual, pixels: visual.pixels.slice() };
+  for (let y = 28; y <= 61; y++)
+    for (let x = 42; x <= 101; x++)
+      replaced.pixels[y * 160 + x] = 255 - visual.pixels[y * 160 + x];
+  const next = see(first.rows, [{ ...unknown, id: "new" }], 140000, replaced);
+  assert.equal(next.rows.length, 2);
+  assert.equal(next.sightings[0].product.id, "new");
+  assert.equal(next.sightings[0].product.model, "");
+  assert.equal(next.sightings[0].comparison, undefined);
+});
+
+for (const [label, time] of [
+  ["nearby", 9000],
+  ["returning", 140000],
+] as const)
+  test(`a ${label} changed detection crop retains an uncertain item when image features stay in place`, () => {
+    const visual = detailedFrame();
+    const headphones = product({
+      brand: "Sony",
+      model: "",
+      confidence: 0.4,
+      label: "Sony over-ear headphones",
+      candidates: [
+        candidate("Sony", "WH-1000XM3"),
+        candidate("Sony", "WH-1000XM4"),
+      ],
+      box: { x: 0.4, y: 0.25, width: 0.4, height: 0.45 },
+    });
+    const first = see([], [headphones], 1000, visual);
+    const incoming = {
+      ...headphones,
+      id: "wider-crop",
+      label: "Black wireless headphones",
+      box: { x: 0.38, y: 0.22, width: 0.44, height: 0.51 },
+    };
+    const next = see(first.rows, [incoming], time, visual);
+    assert.equal(next.rows.length, 1);
+    assert.equal(next.rows[0].rowId, first.rows[0].rowId);
+    assert.equal(next.rows[0].product.id, "wider-crop");
+    assert.equal(next.rows[0].product.model, "");
+  });
+
+test("crop continuity cannot merge a different object, empty texture, or adjacent matching model", () => {
+  const visual = detailedFrame();
+  const unknown = product({
+    model: "",
+    confidence: 0.4,
+    candidates: [candidate("Logitech", "MX Master 3S")],
+    box: { x: 0.15, y: 0.25, width: 0.25, height: 0.4 },
+  });
+  const first = see([], [unknown], 1000, visual);
+  const changed = {
+    ...visual,
+    pixels: Uint8Array.from(visual.pixels, (v) => 255 - v),
+  };
+  const next = {
+    ...unknown,
+    id: "other",
+    box: { x: 0.14, y: 0.2, width: 0.3, height: 0.5 },
+  };
+  assert.equal(see(first.rows, [next], 9000, changed).rows.length, 2);
+  const flat = {
+    ...visual,
+    pixels: new Uint8Array(visual.pixels.length).fill(100),
+  };
+  const empty = see([], [unknown], 1000, flat);
+  assert.equal(see(empty.rows, [next], 9000, flat).rows.length, 2);
+  const neighbors = see(
+    first.rows,
+    [
+      next,
+      {
+        ...unknown,
+        id: "neighbor",
+        box: { x: 0.65, y: 0.25, width: 0.25, height: 0.4 },
+      },
+    ],
+    9000,
+    visual,
+  );
+  assert.equal(neighbors.rows.length, 2);
+  assert.equal(neighbors.sightings[0].rowId, first.rows[0].rowId);
+  assert.notEqual(neighbors.sightings[1].rowId, first.rows[0].rowId);
+});
+
+test("a lateral pan and wider detector crop keep the same uncertain find", () => {
+  const visual = detailedFrame();
+  const moved = { ...visual, pixels: new Uint8Array(visual.pixels.length) };
+  for (let y = 0; y < visual.height; y++)
+    for (let x = 14; x < visual.width; x++)
+      moved.pixels[y * visual.width + x] =
+        visual.pixels[y * visual.width + x - 14];
+  const unknown = product({
+    model: "",
+    confidence: 0.4,
+    candidates: [candidate("Logitech", "MX Master 3S")],
+    box: { x: 0.35, y: 0.25, width: 0.35, height: 0.4 },
+  });
+  const first = see([], [unknown], 1000, visual);
+  const next = see(
+    first.rows,
+    [
+      {
+        ...unknown,
+        id: "panned",
+        box: { x: 0.4, y: 0.2, width: 0.46, height: 0.52 },
+      },
+    ],
+    10000,
+    moved,
+  );
+  assert.equal(next.rows.length, 1);
+  assert.equal(next.rows[0].rowId, first.rows[0].rowId);
+});
+
+function crowdedScene() {
+  const visual = detailedFrame(2);
+  const unknown = product({
+    model: "",
+    confidence: 0.4,
+    candidates: [candidate("Logitech", "MX Master 3S")],
+    box: { x: 0.2, y: 0.2, width: 0.5, height: 0.6 },
+  });
+  const rows = see(
+    [],
+    Array.from({ length: 30 }, (_, i) => ({ ...unknown, id: `old-${i}` })),
+    1000,
+    visual,
+  ).rows;
+  const products = Array.from({ length: 3 }, (_, i) => ({
+    ...unknown,
+    id: `new-${i}`,
+    box: { ...unknown.box, x: 0.22 + i * 0.02 },
+  }));
+  const context = {
+    time: 140,
+    now: 140000,
+    frame: {
+      ...visual,
+      pixels: Uint8Array.from(visual.pixels, (v) => 255 - v),
+    },
+    mode: "buy" as const,
+    market: "US" as const,
+    cache: new Map<string, Comparison>(),
+  };
+  return { rows, products, context };
+}
+
+test("crowded matching lets browser tasks run before publishing the completed sightings", async () => {
+  const { rows, products, context } = crowdedScene();
+  let responsive = false;
+  const timer = setTimeout(() => {
+    responsive = true;
+  }, 0);
+  const result = await continuity.reconcileCurrentSightings(
+    () => rows,
+    products,
+    context,
+    new AbortController().signal,
+    () => true,
+    () => {},
+  );
+  clearTimeout(timer);
+  assert.equal(responsive, true);
+  assert.equal(result?.sightings.length, 3);
+  assert.ok(result.sightings.every((row) => row.product.id.startsWith("new-")));
+});
+
+for (const reason of ["cancel", "generation"] as const)
+  test(`matching discards work after ${reason} changes during a browser yield`, async () => {
+    const { rows, products, context } = crowdedScene();
+    const controller = new AbortController();
+    let current = true;
+    const timer = setTimeout(() => {
+      if (reason === "cancel") controller.abort();
+      else current = false;
+    }, 0);
+    const result = await continuity.reconcileCurrentSightings(
+      () => rows,
+      products,
+      context,
+      controller.signal,
+      () => current,
+      () => assert.fail("Cancelled matching must not publish"),
+    );
+    clearTimeout(timer);
+    assert.equal(result, null);
+  });
+
+test("a model chosen during matching remains authoritative when matching resumes", async () => {
+  const { rows: initial, products, context } = crowdedScene();
+  let rows = initial;
+  const chosen = product({
+    id: "selected-during-yield",
+    identification: "user_selected",
+  });
+  const timer = setTimeout(() => {
+    rows = [
+      { ...initial[0], product: chosen, comparison: comparison(chosen) },
+      ...initial.slice(1),
+    ];
+  }, 0);
+  const result = await continuity.reconcileCurrentSightings(
+    () => rows,
+    products,
+    { ...context, frame: initial[0].sighting!.frame! },
+    new AbortController().signal,
+    () => true,
+    () => {},
+  );
+  clearTimeout(timer);
+  const retained = result?.rows.find((row) => row.rowId === initial[0].rowId);
+  assert.equal(retained?.product.id, "selected-during-yield");
+  assert.equal(retained?.comparison?.product.id, "selected-during-yield");
+});
+
+test("matching publishes before handing control to a queued model confirmation", async () => {
+  const unknown = product({
+    model: "",
+    confidence: 0.4,
+    candidates: [candidate("Logitech", "MX Master 3S")],
+  });
+  let rows = see([], [unknown]).rows.map((row) => ({
+    ...row,
+    selecting: true,
+  }));
+  const selected = product({
+    id: "selected-in-microtask",
+    identification: "user_selected",
+  });
+  let publishedAtConfirmation = 0;
+  queueMicrotask(() => {
+    publishedAtConfirmation = rows[0].sighting!.at;
+    rows = rows.map((row) => ({
+      ...row,
+      product: selected,
+      selecting: false,
+      comparison: comparison(selected),
+    }));
+  });
+  await continuity.reconcileCurrentSightings(
+    () => rows,
+    [{ ...unknown, id: "latest-sighting" }],
+    { time: 9, now: 9000, frame, mode: "buy", market: "US", cache: new Map() },
+    new AbortController().signal,
+    () => true,
+    (result) => {
+      rows = result.rows;
+    },
+  );
+  assert.equal(publishedAtConfirmation, 9000);
+  assert.equal(rows[0].product.id, "selected-in-microtask");
+  assert.equal(rows[0].selecting, false);
+  assert.equal(rows[0].comparison?.product.id, "selected-in-microtask");
+});
 
 test("changing laptop descriptions and candidate generations retain one visually continuous find", () => {
   const laptop = product({
