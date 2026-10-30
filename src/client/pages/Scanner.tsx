@@ -261,13 +261,15 @@ export function Scanner() {
                     (item) => rowKey(item) === product.rowId,
                   );
                   const summary = offerSummary(row?.comparison);
+                  const x = product.box.x + product.box.width / 2;
+                  const y = product.box.y + product.box.height / 2;
                   return (
                     <button
                       key={product.rowId}
-                      className={`live-pin${row && focused && rowKey(row) === rowKey(focused) ? " is-active" : ""}`}
+                      className={`live-pin${row && focused && rowKey(row) === rowKey(focused) ? " is-active" : ""}${x < 0.35 ? " label-left" : x > 0.65 ? " label-right" : ""}${y > 0.6 ? " label-above" : ""}`}
                       style={{
-                        left: `clamp(78px, ${(product.box.x + product.box.width / 2) * 100}%, calc(100% - 78px))`,
-                        top: `${Math.max(0.12, Math.min(0.85, product.box.y + product.box.height / 2)) * 100}%`,
+                        left: `clamp(22px, ${x * 100}%, calc(100% - 22px))`,
+                        top: `${Math.max(0.12, Math.min(0.85, y)) * 100}%`,
                       }}
                       aria-label={`Inspect ${product.model || product.label}`}
                       onClick={() => {
@@ -275,7 +277,11 @@ export function Scanner() {
                       }}
                     >
                       <i>{index + 1}</i>
-                      <span>
+                      <span
+                        style={{
+                          maxWidth: `calc(var(--view-height) * ${scan.aspect} - 12px)`,
+                        }}
+                      >
                         <strong>
                           {summary
                             ? formatPrice(

@@ -457,36 +457,67 @@ em {
   pointer-events: auto;
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  max-width: 154px;
-  padding: 8px 11px 8px 8px;
-  border: 1px solid #d2fa6975;
-  border-radius: 12px;
-  background: #11160df0;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 5px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
   color: var(--ink);
-  box-shadow: 0 4px 20px #0005;
-  backdrop-filter: blur(12px);
   text-align: left;
 }
 .live-pin.is-active {
-  border-color: var(--accent);
+  z-index: 2;
 }
 .live-pin > i {
   display: grid;
   place-items: center;
-  width: 23px;
-  height: 23px;
-  flex: 0 0 23px;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border: 1px solid var(--accent);
   border-radius: 50%;
-  background: var(--accent);
-  color: #142000;
+  background: #11160df0;
+  color: var(--accent);
+  box-shadow: 0 3px 12px #0008;
   font-size: 11px;
   font-style: normal;
   font-weight: 650;
 }
 .live-pin > span {
-  min-width: 0;
+  display: none;
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 148px;
+  padding: 9px 11px;
+  border: 1px solid #d2fa6975;
+  border-radius: 10px;
+  background: #11160df5;
+  box-shadow: 0 4px 20px #0005;
+  backdrop-filter: blur(12px);
+}
+.live-pin.is-active > i {
+  background: var(--accent);
+  color: #142000;
+}
+.live-pin.is-active > span {
+  display: block;
+}
+.live-pin.label-left > span {
+  left: 0;
+  transform: none;
+}
+.live-pin.label-right > span {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+.live-pin.label-above > span {
+  top: auto;
+  bottom: calc(100% + 2px);
 }
 .live-pin strong,
 .live-pin small {
