@@ -26,6 +26,7 @@ export type Offer = {
   kind: "retail" | "asking" | "sold";
   match: "exact" | "possible";
   evidence: string;
+  evidenceType?: "cited_summary";
 };
 export type Comparison = {
   id: string;

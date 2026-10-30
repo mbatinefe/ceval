@@ -293,7 +293,10 @@ export function Scanner() {
                     </p>
                     {row.comparison.offers[0] && (
                       <small>
-                        Lowest listed:{" "}
+                        {row.comparison.offers[0].evidenceType ===
+                        "cited_summary"
+                          ? "Lowest search-reported:"
+                          : "Lowest listed:"}{" "}
                         {formatPrice(
                           row.comparison.offers[0].priceMinor,
                           row.comparison.offers[0].currency,

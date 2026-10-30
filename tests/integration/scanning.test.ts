@@ -277,6 +277,13 @@ test("provider errors never expose upstream secrets and remain reserved", async 
   ).first<{ n: number }>();
   assert.ok(spend!.n > 0);
 });
+test("a completed recognition settles its reservation against reported usage", async () => {
+  assert.equal((await recognize()).status, 200);
+  const spend = await env.DB.prepare(
+    "SELECT SUM(amount) AS n FROM scan_spend",
+  ).first<{ n: number }>();
+  assert.equal(spend?.n, 550);
+});
 async function identified() {
   const r = await recognize();
   assert.equal(r.status, 200);
@@ -434,6 +441,82 @@ test("retailer links without source text cannot substantiate a generated price",
   const comparison = await result.json();
   assert.equal(comparison.status, "no_evidence");
   assert.deepEqual(comparison.offers, []);
+});
+test("Meta price records with native citations work without strict JSON output", async () => {
+  const productId = await identified();
+  provider = async () => {
+    const result = await offerResponse("").json();
+    const url = "https://shop.example.com/headphones";
+    const text = JSON.stringify({
+      url,
+      priceMinor: 24999,
+      currency: "USD",
+      kind: "retail",
+      supportingText: "Sony WH-1000XM5 Black costs USD $249.99.",
+    });
+    result.output.at(-1).content = [
+      {
+        type: "output_text",
+        text,
+        annotations: [
+          { type: "url_citation", url, start_index: 0, end_index: text.length },
+        ],
+      },
+    ];
+    return Response.json(result);
+  };
+  const response = await request("/api/scan/compare", {
+    productId,
+    mode: "buy",
+    market: "US",
+  });
+  assert.equal(response.status, 200, await response.clone().text());
+  const comparison = await response.json();
+  assert.equal(comparison.offers[0].priceMinor, 24999);
+  assert.equal(comparison.offers[0].evidenceType, "cited_summary");
+  assert.equal(calls[1].text, undefined);
+});
+test("per-line price records retain independent source-text validation when snippets are present", async () => {
+  const productId = await identified();
+  provider = async () => {
+    const result = await offerResponse().json();
+    const content = result.output.at(-1).content[0];
+    content.text = JSON.stringify(JSON.parse(content.text).offers[0]);
+    return Response.json(result);
+  };
+  const response = await request("/api/scan/compare", {
+    productId,
+    mode: "buy",
+    market: "US",
+  });
+  const comparison = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(comparison.offers[0]?.priceMinor, 24999);
+  assert.equal(comparison.offers[0]?.evidenceType, undefined);
+});
+test("separate output text blocks retain their independently sourced offers", async () => {
+  const productId = await identified();
+  provider = async () => {
+    const result = await offerResponse().json();
+    const original = JSON.parse(result.output.at(-1).content[0].text).offers[0];
+    const second = { ...original, url: "https://shop.example.com/second" };
+    result.output[0].results.push({
+      ...result.output[0].results[0],
+      url: second.url,
+    });
+    result.output.at(-1).content = [original, second].map((row) => ({
+      type: "output_text",
+      text: JSON.stringify(row),
+      annotations: [],
+    }));
+    return Response.json(result);
+  };
+  const result = await request("/api/scan/compare", {
+    productId,
+    mode: "buy",
+    market: "US",
+  });
+  assert.equal((await result.json()).offers.length, 2);
 });
 test("resale asking prices are not promoted to completed sales", async () => {
   const productId = await identified();

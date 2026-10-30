@@ -1,7 +1,8 @@
 import { metaKey } from "../providers/config.ts";
 import type { Comparison, Market, Mode, Product } from "../../shared/scan.ts";
 import { recognizeFrame, searchOffers } from "../providers/meta.ts";
-import { reserveScan } from "./budget.ts";
+import { reserveScan, settleScan } from "./budget.ts";
+import type { UsageReporter } from "../providers/usage.ts";
 import { ScanError } from "./errors.ts";
 import { MAX_FRAME_BYTES } from "./validation.ts";
 export function capabilities(env: Env) {
@@ -38,7 +39,7 @@ async function job<T>(
   kind: "recognize" | "compare",
   key: string,
   ttl: number,
-  run: () => Promise<T>,
+  run: (onUsage: UsageReporter) => Promise<T>,
 ): Promise<T> {
   const now = Date.now();
   await env.DB.prepare("DELETE FROM scan_jobs WHERE expires_at < ?")
@@ -72,8 +73,8 @@ async function job<T>(
   }
   try {
     requireProvider(env);
-    await reserveScan(env, userId, kind);
-    const result = await run();
+    const reservation = await reserveScan(env, userId, kind);
+    const result = await run((micros) => settleScan(env, reservation, micros));
     await env.DB.prepare(
       "UPDATE scan_jobs SET status='done',result=? WHERE id=?",
     )
@@ -103,8 +104,8 @@ export async function recognize(
     "recognize",
     await digest(`${market}:${frame}`),
     180000,
-    async () => {
-      const result = await recognizeFrame(env, frame, market, signal);
+    async (onUsage) => {
+      const result = await recognizeFrame(env, frame, market, signal, onUsage);
       const products: Product[] = [];
       for (const p of result) {
         const fingerprint = await digest(
@@ -181,8 +182,15 @@ export async function compare(
       ]),
     ),
     900000,
-    async () => {
-      const offers = await searchOffers(env, product, mode, market, signal);
+    async (onUsage) => {
+      const offers = await searchOffers(
+        env,
+        product,
+        mode,
+        market,
+        signal,
+        onUsage,
+      );
       const result: Comparison = {
         id: crypto.randomUUID(),
         product,

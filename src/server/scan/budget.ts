@@ -47,11 +47,22 @@ export async function reserveScan(
       start,
       kind === "recognize" ? 30 : 10,
     )
-    .first();
+    .first<{ id: string }>();
   if (!row)
     throw new ScanError(
       "allowance_exhausted",
       "The analysis allowance is used up. Existing results are still available.",
       429,
     );
+  return { id: row.id, reserved: amount };
+}
+export async function settleScan(
+  env: Env,
+  reservation: { id: string; reserved: number },
+  micros: number,
+) {
+  if (!Number.isSafeInteger(micros) || micros <= 0) return;
+  await env.DB.prepare("UPDATE scan_spend SET amount=? WHERE id=? AND amount=?")
+    .bind(micros, reservation.id, reservation.reserved)
+    .run();
 }

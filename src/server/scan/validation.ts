@@ -147,7 +147,7 @@ export function safeUrl(value: unknown): string | null {
     return null;
   }
 }
-function containsIdentity(evidence: string, identity: string): boolean {
+export function containsIdentity(evidence: string, identity: string): boolean {
   const tokens = identity.match(/[\p{L}\p{N}]+/gu);
   if (!tokens?.length) return false;
   return new RegExp(

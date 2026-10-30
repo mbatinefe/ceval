@@ -102,6 +102,7 @@ export function ComparisonDialog({
                   const difference =
                     comparison.product.shelfPriceMinor !== null &&
                     comparison.product.shelfCurrency === offer.currency &&
+                    offer.evidenceType !== "cited_summary" &&
                     offer.match === "exact" &&
                     offer.condition === "new" &&
                     kind === "retail"
@@ -123,6 +124,11 @@ export function ComparisonDialog({
                         </strong>
                       </div>
                       <p>{offer.title}</p>
+                      {offer.evidenceType === "cited_summary" && (
+                        <p className="muted">
+                          Search-reported price · confirm at retailer
+                        </p>
+                      )}
                       <small>
                         {offer.match === "exact"
                           ? "Model and variant match"
@@ -139,7 +145,11 @@ export function ComparisonDialog({
                         </p>
                       )}
                       <details>
-                        <summary>Source evidence</summary>
+                        <summary>
+                          {offer.evidenceType === "cited_summary"
+                            ? "Meta’s cited summary"
+                            : "Source evidence"}
+                        </summary>
                         <p>{offer.evidence}</p>
                       </details>
                     </article>
