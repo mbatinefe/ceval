@@ -146,3 +146,115 @@ test("a failed later recognition stops capture but drains earlier comparisons", 
   assert.deepEqual(completed, ["a", "b", "c"]);
   assert.equal(work.state.draining, false);
 });
+
+test("model confirmation finishes independently of a slow price search and drains at video end", async () => {
+  const work = new ScanWork(),
+    price = deferred(),
+    selection = deferred();
+  const confirmed: string[] = [],
+    started: string[] = [];
+  work.start();
+  work.compare("price", async () => {
+    await price.promise;
+  });
+  for (const key of ["first", "first", "second"])
+    work.select(key, async () => {
+      started.push(key);
+      await selection.promise;
+      confirmed.push(key);
+    });
+  assert.deepEqual(started, ["first"]);
+  assert.equal(work.state.pending, 3);
+  work.finishInput();
+  assert.equal(work.state.draining, true);
+  selection.resolve();
+  await tick();
+  assert.deepEqual(confirmed, ["first", "second"]);
+  assert.equal(work.state.pending, 1, "only the slow price search remains");
+  assert.equal(work.state.draining, true);
+  price.resolve();
+  await tick();
+  assert.equal(work.state.draining, false);
+});
+
+test("cancellation aborts both lanes and discards queued confirmations without disturbing a new run", async () => {
+  const work = new ScanWork(),
+    old = deferred(),
+    next = deferred();
+  const oldSignals: AbortSignal[] = [],
+    started: string[] = [];
+  work.start();
+  work.compare("price", async (signal) => {
+    oldSignals.push(signal);
+    await old.promise;
+  });
+  for (const key of ["first", "queued"])
+    work.select(key, async (signal) => {
+      oldSignals.push(signal);
+      started.push(key);
+      await old.promise;
+    });
+  assert.equal(oldSignals.length, 2);
+  work.cancel();
+  assert.ok(oldSignals.every((signal) => signal.aborted));
+  assert.equal(work.state.pending, 0);
+  work.start();
+  work.compare("price", async () => {
+    await next.promise;
+  });
+  work.select("first", async () => {
+    started.push("new");
+    await next.promise;
+  });
+  old.resolve();
+  await tick();
+  assert.deepEqual(started, ["first", "new"]);
+  assert.equal(work.state.pending, 2);
+  next.resolve();
+  await tick();
+  assert.equal(work.state.pending, 0);
+});
+
+test("both lanes share the total queue bound while deduplicating their own work", async () => {
+  const work = new ScanWork(),
+    release = deferred();
+  const started: string[] = [];
+  work.start();
+  for (let i = 0; i < 12; i++) {
+    const task = async () => {
+      started.push(String(i));
+      await release.promise;
+    };
+    assert.equal(
+      i % 2 ? work.compare(String(i), task) : work.select(String(i), task),
+      true,
+    );
+  }
+  assert.equal(work.state.pending, 12);
+  assert.deepEqual(started, ["0", "1"]);
+  assert.equal(
+    work.select("extra", async () => {}),
+    false,
+  );
+  assert.equal(
+    work.compare("extra", async () => {}),
+    false,
+  );
+  assert.equal(
+    work.select("0", async () => {
+      throw new Error("duplicate ran");
+    }),
+    true,
+  );
+  assert.equal(
+    work.compare("1", async () => {
+      throw new Error("duplicate ran");
+    }),
+    true,
+  );
+  assert.equal(work.state.pending, 12);
+  release.resolve();
+  await tick();
+  assert.equal(started.length, 12);
+  assert.equal(work.state.pending, 0);
+});

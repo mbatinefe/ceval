@@ -9,6 +9,8 @@ export async function reserveScan(
   const now = Date.now(),
     start = now - 86400000;
   const amount = kind === "recognize" ? 50000 : 2000000;
+  // Starting a price search must leave room for the next frame reservation.
+  const required = amount + (kind === "compare" ? 50000 : 0);
   const daily = Number(env.SCAN_DAILY_BUDGET_MICROS),
     total = Number(env.SCAN_TOTAL_BUDGET_MICROS);
   if (
@@ -39,10 +41,10 @@ export async function reserveScan(
       kind,
       amount,
       now,
-      amount,
+      required,
       total,
       start,
-      amount,
+      required,
       daily,
       userId,
       kind,
@@ -59,13 +61,13 @@ export async function reserveScan(
     )
       .bind(start, userId, kind, start)
       .first<{ total: number; daily: number; requests: number }>();
-    if (usage && usage.total + amount > total)
+    if (usage && usage.total + required > total)
       throw new ScanError(
         "total_budget_exhausted",
         "Analysis is paused because the service allowance is used up. Existing results are still available.",
         429,
       );
-    if (usage && usage.daily + amount > daily)
+    if (usage && usage.daily + required > daily)
       throw new ScanError(
         "daily_budget_exhausted",
         "Today's analysis budget is in use. Try again later; existing results are still available.",

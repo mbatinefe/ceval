@@ -151,6 +151,8 @@ export function useScanner(mode: Mode, market: Market) {
       finished.current = reason;
       runningRef.current = false;
       setRunning(false);
+      if (reason === "error" && sourceRef.current !== "camera")
+        video.current?.pause();
       work.finishInput();
     },
     [startup, work],
@@ -697,7 +699,7 @@ export function useScanner(mode: Mode, market: Market) {
       ),
     );
     let selectedId = productId;
-    const queued = work.compare(`selection:${productId}`, async (signal) => {
+    const queued = work.select(productId, async (signal) => {
       try {
         const { product } = await scanRequest<{ product: Product }>(
           "/api/scan/select-model",

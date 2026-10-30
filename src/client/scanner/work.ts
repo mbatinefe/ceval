@@ -1,10 +1,11 @@
 type Task = (signal: AbortSignal) => Promise<void>;
+type Lane = "compare" | "selection";
 export class ScanWork {
   private controller = new AbortController();
   private inputOpen = false;
   private recognizing = false;
-  private active = 0;
-  private queue: { key: string; task: Task }[] = [];
+  private active = { compare: 0, selection: 0 };
+  private queue: { key: string; task: Task; lane: Lane }[] = [];
   private keys = new Set<string>();
   onChange?: () => void;
   onError?: (error: unknown) => void;
@@ -25,7 +26,7 @@ export class ScanWork {
     this.controller = new AbortController();
     this.inputOpen = false;
     this.recognizing = false;
-    this.active = 0;
+    this.active = { compare: 0, selection: 0 };
     this.queue = [];
     this.keys.clear();
     this.onChange?.();
@@ -52,20 +53,30 @@ export class ScanWork {
     }
   }
   compare(key: string, task: Task) {
+    return this.enqueue("compare", key, task);
+  }
+  select(key: string, task: Task) {
+    return this.enqueue("selection", key, task);
+  }
+  private enqueue(lane: Lane, requestKey: string, task: Task) {
+    const key = `${lane}:${requestKey}`;
     if (this.keys.has(key)) return true;
     if (this.keys.size >= 12) return false;
     this.keys.add(key);
-    this.queue.push({ key, task });
+    this.queue.push({ key, task, lane });
     this.onChange?.();
     this.drain();
     return true;
   }
   private drain() {
-    // Settle one price reservation before starting the next product search.
-    while (this.active < 1 && this.queue.length) {
-      const job = this.queue.shift()!,
+    // Price searches settle serially; model confirmation has its own single slot.
+    for (const lane of ["compare", "selection"] as const) {
+      if (this.active[lane]) continue;
+      const index = this.queue.findIndex((job) => job.lane === lane);
+      if (index < 0) continue;
+      const job = this.queue.splice(index, 1)[0],
         controller = this.controller;
-      this.active++;
+      this.active[lane]++;
       void (async () => {
         try {
           await job.task(controller.signal);
@@ -73,7 +84,7 @@ export class ScanWork {
           if (controller === this.controller) this.onError?.(error);
         } finally {
           if (controller === this.controller) {
-            this.active--;
+            this.active[lane]--;
             this.keys.delete(job.key);
             this.onChange?.();
             this.drain();

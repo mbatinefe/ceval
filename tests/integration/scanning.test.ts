@@ -572,6 +572,74 @@ test("the configured 15-dollar daily ceiling stays atomic without expanding the 
     env.SCAN_TOTAL_BUDGET_MICROS = "100000000";
   }
 });
+test("a price reservation cannot consume the last frame-analysis allowance", async () => {
+  env.SCAN_DAILY_BUDGET_MICROS = "15000000";
+  try {
+    await env.DB.prepare(
+      "INSERT INTO scan_spend (id,user_id,kind,amount,created_at) VALUES ('used','other','compare',12960000,?)",
+    )
+      .bind(Date.now())
+      .run();
+    await assert.rejects(reserveScan(env, "shopper", "compare"), {
+      code: "daily_budget_exhausted",
+    });
+    const recognition = await reserveScan(env, "shopper", "recognize");
+    assert.equal(recognition.reserved, 50000);
+  } finally {
+    env.SCAN_DAILY_BUDGET_MICROS = "10000000";
+  }
+});
+test("price reservation headroom also protects recognition at the lifetime ceiling", async () => {
+  env.SCAN_TOTAL_BUDGET_MICROS = "3000000";
+  try {
+    await env.DB.prepare(
+      "INSERT INTO scan_spend (id,user_id,kind,amount,created_at) VALUES ('old','other','compare',960000,?)",
+    )
+      .bind(Date.now() - 2 * 86400000)
+      .run();
+    await assert.rejects(reserveScan(env, "shopper", "compare"), {
+      code: "total_budget_exhausted",
+    });
+    assert.equal(
+      (await reserveScan(env, "shopper", "recognize")).reserved,
+      50000,
+    );
+  } finally {
+    env.SCAN_TOTAL_BUDGET_MICROS = "100000000";
+  }
+});
+test("concurrent price reservations atomically preserve a full recognition slot", async () => {
+  env.SCAN_DAILY_BUDGET_MICROS = "15000000";
+  try {
+    await env.DB.prepare(
+      "INSERT INTO scan_spend (id,user_id,kind,amount,created_at) VALUES ('used','other','compare',10960000,?)",
+    )
+      .bind(Date.now())
+      .run();
+    const prices = await Promise.allSettled([
+      reserveScan(env, "shopper", "compare"),
+      reserveScan(env, "other", "compare"),
+    ]);
+    assert.equal(
+      prices.filter((result) => result.status === "fulfilled").length,
+      1,
+    );
+    assert.equal(
+      (await reserveScan(env, "shopper", "recognize")).reserved,
+      50000,
+    );
+    const spent = await env.DB.prepare(
+      "SELECT SUM(amount) AS amount FROM scan_spend",
+    ).first<{ amount: number }>();
+    assert.equal(
+      spent?.amount,
+      13010000,
+      "the recognition margin is not recorded as a provider charge",
+    );
+  } finally {
+    env.SCAN_DAILY_BUDGET_MICROS = "10000000";
+  }
+});
 async function identified() {
   const r = await recognize();
   assert.equal(r.status, 200);
