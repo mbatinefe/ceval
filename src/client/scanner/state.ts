@@ -1,5 +1,6 @@
 import type { Comparison, Market, Mode, Product } from "../../shared/scan.ts";
 import type { FoundProduct } from "./continuity.ts";
+import { offerSummary } from "./presentation.ts";
 export function findActionRow(
   rows: FoundProduct[],
   productId: string,
@@ -52,14 +53,16 @@ export function completionMessage(
   if (!rows.length) return `${prefix} No products identified yet.`;
   const completed = rows.filter(
     (row) =>
-      row.comparison &&
-      row.comparison.expiresAt > Date.now() &&
+      offerSummary(row.comparison) &&
       !row.error &&
       !row.searching &&
       !row.selecting,
   ).length;
   const needsAttention = rows.length - completed;
-  return `${prefix} ${completed} comparison${completed === 1 ? "" : "s"} ready.${needsAttention ? ` ${needsAttention} find${needsAttention === 1 ? " needs" : "s need"} attention.` : ""}`;
+  const prices = completed
+    ? `${completed} find${completed === 1 ? "" : "s"} with prices.`
+    : "No prices found yet.";
+  return `${prefix} ${prices}${needsAttention ? ` ${needsAttention} find${needsAttention === 1 ? " needs" : "s need"} attention.` : ""}`;
 }
 export function isAllowanceError(code?: string) {
   return [

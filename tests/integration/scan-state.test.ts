@@ -141,8 +141,19 @@ test("video completion acknowledges unfinished finds without claiming every resu
     product,
     mode: "buy",
     market: "US",
-    offers: [],
-    status: "no_evidence",
+    offers: [
+      {
+        title: "Headphones",
+        url: "https://shop.example/item",
+        priceMinor: 19900,
+        currency: "USD",
+        condition: "new",
+        kind: "retail",
+        match: "exact",
+        evidence: "Listed at USD199",
+      },
+    ],
+    status: "found",
     checkedAt: 0,
     expiresAt: Date.now() + 60000,
   };
@@ -159,7 +170,7 @@ test("video completion acknowledges unfinished finds without claiming every resu
     "video",
     false,
   );
-  assert.match(message, /1 comparison/);
+  assert.match(message, /1 find with prices/);
   assert.match(message, /1 find.*attention/);
   assert.match(completionMessage([], "video", false), /No products/);
   assert.match(completionMessage([], "video", true), /Finishing/);
@@ -228,8 +239,29 @@ test("historical comparisons with a changed shelf price still need attention at 
     "video",
     false,
   );
-  assert.match(message, /0 comparisons ready/);
+  assert.match(message, /No prices found yet/);
   assert.match(message, /1 find.*attention/);
+});
+
+test("completed empty searches do not count as ready prices", () => {
+  const comparison: Comparison = {
+    id: "empty",
+    product,
+    mode: "resale",
+    market: "US",
+    offers: [],
+    status: "no_evidence",
+    checkedAt: Date.now(),
+    expiresAt: Date.now() + 60000,
+  };
+  const message = completionMessage(
+    [{ product, time: 0, comparison }],
+    "video",
+    false,
+  );
+  assert.match(message, /No prices found yet/);
+  assert.match(message, /1 find needs attention/);
+  assert.doesNotMatch(message, /ready/);
 });
 
 test("actions target a local find when uncertain server fingerprints collide", () => {
