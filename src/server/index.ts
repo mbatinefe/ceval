@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { createAuth } from "./auth/config.ts";
+import { createAuth, signupsEnabled } from "./auth/config.ts";
 import {
   consumeLimit,
   LimitReached,
@@ -91,6 +91,10 @@ app.use("/api/*", async (c, next) => {
   }
   await next();
 });
+
+app.get("/api/auth/status", (c) =>
+  c.json({ signupsEnabled: signupsEnabled(c.env) }),
+);
 
 app.all("/api/auth/*", async (c) => {
   const path = c.req.path.slice("/api/auth".length);

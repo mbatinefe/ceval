@@ -15,6 +15,18 @@ export function SignIn() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [cooldown, setCooldown] = useState(0);
+  const [signupsOpen, setSignupsOpen] = useState(false);
+  useEffect(() => {
+    let active = true;
+    api<{ signupsEnabled: boolean }>("/api/auth/status")
+      .then((status) => {
+        if (active) setSignupsOpen(status.signupsEnabled);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
   useEffect(() => {
     if (!cooldown) return;
     const timer = setTimeout(() => setCooldown(cooldown - 1), 1000);
@@ -93,10 +105,15 @@ export function SignIn() {
           </h2>
           <p>
             {step === "email" ? (
-              "Sign in with a code. No password needed."
+              signupsOpen ? (
+                "Sign in with a code. No password needed."
+              ) : (
+                "Existing accounts can sign in. New signups are temporarily paused."
+              )
             ) : (
               <>
-                We sent a six-digit code to <strong>{email.trim()}</strong>.
+                If this email is eligible, a six-digit code will arrive at{" "}
+                <strong>{email.trim()}</strong>.
               </>
             )}
           </p>

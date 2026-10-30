@@ -95,6 +95,7 @@ after(async () => {
 beforeEach(async () => {
   deliveries.clear();
   rejectDelivery = false;
+  Reflect.set(env, "SIGNUPS_ENABLED", "true");
   const names = await env.DB.prepare(
     "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'",
   ).all<{ name: string }>();
@@ -170,6 +171,82 @@ test("email code creates a secure verified session and cannot be replayed", asyn
     otp: deliveries.get("shopper@example.com"),
   });
   assert.equal(replay.status, 400);
+});
+
+test("paused signups suppress new-account codes without revealing membership", async () => {
+  Reflect.set(env, "SIGNUPS_ENABLED", "false");
+  const status = await request("/api/auth/status");
+  assert.equal(status.status, 200);
+  assert.deepEqual(await status.json(), { signupsEnabled: false });
+  assert.equal((await send("new@example.com")).status, 200);
+  assert.equal(deliveries.size, 0);
+  assert.equal(
+    (
+      await env.DB.prepare("SELECT COUNT(*) AS n FROM user").first<{
+        n: number;
+      }>()
+    )?.n,
+    0,
+  );
+});
+
+test("a code issued before the pause cannot create a new account", async () => {
+  assert.equal((await send("pending@example.com")).status, 200);
+  const otp = deliveries.get("pending@example.com");
+  Reflect.set(env, "SIGNUPS_ENABLED", "false");
+  const result = await request("/api/auth/sign-in/email-otp", {
+    email: "pending@example.com",
+    otp,
+  });
+  assert.equal(result.status, 400);
+  assert.equal(result.headers.get("set-cookie"), null);
+  assert.equal(
+    (
+      await env.DB.prepare("SELECT COUNT(*) AS n FROM user").first<{
+        n: number;
+      }>()
+    )?.n,
+    0,
+  );
+});
+
+test("existing sessions and email sign-in still work while signups are paused", async () => {
+  const existing = await login();
+  Reflect.set(env, "SIGNUPS_ENABLED", "false");
+  assert.equal(
+    (await request("/api/me", undefined, existing.cookie)).status,
+    200,
+  );
+  await request("/api/auth/sign-out", {}, existing.cookie);
+  await env.DB.prepare("DELETE FROM app_limits").run();
+  const returning = await login();
+  assert.equal(
+    (await request("/api/me", undefined, returning.cookie)).status,
+    200,
+  );
+  assert.equal(
+    (
+      await env.DB.prepare("SELECT COUNT(*) AS n FROM user").first<{
+        n: number;
+      }>()
+    )?.n,
+    1,
+  );
+});
+
+test("signup defaults closed and can be reopened explicitly", async () => {
+  Reflect.deleteProperty(env, "SIGNUPS_ENABLED");
+  assert.equal((await send("closed@example.com")).status, 200);
+  assert.equal(deliveries.size, 0);
+  Reflect.set(env, "SIGNUPS_ENABLED", "true");
+  assert.deepEqual(await (await request("/api/auth/status")).json(), {
+    signupsEnabled: true,
+  });
+  const opened = await login("open@example.com");
+  assert.equal(
+    (await request("/api/me", undefined, opened.cookie)).status,
+    200,
+  );
 });
 
 test("codes are hashed, expire, and fail closed after three wrong attempts", async () => {

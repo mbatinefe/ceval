@@ -1,6 +1,8 @@
 import { betterAuth } from "better-auth";
 import { emailOTP } from "better-auth/plugins/email-otp";
 import { sendLoginCode } from "./email.ts";
+export const signupsEnabled = (env: Env) =>
+  String(env.SIGNUPS_ENABLED) === "true";
 export function createAuth(env: Env, onDeliveryError?: () => void) {
   return betterAuth({
     appName: "Ceval",
@@ -33,7 +35,7 @@ export function createAuth(env: Env, onDeliveryError?: () => void) {
         expiresIn: 300,
         allowedAttempts: 3,
         storeOTP: "hashed",
-        disableSignUp: false,
+        disableSignUp: !signupsEnabled(env),
         resendStrategy: "rotate",
         rateLimit: { window: 60, max: 10 },
         async sendVerificationOTP({ email, otp, type }) {
