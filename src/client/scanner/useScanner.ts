@@ -14,7 +14,12 @@ import {
   ScanRequestError,
   videoFileError,
 } from "./media";
-import { frameDifference, trackBox, type GrayFrame } from "./tracking";
+import {
+  DetectionTrail,
+  frameDifference,
+  trackDetection,
+  type GrayFrame,
+} from "./tracking";
 import {
   cachedComparison,
   cacheMatchingComparison,
@@ -37,6 +42,7 @@ import {
 } from "./startup";
 import { clips } from "../../../public/demo/manifest.json";
 export type SourceKind = "camera" | "video" | "sample" | null;
+export type ScanPin = Product & { rowId: string };
 export type { FoundProduct } from "./continuity";
 export function useScanner(mode: Mode, market: Market) {
   const video = useRef<HTMLVideoElement>(null);
@@ -44,6 +50,7 @@ export function useScanner(mode: Mode, market: Market) {
     objectUrl = useRef<string | null>(null);
   const generation = useRef(0);
   const [work] = useState(() => new ScanWork());
+  const [detectionTrail] = useState(() => new DetectionTrail());
   const [startup] = useState(() => new MediaStartup());
   const [startupState, setStartupState] = useState<StartupState>("idle");
   const [cameraPending, setCameraPending] = useState(false);
@@ -56,10 +63,9 @@ export function useScanner(mode: Mode, market: Market) {
   const runningRef = useRef(false),
     lastAnalyzed = useRef<GrayFrame | null>(null),
     previous = useRef<GrayFrame | null>(null);
-  const tracked = useRef<Product[]>([]),
+  const tracked = useRef<ScanPin[]>([]),
     lastTracking = useRef(0),
-    lastAnalysis = useRef(0),
-    lastDetection = useRef(0);
+    lastAnalysis = useRef(0);
   const resultsRef = useRef<FoundProduct[]>([]),
     cache = useRef(new Map<string, Comparison>());
   const pendingSelections = useRef(new Set<string>());
@@ -81,7 +87,7 @@ export function useScanner(mode: Mode, market: Market) {
     [busy, setBusy] = useState(false),
     [finishing, setFinishing] = useState(false),
     [ready, setReady] = useState(false);
-  const [pins, setPins] = useState<Product[]>([]),
+  const [pins, setPins] = useState<ScanPin[]>([]),
     [found, setFound] = useState<FoundProduct[]>([]);
   const [aspect, setAspect] = useState(16 / 9);
   useEffect(() => {
@@ -128,6 +134,7 @@ export function useScanner(mode: Mode, market: Market) {
     generation.current++;
     finished.current = null;
     work.cancel();
+    detectionTrail.clear();
     pendingSelections.current.clear();
     runningRef.current = false;
     setRunning(false);
@@ -137,7 +144,7 @@ export function useScanner(mode: Mode, market: Market) {
     previous.current = null;
     lastAnalyzed.current = null;
     updateResults(interruptFinds(resultsRef.current));
-  }, [startup, updateResults, work]);
+  }, [startup, updateResults, work, detectionTrail]);
   const finishAnalysis = useCallback(
     (reason: "video" | "error") => {
       startup.cancel();
@@ -190,6 +197,7 @@ export function useScanner(mode: Mode, market: Market) {
       startup.cancel();
       generation.current++;
       work.cancel();
+      detectionTrail.clear();
       stream.current?.getTracks().forEach((t) => t.stop());
       if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
     };
@@ -337,6 +345,7 @@ export function useScanner(mode: Mode, market: Market) {
     finished.current = null;
     if (runningRef.current) work.start();
     else work.cancel();
+    detectionTrail.clear();
     pendingSelections.current.clear();
     setBusy(false);
     tracked.current = [];
@@ -345,7 +354,7 @@ export function useScanner(mode: Mode, market: Market) {
     lastAnalyzed.current = null;
     lastAnalysis.current = 0;
     updateResults(interruptFinds(resultsRef.current));
-  }, [updateResults, work]);
+  }, [updateResults, work, detectionTrail]);
   function comparisonFailure(err: unknown) {
     const failure = {
       error: err instanceof Error ? err.message : "Price search failed.",
@@ -501,6 +510,7 @@ export function useScanner(mode: Mode, market: Market) {
 
     setMessage("Identifying visible products…");
     const epoch = generation.current;
+    detectionTrail.begin(thumbnail);
     await work.recognize(async (signal) => {
       try {
         const result = await scanRequest<{ products: Product[] }>(
@@ -524,16 +534,28 @@ export function useScanner(mode: Mode, market: Market) {
           },
         );
         updateResults(reconciled.rows);
-        const current = grayFrame(element);
-        const near = frameDifference(thumbnail, current) < 5;
-        tracked.current = reconciled.sightings.flatMap(({ product }) => {
-          const box = near
-            ? product.box
-            : trackBox(thumbnail, current, product.box);
-          return box ? [{ ...product, box }] : [];
+        detectionTrail.append(grayFrame(element));
+        const projected = await detectionTrail.projectMany(
+          reconciled.sightings.map(({ product }) => product.box),
+          signal,
+        );
+        if (epoch !== generation.current || signal.aborted) return;
+        tracked.current = reconciled.sightings.flatMap((row, index) => {
+          const box = projected?.boxes[index];
+          const currentRow = resultsRef.current.find(
+            (item) => item.rowId === row.rowId,
+          );
+          return box && currentRow
+            ? [
+                {
+                  ...currentRow.product,
+                  rowId: currentRow.rowId || currentRow.product.id,
+                  box,
+                },
+              ]
+            : [];
         });
-        previous.current = current;
-        lastDetection.current = Date.now();
+        previous.current = projected?.frame || null;
         setPins(tracked.current);
         setMessage(
           result.products.length
@@ -572,6 +594,8 @@ export function useScanner(mode: Mode, market: Market) {
           );
           finishAnalysis("error");
         }
+      } finally {
+        if (epoch === generation.current) detectionTrail.clear();
       }
     });
   }
@@ -590,14 +614,12 @@ export function useScanner(mode: Mode, market: Market) {
         now - lastTracking.current > 160
       ) {
         lastTracking.current = now;
-        if (tracked.current.length) {
+        if (tracked.current.length || work.state.recognizing) {
           const current = grayFrame(element);
-          if (Date.now() - lastDetection.current > 8000) {
-            tracked.current = [];
-            setPins([]);
-          } else if (previous.current) {
+          if (work.state.recognizing) detectionTrail.append(current);
+          if (tracked.current.length && previous.current) {
             tracked.current = tracked.current.flatMap((p) => {
-              const box = trackBox(previous.current!, current, p.box);
+              const box = trackDetection(previous.current!, current, p.box);
               return box ? [{ ...p, box }] : [];
             });
             setPins(tracked.current);
@@ -616,7 +638,7 @@ export function useScanner(mode: Mode, market: Market) {
     }
     animation = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(animation);
-  }, [finishAnalysis]);
+  }, [finishAnalysis, detectionTrail, work]);
   async function attemptStart() {
     const element = video.current;
     if (!element || !sourceRef.current || document.hidden) return;
@@ -684,13 +706,11 @@ export function useScanner(mode: Mode, market: Market) {
         );
         if (epoch !== generation.current) return;
         selectedId = product.id;
-        if (
-          resultsRef.current.filter((item) => item.product.id === productId)
-            .length === 1
-        )
-          tracked.current = tracked.current.map((item) =>
-            item.id === productId ? { ...product, box: item.box } : item,
-          );
+        tracked.current = tracked.current.map((item) =>
+          item.rowId === (row.rowId || productId) && item.id === productId
+            ? { ...product, rowId: item.rowId, box: item.box }
+            : item,
+        );
         setPins(tracked.current);
         updateResults(
           resultsRef.current.map((item) =>

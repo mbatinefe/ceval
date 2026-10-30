@@ -1828,6 +1828,17 @@ em {
   font-size: 12px;
   line-height: 1.5;
 }
+.unclear-finds > summary {
+  padding: 18px;
+  min-height: 48px;
+  color: #b3bca7;
+  font-size: 12px;
+  cursor: pointer;
+  border-top: 1px solid #343e2c;
+}
+.unclear-finds > summary:hover {
+  color: var(--accent);
+}
 .current-find {
   margin: 14px 0 0;
   padding: 17px;

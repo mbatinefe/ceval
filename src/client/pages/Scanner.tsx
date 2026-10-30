@@ -40,7 +40,7 @@ export function Scanner() {
   const focused =
     scan.found.find((row) => rowKey(row) === focusedKey) ||
     scan.found.find((row) =>
-      scan.pins.some((pin) => pin.id === row.product.id),
+      scan.pins.some((pin) => pin.rowId === rowKey(row)),
     ) ||
     scan.found[0];
   const choice = scan.found.find((row) => rowKey(row) === choiceKey);
@@ -70,6 +70,34 @@ export function Scanner() {
     pauseForDetails();
     setChoiceKey(rowKey(row));
   }
+  const needsLabel = (row: FoundProduct) =>
+    !row.comparison &&
+    !row.product.candidates?.length &&
+    (!row.product.model ||
+      (row.product.confidence < 0.85 &&
+        row.product.identification !== "user_selected"));
+  const identifiable = scan.found.filter((row) => !needsLabel(row));
+  const unclear = scan.found.filter(needsLabel);
+  const renderFind = (row: FoundProduct) => (
+    <ScanResultCard
+      key={rowKey(row)}
+      row={row}
+      active={focused && rowKey(row) === rowKey(focused)}
+      onFocus={() => {
+        setFocusedKey(rowKey(row));
+        document
+          .querySelector(".current-find")
+          ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }}
+      onChoose={() => choose(row)}
+      onReview={review}
+      onRetry={
+        row.retryable
+          ? () => scan.retryComparison(row.product.id, row.rowId)
+          : undefined
+      }
+    />
+  );
   return (
     <main className={`live-scanner app-wrap${scan.source ? " has-feed" : ""}`}>
       <div className="scanner-heading">
@@ -230,12 +258,12 @@ export function Scanner() {
               <div className="live-pins">
                 {scan.pins.map((product, index) => {
                   const row = scan.found.find(
-                    (item) => item.product.id === product.id,
+                    (item) => rowKey(item) === product.rowId,
                   );
                   const summary = offerSummary(row?.comparison);
                   return (
                     <button
-                      key={product.id}
+                      key={product.rowId}
                       className={`live-pin${row && focused && rowKey(row) === rowKey(focused) ? " is-active" : ""}`}
                       style={{
                         left: `clamp(78px, ${(product.box.x + product.box.width / 2) * 100}%, calc(100% - 78px))`,
@@ -381,7 +409,7 @@ export function Scanner() {
               row={focused}
               compact
               context={
-                scan.pins.some((pin) => pin.id === focused.product.id)
+                scan.pins.some((pin) => pin.rowId === rowKey(focused))
                   ? "IN VIEW"
                   : rowKey(focused) === focusedKey
                     ? "SELECTED FIND"
@@ -441,26 +469,19 @@ export function Scanner() {
               </p>
             </div>
           ) : (
-            scan.found.map((row) => (
-              <ScanResultCard
-                key={rowKey(row)}
-                row={row}
-                active={focused && rowKey(row) === rowKey(focused)}
-                onFocus={() => {
-                  setFocusedKey(rowKey(row));
-                  document
-                    .querySelector(".current-find")
-                    ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-                }}
-                onChoose={() => choose(row)}
-                onReview={review}
-                onRetry={
-                  row.retryable
-                    ? () => scan.retryComparison(row.product.id, row.rowId)
-                    : undefined
-                }
-              />
-            ))
+            <>
+              {identifiable.map(renderFind)}
+              {unclear.length > 0 && (
+                <details className="unclear-finds">
+                  <summary>
+                    {unclear.length}{" "}
+                    {unclear.length === 1 ? "item needs" : "items need"} a
+                    clearer label
+                  </summary>
+                  {unclear.map(renderFind)}
+                </details>
+              )}
+            </>
           )}
           <a href="/app/finds" className="shelf-link">
             Your saved finds
