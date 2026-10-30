@@ -47,9 +47,14 @@ scanRoutes.post("/scan/recognize", async (c) => {
       "This request was already used for a different frame.",
       409,
     );
-  return c.json(
-    await recognize(c.env, userId, frame, market, c.req.raw.signal),
+  const task = recognize(c.env, userId, frame, market, c.req.raw.signal);
+  c.executionCtx.waitUntil(
+    task.then(
+      () => undefined,
+      () => undefined,
+    ),
   );
+  return c.json(await task);
 });
 scanRoutes.post("/scan/select-model", async (c) => {
   const body = c.get("body"),
@@ -69,16 +74,21 @@ scanRoutes.post("/scan/compare", async (c) => {
   const body = c.get("body"),
     userId = c.get("session").user.id;
   await consumeLimit(c.env.DB, `compare:request:${userId}`, 30, 60);
-  return c.json(
-    await compare(
-      c.env,
-      userId,
-      text(body.productId, 80),
-      modeOf(body.mode),
-      marketOf(body.market),
-      c.req.raw.signal,
+  const task = compare(
+    c.env,
+    userId,
+    text(body.productId, 80),
+    modeOf(body.mode),
+    marketOf(body.market),
+    c.req.raw.signal,
+  );
+  c.executionCtx.waitUntil(
+    task.then(
+      () => undefined,
+      () => undefined,
     ),
   );
+  return c.json(await task);
 });
 scanRoutes.get("/comparisons", async (c) => {
   const rows = await c.env.DB.prepare(

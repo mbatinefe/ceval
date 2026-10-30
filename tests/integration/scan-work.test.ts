@@ -60,19 +60,24 @@ test("video end drains recognition and its price searches without aborting", asy
   assert.equal(complete, true);
   assert.equal(work.state.draining, false);
 });
-test("searches are deduplicated and at most two run concurrently", async () => {
+test("searches are deduplicated and one reservation is active while the next waits", async () => {
   const work = new ScanWork(),
-    first = deferred();
+    first = deferred(),
+    second = deferred();
   const started: string[] = [];
   work.start();
   for (const key of ["a", "a", "b", "c"])
     work.compare(key, async () => {
       started.push(key);
-      await first.promise;
+      await (key === "a" ? first.promise : second.promise);
     });
-  assert.deepEqual(started, ["a", "b"]);
+  assert.deepEqual(started, ["a"]);
   assert.equal(work.state.pending, 3);
   first.resolve();
+  await tick();
+  assert.deepEqual(started, ["a", "b"]);
+  assert.equal(work.state.pending, 2);
+  second.resolve();
   await tick();
   assert.deepEqual(started, ["a", "b", "c"]);
   assert.equal(work.state.pending, 0);
@@ -104,7 +109,7 @@ test("explicit cancellation aborts active work, drops queued work and isolates a
   await prior;
   await tick();
   assert.equal(work.state.recognizing, true);
-  assert.deepEqual(started, ["a", "b"]);
+  assert.deepEqual(started, ["a"]);
   next.resolve();
   await current;
   assert.equal(work.state.recognizing, false);

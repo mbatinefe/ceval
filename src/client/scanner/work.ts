@@ -61,7 +61,8 @@ export class ScanWork {
     return true;
   }
   private drain() {
-    while (this.active < 2 && this.queue.length) {
+    // Settle one price reservation before starting the next product search.
+    while (this.active < 1 && this.queue.length) {
       const job = this.queue.shift()!,
         controller = this.controller;
       this.active++;

@@ -55,10 +55,15 @@ async function meta(
   signal?: AbortSignal,
   onUsage?: UsageReporter,
 ) {
-  const controller = AbortSignal.any([
-    AbortSignal.timeout(45000),
-    ...(signal ? [signal] : []),
-  ]);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 45000);
+  let disconnectTimeout: ReturnType<typeof setTimeout> | undefined;
+  const onDisconnect = () => {
+    // waitUntil allows 30 seconds after disconnect; leave time to settle D1 usage.
+    disconnectTimeout = setTimeout(() => controller.abort(), 25000);
+  };
+  if (signal?.aborted) controller.abort();
+  else signal?.addEventListener("abort", onDisconnect, { once: true });
   try {
     const response = await fetch("https://api.meta.ai/v1/responses", {
       method: "POST",
@@ -66,7 +71,7 @@ async function meta(
         Authorization: `Bearer ${metaKey(env)}`,
         "Content-Type": "application/json",
       },
-      signal: controller,
+      signal: controller.signal,
       body: JSON.stringify({
         model: MODEL,
         store: false,
@@ -199,7 +204,7 @@ async function meta(
     };
   } catch (error) {
     if (error instanceof ScanError) throw error;
-    if (controller.aborted)
+    if (controller.signal.aborted)
       throw new ScanError(
         "analysis_timeout",
         "Analysis stopped or took too long. Try a clearer frame.",
@@ -210,6 +215,10 @@ async function meta(
       "Analysis returned an unreadable result. Please try again.",
       502,
     );
+  } finally {
+    clearTimeout(timeout);
+    if (disconnectTimeout !== undefined) clearTimeout(disconnectTimeout);
+    signal?.removeEventListener("abort", onDisconnect);
   }
 }
 export async function recognizeFrame(

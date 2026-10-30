@@ -11,7 +11,11 @@ const secret = "scanning-test-only-secret-over-32-characters";
 let mf: Miniflare;
 let env: Env;
 let calls: Record<string, unknown>[];
-let provider: (body: Record<string, unknown>) => Promise<Response>;
+let backgroundWork: Promise<unknown>[];
+let provider: (
+  body: Record<string, unknown>,
+  signal?: AbortSignal | null,
+) => Promise<Response>;
 const product = {
   brand: "Sony",
   model: "WH-1000XM5",
@@ -50,10 +54,12 @@ function request(
   user: string | null = "shopper",
   method?: string,
   requestOrigin = origin,
+  signal?: AbortSignal,
 ) {
   return worker.fetch(
     new Request(origin + path, {
       method: method ?? (body === undefined ? "GET" : "POST"),
+      signal,
       headers: {
         Origin: requestOrigin,
         "Content-Type": "application/json",
@@ -63,6 +69,13 @@ function request(
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     }),
     env,
+    {
+      waitUntil(promise) {
+        backgroundWork.push(promise);
+      },
+      passThroughOnException() {},
+      props: {},
+    },
   );
 }
 const recognize = (requestId = crypto.randomUUID()) =>
@@ -113,7 +126,7 @@ before(async () => {
       );
       const body = JSON.parse(String(init?.body));
       calls.push(body);
-      return provider(body);
+      return provider(body, init?.signal);
     },
   );
 });
@@ -161,6 +174,7 @@ beforeEach(async () => {
       .run();
   }
   calls = [];
+  backgroundWork = [];
   env.META_API_KEY = "test-provider-key";
   env.SCAN_ENABLED = "true";
   provider = async () => response({ products: [product] });
@@ -312,6 +326,60 @@ test("a completed recognition settles its reservation against reported usage", a
   ).first<{ n: number }>();
   assert.equal(spend?.n, 550);
 });
+for (const kind of ["recognize", "compare"] as const)
+  test(`disconnecting after paid ${kind} begins keeps its usage settlement alive`, async () => {
+    const productId = kind === "compare" ? await identified() : null;
+    backgroundWork = [];
+    const client = new AbortController();
+    let release!: () => void;
+    let started!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    provider = async (_body, signal) => {
+      started();
+      await gate;
+      signal?.throwIfAborted();
+      return kind === "recognize"
+        ? response({ products: [product] })
+        : response({ offers: [] }, [
+            {
+              type: "web_search_call",
+              status: "completed",
+              action: { type: "search", query: "Sony WH-1000XM5 price" },
+              results: [],
+            },
+          ]);
+    };
+    const pending = request(
+      `/api/scan/${kind}`,
+      kind === "recognize"
+        ? { frame, market: "US", requestId: crypto.randomUUID() }
+        : { productId, mode: "buy", market: "US" },
+      "shopper",
+      undefined,
+      origin,
+      client.signal,
+    );
+    await ready;
+    client.abort();
+    release();
+    assert.equal((await pending).status, 200);
+    assert.ok(
+      backgroundWork.length > 0,
+      "the Worker retains the accepted scan until settlement finishes",
+    );
+    await Promise.all(backgroundWork);
+    const spend = await env.DB.prepare(
+      "SELECT amount FROM scan_spend WHERE kind=?",
+    )
+      .bind(kind)
+      .first<{ amount: number }>();
+    assert.equal(spend?.amount, kind === "recognize" ? 550 : 3050);
+  });
 test("an incomplete billed search settles usage without storing a partial answer", async () => {
   const productId = await identified();
   provider = async () =>
