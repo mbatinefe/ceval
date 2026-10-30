@@ -168,3 +168,65 @@ test("Unicode before a cited record does not move its citation to a different cl
     24999,
   );
 });
+test("a cited marketplace price retains its asking kind and source condition", () => {
+  const [found] = citedOffers(
+    [block({ ...offer, kind: "asking" })],
+    [{ ...source, title: "Sony WH-1000XM5 Black used headphones" }],
+    product,
+    "US",
+    "buy",
+  );
+  assert.equal(found?.priceMinor, 24999);
+  assert.equal(found?.kind, "asking");
+  assert.equal(found?.condition, "used");
+  assert.equal(found?.evidenceType, "cited_summary");
+});
+test("a native citation cannot turn a SOLD source listing into a buy offer", () => {
+  assert.deepEqual(
+    citedOffers(
+      [block({ ...offer, kind: "asking" })],
+      [{ ...source, title: "SOLD Sony WH-1000XM5 Black headphones" }],
+      product,
+      "US",
+      "buy",
+    ),
+    [],
+  );
+});
+test("a cited selected model can use reordered qualifiers but cannot omit them", () => {
+  const selected: Product = {
+    ...product,
+    brand: "Apple",
+    model: "MacBook Pro 16-inch (M1 Pro, 2021)",
+    variant: "Silver",
+    identification: "user_selected",
+    confidence: 0.45,
+  };
+  const row = {
+    ...offer,
+    priceMinor: 89900,
+    kind: "asking",
+    supportingText:
+      'Apple 2021 MacBook Pro 16" M1 Pro Silver used laptop USD $899.00.',
+  };
+  const title = 'Apple 2021 MacBook Pro 16" M1 Pro Silver used laptop';
+  const [found] = citedOffers(
+    [block(row)],
+    [{ ...source, title }],
+    selected,
+    "US",
+    "buy",
+  );
+  assert.equal(found?.priceMinor, 89900);
+  assert.equal(found?.match, "possible");
+  assert.deepEqual(
+    citedOffers(
+      [block(row)],
+      [{ ...source, title: 'Apple MacBook Pro 16" Silver' }],
+      selected,
+      "US",
+      "buy",
+    ),
+    [],
+  );
+});

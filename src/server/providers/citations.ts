@@ -1,6 +1,7 @@
 import type { Market, Mode, Offer, Product } from "../../shared/scan.ts";
 import {
   containsIdentity,
+  containsModel,
   safeUrl,
   text,
   validateOffers,
@@ -40,7 +41,7 @@ export function citedOffers(
         !source ||
         source.snippet.trim() ||
         !containsIdentity(source.title, product.brand) ||
-        !containsIdentity(source.title, product.model)
+        !containsModel(source.title, product.model)
       )
         continue;
       const cited = block.annotations.some((value) => {
@@ -64,7 +65,7 @@ export function citedOffers(
       if (
         !cited ||
         !supportingText ||
-        !containsIdentity(supportingText, product.model)
+        !containsModel(supportingText, product.model)
       )
         continue;
       const [found] = validateOffers(
@@ -77,8 +78,8 @@ export function citedOffers(
       if (!found || offers.some((o) => o.url === url)) continue;
       // Cited summaries are model reports, not independently retrieved retailer text.
       found.evidenceType = "cited_summary";
-      found.kind = mode === "resale" ? "asking" : "retail";
       found.match =
+        product.identification !== "user_selected" &&
         product.confidence >= 0.85 &&
         Boolean(product.variant) &&
         containsIdentity(source.title, product.variant)

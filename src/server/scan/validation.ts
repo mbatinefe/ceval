@@ -181,6 +181,31 @@ export function containsIdentity(evidence: string, identity: string): boolean {
     "iu",
   ).test(evidence);
 }
+export function containsModel(evidence: string, model: string): boolean {
+  const normalize = (value: string) =>
+    value
+      .normalize("NFKC")
+      .replace(
+        /\b(\d{1,2}(?:\.\d)?)\s*(?:["″]|[-\s]*inch(?:es)?\b)/gi,
+        "$1 inch",
+      )
+      .replace(/[(),]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  const normalized = normalize(evidence);
+  if (containsIdentity(normalized, normalize(model))) return true;
+  // Parenthesized specifications may move in listing titles; every qualifier still has to match.
+  const parts = model.split(/[(),]/).map(normalize).filter(Boolean);
+  return (
+    parts.length > 1 &&
+    parts.every((part) => containsIdentity(normalized, part))
+  );
+}
+function marketplaceUrl(url: string): boolean {
+  return /(^|\.)(ebay\.(com|co\.uk)|facebook\.com|mercari\.com|offerup\.com|craigslist\.org|gumtree\.com|sahibinden\.com|letgo\.com)$/.test(
+    new URL(url).hostname,
+  );
+}
 function containsPrice(
   evidence: string,
   priceMinor: number,
@@ -242,7 +267,7 @@ export function validateOffers(
       continue;
     const evidence = `${source.title} ${source.snippet}`;
     if (
-      /\b(per month|monthly|installment|financing|sold out|out of stock|unavailable|expired|members? only|with coupon|after rebate|starting at|replacement|accessories|accessory|compatible with|ear pads|earpads|bundle|from\s*[$£₺])\b/i.test(
+      /\b(per month|monthly|installment|financing|sold out|out of stock|unavailable|expired|members? only|with coupon|after rebate|starting at|replacement|accessories|accessory|compatible with|ear pads|earpads|bundle|auction|bids?|for parts|not working|from\s*[$£₺])\b/i.test(
         evidence,
       )
     )
@@ -253,19 +278,40 @@ export function validateOffers(
     )
       continue;
     if (
-      !containsIdentity(evidence, product.model) ||
+      !containsModel(evidence, product.model) ||
       !containsIdentity(evidence, product.brand)
     )
       continue;
     if (!containsPrice(evidence, Number(o.priceMinor), market)) continue;
+    const saleStatusEvidence = evidence
+      .replace(/\bsold\s+(?:(?:and\s+shipped\s+)?by|separately)\b/gi, "")
+      .replace(
+        /(?<![\d.,$£₺])\b\d[\d,]*\+?\s+(?:(?:units?|items?)\s+)?sold\b/gi,
+        "",
+      )
+      .replace(/\b(?:not|never)\s+(?:(?:yet|been)\s+)?sold\b/gi, "");
     const sold =
-      /\b(sold on|sold for|completed sale|satıldı)\b/i.test(evidence) &&
+      /\b(sold on|sold for|completed sale|satıldı)\b/i.test(
+        saleStatusEvidence,
+      ) &&
       !/\b(unsold|not|never|no)\b.{0,40}\b(sold|completed|sale)\b/i.test(
         evidence,
       );
+    if (
+      mode === "buy" &&
+      (sold ||
+        /\bsold\b/i.test(saleStatusEvidence) ||
+        !["retail", "asking"].includes(String(o.kind)))
+    )
+      continue;
     const kind =
-      mode === "buy" ? "retail" : sold && o.kind === "sold" ? "sold" : "asking";
-    if (mode === "buy" && o.kind !== "retail") continue;
+      mode === "buy"
+        ? o.kind === "asking" || marketplaceUrl(url)
+          ? "asking"
+          : "retail"
+        : sold && o.kind === "sold"
+          ? "sold"
+          : "asking";
     const condition = /\b(refurbished|renewed|yenilenmiş)\b/i.test(evidence)
       ? "refurbished"
       : /\b(used|pre-owned|ikinci el)\b/i.test(evidence)
@@ -274,6 +320,7 @@ export function validateOffers(
           ? "new"
           : "unknown";
     const match =
+      product.identification !== "user_selected" &&
       product.confidence >= 0.85 &&
       Boolean(product.variant) &&
       containsIdentity(evidence, product.variant)
