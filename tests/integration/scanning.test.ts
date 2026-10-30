@@ -215,6 +215,33 @@ test("invalid frame contents and invalid market never reach the provider", async
   }
   assert.equal(calls.length, 0);
 });
+test("recognition requests fractional coordinates and rejects a different scale", async () => {
+  provider = async (body) => {
+    const format = (body.text as { format: { schema: any } }).format;
+    const coordinates =
+      format.schema.properties.products.items.properties.box.properties;
+    for (const name of ["x", "y", "width", "height"]) {
+      assert.equal(coordinates[name].minimum, 0);
+      assert.equal(coordinates[name].maximum, 1);
+    }
+    return response({
+      products: [
+        { ...product, box: { x: 51, y: 68, width: 894, height: 644 } },
+      ],
+    });
+  };
+  const result = await recognize();
+  assert.equal(result.status, 502);
+  assert.equal((await result.json()).code, "invalid_data");
+  assert.equal(
+    (
+      await env.DB.prepare("SELECT COUNT(*) AS n FROM scan_products").first<{
+        n: number;
+      }>()
+    )?.n,
+    0,
+  );
+});
 test("recognition stores owner-scoped products and reuses identical frames", async () => {
   const first = await recognize();
   assert.equal(first.status, 200, await first.clone().text());
