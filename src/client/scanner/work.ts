@@ -69,9 +69,10 @@ export class ScanWork {
     return true;
   }
   private drain() {
-    // Price searches settle serially; model confirmation has its own single slot.
+    // Two price searches can progress; model confirmation keeps its own slot.
     for (const lane of ["compare", "selection"] as const) {
-      if (this.active[lane]) continue;
+      const limit = lane === "compare" ? 2 : 1;
+      if (this.active[lane] >= limit) continue;
       const index = this.queue.findIndex((job) => job.lane === lane);
       if (index < 0) continue;
       const job = this.queue.splice(index, 1)[0],
