@@ -484,7 +484,7 @@ export function Landing() {
                 Video upload
               </span>
             </div>
-            <small>Preview available. Live price search coming soon.</small>
+            <small>Camera and video scanning. Prices linked to sources.</small>
           </div>
         </section>
       </main>
