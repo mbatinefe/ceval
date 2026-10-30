@@ -1,11 +1,11 @@
 {
-  "version": 2,
+  "version": 3,
   "synthetic": true,
   "priceData": "All visible prices are fictional shelf labels, not live offers or verified market prices.",
   "usage": "Display the synthetic-footage label. Feed frames through the real scanner. Scene descriptions are test cases, never recognition output or price evidence.",
   "limitations": [
     "Packaging, product forms and printed text are synthetic approximations; inspect before using as an evaluation reference.",
-    "These clips animate single generated stills with deterministic image-plane pans and zooms, not true handheld recordings or temporally generated scenes.",
+    "These clips animate one or more generated stills with image-plane pans and zooms. Scene cuts join the longer sequences; these are not true handheld recordings or temporally generated scenes.",
     "No independent object motion, changing viewpoint, autofocus or real occlusion. Real camera and iPhone Safari validation is still required.",
     "These assets do not demonstrate recognition accuracy or current prices."
   ],
@@ -24,6 +24,36 @@
       "fps": 24,
       "audio": false,
       "motion": "drift"
+    },
+    {
+      "id": "electronics-walkthrough",
+      "title": "Electronics walkthrough",
+      "description": "Portrait · labels, close-ups, return passes",
+      "scenario": "Long scan with ambiguous models, readable packaging and repeated products",
+      "image": "/demo/electronics-shelf.png",
+      "poster": "/demo/walkthroughs/electronics-walkthrough-poster.jpg",
+      "video": "/demo/walkthroughs/electronics-walkthrough.mp4",
+      "seconds": 150,
+      "width": 720,
+      "height": 1280,
+      "fps": 24,
+      "audio": false,
+      "motion": "sequence"
+    },
+    {
+      "id": "secondhand-walkthrough",
+      "title": "Secondhand walkthrough",
+      "description": "Landscape · lateral pans and return passes",
+      "scenario": "Used condition, body-only labels, unidentified objects and repeated products",
+      "image": "/demo/walkthroughs/used-camera-counter.jpg",
+      "poster": "/demo/walkthroughs/secondhand-walkthrough-poster.jpg",
+      "video": "/demo/walkthroughs/secondhand-walkthrough.mp4",
+      "seconds": 150,
+      "width": 1280,
+      "height": 720,
+      "fps": 24,
+      "audio": false,
+      "motion": "sequence"
     },
     {
       "id": "electronics-wide",

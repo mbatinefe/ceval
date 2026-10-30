@@ -444,7 +444,8 @@ export function Scanner() {
               <span>
                 <strong>{clip.title}</strong>
                 <small>
-                  {clip.description} · {clip.seconds}s
+                  {clip.description} · {Math.floor(clip.seconds / 60)}:
+                  {String(clip.seconds % 60).padStart(2, "0")}
                 </small>
               </span>
             </button>

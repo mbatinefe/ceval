@@ -1,0 +1,139 @@
+{
+  "synthetic": true,
+  "priceData": "Fictional shelf prices. Not live offers or verified sold prices.",
+  "production": "Multiple generated stills, animated with image-plane pans and holds. No true camera translation or object motion.",
+  "clips": [
+    {
+      "id": "electronics-walkthrough",
+      "seconds": 150,
+      "chapters": [
+        {
+          "startSeconds": 0,
+          "endSeconds": 15,
+          "title": "Opening shelf",
+          "image": "/demo/electronics-shelf.png"
+        },
+        {
+          "startSeconds": 15,
+          "endSeconds": 30,
+          "title": "Laptop without a model label",
+          "image": "/demo/walkthroughs/computer-counter.jpg"
+        },
+        {
+          "startSeconds": 30,
+          "endSeconds": 45,
+          "title": "Move to the wired mouse",
+          "image": "/demo/walkthroughs/computer-counter.jpg"
+        },
+        {
+          "startSeconds": 45,
+          "endSeconds": 60,
+          "title": "Read the mouse packaging",
+          "image": "/demo/walkthroughs/mouse-label-counter.jpg"
+        },
+        {
+          "startSeconds": 60,
+          "endSeconds": 75,
+          "title": "Headphone variants",
+          "image": "/demo/headphone-variants.png"
+        },
+        {
+          "startSeconds": 75,
+          "endSeconds": 90,
+          "title": "Console shelf",
+          "image": "/demo/gaming-shelf.png"
+        },
+        {
+          "startSeconds": 90,
+          "endSeconds": 105,
+          "title": "Return to the mouse label",
+          "image": "/demo/walkthroughs/mouse-label-counter.jpg"
+        },
+        {
+          "startSeconds": 105,
+          "endSeconds": 120,
+          "title": "Return to the laptop",
+          "image": "/demo/walkthroughs/computer-counter.jpg"
+        },
+        {
+          "startSeconds": 120,
+          "endSeconds": 135,
+          "title": "Return to the headphone display",
+          "image": "/demo/headphone-variants.png"
+        },
+        {
+          "startSeconds": 135,
+          "endSeconds": 150,
+          "title": "Return to the first shelf",
+          "image": "/demo/electronics-shelf.png"
+        }
+      ]
+    },
+    {
+      "id": "secondhand-walkthrough",
+      "seconds": 150,
+      "chapters": [
+        {
+          "startSeconds": 0,
+          "endSeconds": 15,
+          "title": "Camera and headphones",
+          "image": "/demo/walkthroughs/used-camera-counter.jpg"
+        },
+        {
+          "startSeconds": 15,
+          "endSeconds": 30,
+          "title": "Closer look at body-only camera",
+          "image": "/demo/walkthroughs/used-camera-counter.jpg"
+        },
+        {
+          "startSeconds": 30,
+          "endSeconds": 45,
+          "title": "Speaker shelf",
+          "image": "/demo/walkthroughs/resale-audio-shelf.jpg"
+        },
+        {
+          "startSeconds": 45,
+          "endSeconds": 60,
+          "title": "Speaker packaging and price",
+          "image": "/demo/walkthroughs/resale-audio-shelf.jpg"
+        },
+        {
+          "startSeconds": 60,
+          "endSeconds": 75,
+          "title": "Unidentified objects",
+          "image": "/demo/unlabeled-objects.png"
+        },
+        {
+          "startSeconds": 75,
+          "endSeconds": 90,
+          "title": "Kitchen display",
+          "image": "/demo/kitchen-appliances.png"
+        },
+        {
+          "startSeconds": 90,
+          "endSeconds": 105,
+          "title": "Return to camera and headphones",
+          "image": "/demo/walkthroughs/used-camera-counter.jpg"
+        },
+        {
+          "startSeconds": 105,
+          "endSeconds": 120,
+          "title": "Return to the speaker shelf",
+          "image": "/demo/walkthroughs/resale-audio-shelf.jpg"
+        },
+        {
+          "startSeconds": 120,
+          "endSeconds": 135,
+          "title": "Second pass over unknown objects",
+          "image": "/demo/unlabeled-objects.png"
+        },
+        {
+          "startSeconds": 135,
+          "endSeconds": 150,
+          "title": "Final counter pass",
+          "image": "/demo/walkthroughs/used-camera-counter.jpg"
+        }
+      ]
+    }
+  ]
+}
