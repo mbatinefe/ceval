@@ -62,8 +62,20 @@ export async function scanRequest<T>(
   });
   const data = await response.json();
   if (!response.ok)
-    throw new Error(
+    throw new ScanRequestError(
       data.error || "Analysis could not finish. Please try again.",
+      typeof data.code === "string" ? data.code : "request_failed",
+      response.status,
     );
   return data as T;
+}
+
+export class ScanRequestError extends Error {
+  code: string;
+  status: number;
+  constructor(message: string, code: string, status: number) {
+    super(message);
+    this.code = code;
+    this.status = status;
+  }
 }

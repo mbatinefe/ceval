@@ -4,6 +4,12 @@ import {
   cachedComparison,
   comparisonKey,
   playCurrent,
+  comparisonNeeded,
+  interruptFinds,
+  completionMessage,
+  isAllowanceError,
+  recognitionRetryAt,
+  findActionRow,
 } from "../../src/client/scanner/state.ts";
 import type { Comparison, Product } from "../../src/shared/scan.ts";
 const product: Product = {
@@ -100,4 +106,139 @@ test("a delayed comparison cannot be cached against an older shelf label", async
     cachedComparison(cache, comparison.product, "buy", "US"),
     comparison,
   );
+});
+
+test("automatic comparison waits for explicit retry after failure and does not duplicate pending work", () => {
+  const row = { product, time: 0 };
+  assert.equal(comparisonNeeded(row), true);
+  assert.equal(comparisonNeeded({ ...row, searching: true }), false);
+  assert.equal(comparisonNeeded({ ...row, selecting: true }), false);
+  assert.equal(
+    comparisonNeeded({
+      ...row,
+      error: "Provider unavailable",
+      retryable: true,
+    }),
+    false,
+  );
+  assert.equal(
+    comparisonNeeded({ ...row, product: { ...product, confidence: 0.5 } }),
+    false,
+  );
+});
+
+test("interrupted searches remain actionable instead of waiting forever", () => {
+  const rows = interruptFinds([{ product, time: 0, searching: true }]);
+  assert.equal(rows[0].searching, false);
+  assert.equal(rows[0].retryable, true);
+  assert.ok(rows[0].error);
+  assert.equal(comparisonNeeded(rows[0]), false);
+});
+
+test("video completion acknowledges unfinished finds without claiming every result is ready", () => {
+  const ready: Comparison = {
+    id: "ready",
+    product,
+    mode: "buy",
+    market: "US",
+    offers: [],
+    status: "no_evidence",
+    checkedAt: 0,
+    expiresAt: Date.now() + 60000,
+  };
+  const message = completionMessage(
+    [
+      { product, time: 0, comparison: ready },
+      {
+        product: { ...product, id: "failed" },
+        time: 0,
+        error: "Search failed",
+        retryable: true,
+      },
+    ],
+    "video",
+    false,
+  );
+  assert.match(message, /1 comparison/);
+  assert.match(message, /1 find.*attention/);
+  assert.match(completionMessage([], "video", false), /No products/);
+  assert.match(completionMessage([], "video", true), /Finishing/);
+});
+
+test("budget exhaustion codes block further automatic paid requests but provider errors remain recoverable", () => {
+  for (const code of [
+    "allowance_exhausted",
+    "daily_budget_exhausted",
+    "total_budget_exhausted",
+    "account_allowance_exhausted",
+  ])
+    assert.equal(isAllowanceError(code), true);
+  assert.equal(isAllowanceError("provider_rate_limited"), false);
+  assert.equal(isAllowanceError("analysis_incomplete"), false);
+});
+
+test("recognition gets one delayed retry for transient failures, never a loop or budget retry", () => {
+  assert.equal(
+    recognitionRetryAt({ code: "provider_rate_limited", status: 503 }, 0, 1000),
+    13000,
+  );
+  assert.equal(
+    recognitionRetryAt(new TypeError("Network failed"), 0, 1000),
+    13000,
+  );
+  assert.equal(
+    recognitionRetryAt({ code: "provider_rate_limited", status: 503 }, 1, 1000),
+    null,
+  );
+  assert.equal(
+    recognitionRetryAt(
+      { code: "daily_budget_exhausted", status: 429 },
+      0,
+      1000,
+    ),
+    null,
+  );
+  assert.equal(
+    recognitionRetryAt({ code: "invalid_request", status: 400 }, 0, 1000),
+    null,
+  );
+});
+
+test("historical comparisons with a changed shelf price still need attention at video end", () => {
+  const historical: Comparison = {
+    id: "historical",
+    product,
+    mode: "buy",
+    market: "US",
+    offers: [],
+    status: "no_evidence",
+    checkedAt: 0,
+    expiresAt: Date.now() + 60000,
+  };
+  const message = completionMessage(
+    [
+      {
+        product,
+        time: 0,
+        comparison: historical,
+        error: "The shelf label changed",
+        errorCode: "shelf_changed",
+      },
+    ],
+    "video",
+    false,
+  );
+  assert.match(message, /0 comparisons ready/);
+  assert.match(message, /1 find.*attention/);
+});
+
+test("actions target a local find when uncertain server fingerprints collide", () => {
+  const first = { rowId: "first-card", product, time: 1 };
+  const second = { rowId: "second-card", product, time: 2 };
+  assert.equal(
+    findActionRow([first, second], product.id, "second-card"),
+    second,
+  );
+  assert.equal(findActionRow([first, second], product.id), undefined);
+  assert.equal(findActionRow([first], product.id), first);
 });

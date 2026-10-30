@@ -7,13 +7,26 @@ import type {
   ScanCapabilities,
 } from "../../shared/scan";
 import { api } from "../lib/api";
-import { captureFrame, grayFrame, scanRequest, videoFileError } from "./media";
+import {
+  captureFrame,
+  grayFrame,
+  scanRequest,
+  ScanRequestError,
+  videoFileError,
+} from "./media";
 import { frameDifference, trackBox, type GrayFrame } from "./tracking";
 import {
   cachedComparison,
   cacheMatchingComparison,
   comparisonKey,
+  comparisonNeeded,
+  completionMessage,
+  interruptFinds,
+  isAllowanceError,
+  recognitionRetryAt,
+  findActionRow,
 } from "./state";
+import { reconcileSightings, type FoundProduct } from "./continuity";
 import { ScanWork } from "./work";
 import {
   MediaStartup,
@@ -24,14 +37,7 @@ import {
 } from "./startup";
 import { clips } from "../../../public/demo/manifest.json";
 export type SourceKind = "camera" | "video" | "sample" | null;
-export type FoundProduct = {
-  product: Product;
-  comparison?: Comparison;
-  error?: string;
-  searching?: boolean;
-  time: number;
-  selecting?: boolean;
-};
+export type { FoundProduct } from "./continuity";
 export function useScanner(mode: Mode, market: Market) {
   const video = useRef<HTMLVideoElement>(null);
   const stream = useRef<MediaStream | null>(null),
@@ -57,6 +63,10 @@ export function useScanner(mode: Mode, market: Market) {
   const resultsRef = useRef<FoundProduct[]>([]),
     cache = useRef(new Map<string, Comparison>());
   const pendingSelections = useRef(new Set<string>());
+  const comparisonBlock = useRef<{ error: string; errorCode: string } | null>(
+    null,
+  );
+  const recognitionRecovery = useRef({ attempts: 0, retryAt: 0 });
   const sourceRef = useRef<SourceKind>(null);
   const [source, setSource] = useState<SourceKind>(null),
     [sourceName, setSourceName] = useState("");
@@ -87,11 +97,11 @@ export function useScanner(mode: Mode, market: Market) {
       setFinishing(state.draining);
       if (finished.current)
         setMessage(
-          state.draining
-            ? "Finishing your remaining comparisons…"
-            : finished.current === "video"
-              ? "Video complete. Your finds are ready."
-              : "Scanning paused. Your completed finds are kept.",
+          completionMessage(
+            resultsRef.current,
+            finished.current,
+            state.draining,
+          ),
         );
     };
     work.onError = () =>
@@ -101,10 +111,17 @@ export function useScanner(mode: Mode, market: Market) {
       work.onError = undefined;
     };
   }, [work]);
-  const updateResults = useCallback((rows: FoundProduct[]) => {
-    resultsRef.current = rows;
-    setFound(rows);
-  }, []);
+  const updateResults = useCallback(
+    (rows: FoundProduct[]) => {
+      resultsRef.current = rows;
+      setFound(rows);
+      if (finished.current)
+        setMessage(
+          completionMessage(rows, finished.current, work.state.draining),
+        );
+    },
+    [work],
+  );
   const stopAnalysis = useCallback(() => {
     startup.cancel();
     setCameraPending(false);
@@ -119,13 +136,7 @@ export function useScanner(mode: Mode, market: Market) {
     setPins([]);
     previous.current = null;
     lastAnalyzed.current = null;
-    updateResults(
-      resultsRef.current.map((row) => ({
-        ...row,
-        searching: false,
-        selecting: false,
-      })),
-    );
+    updateResults(interruptFinds(resultsRef.current));
   }, [startup, updateResults, work]);
   const finishAnalysis = useCallback(
     (reason: "video" | "error") => {
@@ -159,6 +170,7 @@ export function useScanner(mode: Mode, market: Market) {
     setCameraProblem(null);
     setPreviewBlocked(false);
     setSourceName("");
+    comparisonBlock.current = null;
     setMessage("Choose your camera or a video to get started.");
   }, [stopAnalysis]);
   useEffect(() => {
@@ -332,14 +344,135 @@ export function useScanner(mode: Mode, market: Market) {
     previous.current = null;
     lastAnalyzed.current = null;
     lastAnalysis.current = 0;
-    updateResults(
-      resultsRef.current.map((r) => ({
-        ...r,
-        searching: false,
-        selecting: false,
-      })),
-    );
+    updateResults(interruptFinds(resultsRef.current));
   }, [updateResults, work]);
+  function comparisonFailure(err: unknown) {
+    const failure = {
+      error: err instanceof Error ? err.message : "Price search failed.",
+      errorCode: err instanceof ScanRequestError ? err.code : "search_failed",
+      retryable: true,
+      searching: false,
+    };
+    if (isAllowanceError(failure.errorCode)) comparisonBlock.current = failure;
+    return failure;
+  }
+  function queueComparison(row: FoundProduct) {
+    if (!comparisonNeeded(row)) return;
+    const { product } = row;
+    const key = comparisonKey(product, mode, market);
+    const epoch = generation.current;
+    const updateMatching = (change: Partial<FoundProduct>) =>
+      updateResults(
+        resultsRef.current.map((item) =>
+          comparisonKey(item.product, mode, market) === key
+            ? {
+                ...item,
+                ...change,
+                ...(change.comparison && item.errorCode === "shelf_changed"
+                  ? {
+                      error: item.error,
+                      errorCode: item.errorCode,
+                      retryable: false,
+                    }
+                  : {}),
+              }
+            : item,
+        ),
+      );
+    const cached = cachedComparison(cache.current, product, mode, market);
+    if (cached) {
+      updateMatching({
+        comparison: cached,
+        searching: false,
+        error: undefined,
+        errorCode: undefined,
+        retryable: false,
+      });
+      return;
+    }
+    if (comparisonBlock.current) {
+      updateMatching({
+        ...comparisonBlock.current,
+        searching: false,
+        retryable: true,
+      });
+      return;
+    }
+    updateMatching({
+      searching: true,
+      retryable: false,
+      error: undefined,
+      errorCode: undefined,
+    });
+    const queued = work.compare(key, async (signal) => {
+      if (
+        !resultsRef.current.some(
+          (item) => comparisonKey(item.product, mode, market) === key,
+        )
+      )
+        return;
+      if (comparisonBlock.current) {
+        updateMatching({
+          ...comparisonBlock.current,
+          searching: false,
+          retryable: true,
+        });
+        return;
+      }
+      try {
+        const comparison = await scanRequest<Comparison>(
+          "/api/scan/compare",
+          { productId: product.id, mode, market },
+          signal,
+        );
+        if (epoch !== generation.current) return;
+        if (
+          !cacheMatchingComparison(
+            cache.current,
+            product,
+            mode,
+            market,
+            comparison,
+          )
+        )
+          throw new Error(
+            "The shelf label changed during search. Scan this item again.",
+          );
+        updateMatching({
+          comparison,
+          searching: false,
+          error: undefined,
+          errorCode: undefined,
+          retryable: false,
+        });
+      } catch (err) {
+        if (epoch !== generation.current) return;
+        updateMatching(comparisonFailure(err));
+      }
+    });
+    if (!queued)
+      updateMatching({
+        searching: false,
+        error: "The search queue is full. Retry this comparison shortly.",
+        errorCode: "queue_full",
+        retryable: true,
+      });
+  }
+  function retryComparison(productId: string, rowId?: string) {
+    const row = findActionRow(resultsRef.current, productId, rowId);
+    if (!row || row.searching || row.selecting) return;
+    comparisonBlock.current = null;
+    const retry = {
+      ...row,
+      error: undefined,
+      errorCode: undefined,
+      retryable: false,
+    };
+    updateResults(
+      resultsRef.current.map((item) => (item === row ? retry : item)),
+    );
+    queueComparison(retry);
+  }
   async function analyze() {
     const element = video.current;
     if (
@@ -352,6 +485,7 @@ export function useScanner(mode: Mode, market: Market) {
     )
       return;
     const now = Date.now();
+    if (now < recognitionRecovery.current.retryAt) return;
     if (now - lastAnalysis.current < 6000) return;
     const thumbnail = grayFrame(element);
     if (
@@ -375,9 +509,24 @@ export function useScanner(mode: Mode, market: Market) {
           signal,
         );
         if (epoch !== generation.current) return;
+        setError("");
+        recognitionRecovery.current.retryAt = 0;
+        const reconciled = reconcileSightings(
+          resultsRef.current,
+          result.products,
+          {
+            time,
+            now,
+            frame: thumbnail,
+            mode,
+            market,
+            cache: cache.current,
+          },
+        );
+        updateResults(reconciled.rows);
         const current = grayFrame(element);
         const near = frameDifference(thumbnail, current) < 5;
-        tracked.current = result.products.flatMap((product) => {
+        tracked.current = reconciled.sightings.flatMap(({ product }) => {
           const box = near
             ? product.box
             : trackBox(thumbnail, current, product.box);
@@ -386,116 +535,17 @@ export function useScanner(mode: Mode, market: Market) {
         previous.current = current;
         lastDetection.current = Date.now();
         setPins(tracked.current);
-        let rows = [...resultsRef.current];
-        for (const product of result.products) {
-          const index = rows.findIndex((row) => row.product.id === product.id);
-          const cached = cachedComparison(cache.current, product, mode, market);
-          const row: FoundProduct = {
-            product,
-            time,
-            selecting: pendingSelections.current.has(product.id),
-            comparison:
-              cached && cached.expiresAt > Date.now() ? cached : undefined,
-          };
-          if (index >= 0) rows[index] = row;
-          else rows.unshift(row);
-        }
-        updateResults(rows.slice(0, 30));
         setMessage(
           result.products.length
             ? "Products identified. Checking matching prices…"
             : "No clear product label found. Move closer or try another moment.",
         );
-        for (const product of result.products) {
+        for (const row of reconciled.sightings) {
           if (epoch !== generation.current) break;
-          if (!product.model || product.confidence < 0.85) {
-            updateResults(
-              resultsRef.current.map((r) =>
-                r.product.id === product.id
-                  ? {
-                      ...r,
-                      error: product.candidates?.length
-                        ? undefined
-                        : "A clearer model label is needed before searching.",
-                    }
-                  : r,
-              ),
-            );
-            continue;
-          }
-          const key = comparisonKey(product, mode, market),
-            cached = cachedComparison(cache.current, product, mode, market);
-          if (cached && cached.expiresAt > Date.now()) continue;
-          updateResults(
-            resultsRef.current.map((r) =>
-              r.product.id === product.id ? { ...r, searching: true } : r,
-            ),
+          const currentRow = resultsRef.current.find(
+            (item) => item.rowId === row.rowId,
           );
-          const queued = work.compare(key, async (searchSignal) => {
-            if (
-              !resultsRef.current.some(
-                (row) => comparisonKey(row.product, mode, market) === key,
-              )
-            )
-              return;
-            try {
-              const comparison = await scanRequest<Comparison>(
-                "/api/scan/compare",
-                { productId: product.id, mode, market },
-                searchSignal,
-              );
-              if (epoch !== generation.current) return;
-              if (
-                !cacheMatchingComparison(
-                  cache.current,
-                  product,
-                  mode,
-                  market,
-                  comparison,
-                )
-              ) {
-                throw new Error(
-                  "The shelf label changed during search. Scan this item again.",
-                );
-              }
-              updateResults(
-                resultsRef.current.map((r) =>
-                  comparisonKey(r.product, mode, market) === key
-                    ? { ...r, comparison, searching: false, error: undefined }
-                    : r,
-                ),
-              );
-            } catch (err) {
-              if (epoch !== generation.current) return;
-              updateResults(
-                resultsRef.current.map((r) =>
-                  comparisonKey(r.product, mode, market) === key
-                    ? {
-                        ...r,
-                        searching: false,
-                        error:
-                          err instanceof Error
-                            ? err.message
-                            : "Price search failed.",
-                      }
-                    : r,
-                ),
-              );
-            }
-          });
-          if (!queued)
-            updateResults(
-              resultsRef.current.map((r) =>
-                r.product.id === product.id
-                  ? {
-                      ...r,
-                      searching: false,
-                      error:
-                        "Search queue is full. Scan this item again shortly.",
-                    }
-                  : r,
-              ),
-            );
+          if (currentRow) queueComparison(currentRow);
         }
         if (epoch === generation.current && !finished.current)
           setMessage(
@@ -503,6 +553,20 @@ export function useScanner(mode: Mode, market: Market) {
           );
       } catch (err) {
         if (epoch === generation.current) {
+          const retryAt = recognitionRetryAt(
+            err,
+            recognitionRecovery.current.attempts,
+            Date.now(),
+          );
+          if (retryAt !== null && !finished.current) {
+            lastAnalyzed.current = null;
+            recognitionRecovery.current = {
+              attempts: recognitionRecovery.current.attempts + 1,
+              retryAt,
+            };
+            setMessage("Analysis interrupted. Retrying once in a moment…");
+            return;
+          }
           setError(
             err instanceof Error ? err.message : "Analysis could not finish.",
           );
@@ -574,6 +638,7 @@ export function useScanner(mode: Mode, market: Market) {
     setPreviewBlocked(false);
     setError("");
     lastAnalysis.current = 0;
+    recognitionRecovery.current = { attempts: 0, retryAt: 0 };
     work.start();
     runningRef.current = true;
     setRunning(true);
@@ -593,16 +658,18 @@ export function useScanner(mode: Mode, market: Market) {
   function ended() {
     finishAnalysis("video");
   }
-  function selectModel(productId: string, candidateKey: string) {
-    const row = resultsRef.current.find(
-      (item) => item.product.id === productId,
-    );
+  function selectModel(
+    productId: string,
+    candidateKey: string,
+    rowId?: string,
+  ) {
+    const row = findActionRow(resultsRef.current, productId, rowId);
     if (!row || pendingSelections.current.has(productId)) return;
     pendingSelections.current.add(productId);
     const epoch = generation.current;
     updateResults(
       resultsRef.current.map((item) =>
-        item.product.id === productId
+        item.rowId === row.rowId && item.product.id === productId
           ? { ...item, selecting: true, error: undefined }
           : item,
       ),
@@ -617,63 +684,39 @@ export function useScanner(mode: Mode, market: Market) {
         );
         if (epoch !== generation.current) return;
         selectedId = product.id;
-        tracked.current = tracked.current.map((item) =>
-          item.id === productId ? { ...product, box: item.box } : item,
-        );
+        if (
+          resultsRef.current.filter((item) => item.product.id === productId)
+            .length === 1
+        )
+          tracked.current = tracked.current.map((item) =>
+            item.id === productId ? { ...product, box: item.box } : item,
+          );
         setPins(tracked.current);
         updateResults(
-          resultsRef.current
-            .filter((item) => item.product.id !== product.id)
-            .map((item) =>
-              item.product.id === productId
-                ? {
-                    ...item,
-                    product,
-                    comparison: undefined,
-                    selecting: false,
-                    searching: true,
-                    error: undefined,
-                  }
-                : item,
-            ),
-        );
-        const cached = cachedComparison(cache.current, product, mode, market);
-        const comparison =
-          cached ||
-          (await scanRequest<Comparison>(
-            "/api/scan/compare",
-            { productId: product.id, mode, market },
-            signal,
-          ));
-        if (epoch !== generation.current) return;
-        if (
-          !cacheMatchingComparison(
-            cache.current,
-            product,
-            mode,
-            market,
-            comparison,
-          )
-        )
-          throw new Error("The product changed. Choose its model again.");
-        updateResults(
           resultsRef.current.map((item) =>
-            item.product.id === product.id
+            item.rowId === row.rowId && item.product.id === productId
               ? {
                   ...item,
-                  comparison,
+                  product,
+                  comparison: undefined,
                   selecting: false,
                   searching: false,
                   error: undefined,
+                  errorCode: undefined,
+                  retryable: false,
                 }
               : item,
           ),
         );
+        const selected = resultsRef.current.find(
+          (item) => item.rowId === row.rowId && item.product.id === product.id,
+        );
+        if (selected) queueComparison(selected);
       } catch (err) {
         if (epoch !== generation.current) return;
         updateResults(
           resultsRef.current.map((item) =>
-            item.product.id === selectedId
+            item.rowId === row.rowId && item.product.id === selectedId
               ? {
                   ...item,
                   selecting: false,
@@ -682,6 +725,11 @@ export function useScanner(mode: Mode, market: Market) {
                     err instanceof Error
                       ? err.message
                       : "Couldn’t compare this model.",
+                  errorCode:
+                    err instanceof ScanRequestError
+                      ? err.code
+                      : "selection_failed",
+                  retryable: false,
                 }
               : item,
           ),
@@ -691,7 +739,7 @@ export function useScanner(mode: Mode, market: Market) {
           pendingSelections.current.delete(productId);
           updateResults(
             resultsRef.current.map((item) =>
-              item.product.id === productId
+              item.rowId === row.rowId && item.product.id === productId
                 ? { ...item, selecting: false }
                 : item,
             ),
@@ -703,7 +751,7 @@ export function useScanner(mode: Mode, market: Market) {
       pendingSelections.current.delete(productId);
       updateResults(
         resultsRef.current.map((item) =>
-          item.product.id === productId
+          item.rowId === row.rowId && item.product.id === productId
             ? {
                 ...item,
                 selecting: false,
@@ -741,6 +789,7 @@ export function useScanner(mode: Mode, market: Market) {
     invalidatePosition,
     start,
     selectModel,
+    retryComparison,
     stopAnalysis: () => {
       stopAnalysis();
       setMessage("Scanning stopped. Your completed finds are kept.");

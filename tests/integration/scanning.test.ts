@@ -535,6 +535,70 @@ async function uncertain() {
     });
   return identified();
 }
+test("two uncertain objects in one frame keep independent model-choice snapshots", async () => {
+  const unknown = {
+    ...product,
+    model: "",
+    label: "Black over-ear headphones",
+    confidence: 0.5,
+  };
+  provider = async () =>
+    response({
+      products: [
+        {
+          ...unknown,
+          box: { x: 0, y: 0, width: 0.4, height: 0.5 },
+          candidates: [candidate],
+        },
+        {
+          ...unknown,
+          box: { x: 0.5, y: 0, width: 0.4, height: 0.5 },
+          candidates: [{ ...candidate, model: "WH-CH720N" }],
+        },
+      ],
+    });
+  const result = await recognize();
+  const { products } = await result.json();
+  assert.equal(products.length, 2);
+  assert.notEqual(products[0].id, products[1].id);
+  const selected = await request("/api/scan/select-model", {
+    productId: products[0].id,
+    candidateKey,
+    market: "US",
+  });
+  assert.equal(selected.status, 200);
+  assert.equal((await selected.json()).product.model, candidate.model);
+});
+test("a later uncertain sighting cannot overwrite an earlier model-choice snapshot", async () => {
+  const firstId = await uncertain();
+  provider = async () =>
+    response({
+      products: [
+        {
+          ...product,
+          model: "",
+          label: "Sony over-ear headphones",
+          confidence: 0.55,
+          candidates: [{ ...candidate, model: "WH-CH720N" }],
+        },
+      ],
+    });
+  const bytes = Buffer.from(frame.slice(23), "base64");
+  bytes[25] ^= 1;
+  const later = await request("/api/scan/recognize", {
+    frame: "data:image/jpeg;base64," + bytes.toString("base64"),
+    market: "US",
+    requestId: crypto.randomUUID(),
+  });
+  assert.equal(later.status, 200);
+  assert.notEqual((await later.json()).products[0].id, firstId);
+  const selected = await request("/api/scan/select-model", {
+    productId: firstId,
+    candidateKey,
+    market: "US",
+  });
+  assert.equal(selected.status, 200);
+});
 test("uncertain models require selection before price search and preserve its provenance", async () => {
   const productId = await uncertain();
   assert.equal(

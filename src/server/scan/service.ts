@@ -124,48 +124,46 @@ export async function recognize(
   signal?: AbortSignal,
 ) {
   requireProvider(env);
-  return job(
-    env,
-    userId,
-    "recognize",
-    await digest(`visual-models-v1:${market}:${frame}`),
-    180000,
-    async (onUsage) => {
-      const result = await recognizeFrame(env, frame, market, signal, onUsage);
-      const products: Product[] = [];
-      for (const p of result) {
-        const fingerprint = await digest(
-          JSON.stringify([
-            market,
-            p.brand.toLowerCase(),
-            p.model.toLowerCase(),
-            p.variant.toLowerCase(),
-            p.model ? "" : p.label.toLowerCase(),
-          ]),
-        );
-        const product = { ...p, id: crypto.randomUUID() };
-        const stored = await env.DB.prepare(
-          "INSERT INTO scan_products (id,user_id,fingerprint,data,updated_at) VALUES (?,?,?,?,?) ON CONFLICT(user_id,fingerprint) DO UPDATE SET data=json_set(excluded.data, '$.id', scan_products.id),updated_at=excluded.updated_at RETURNING data",
+  const frameKey = await digest(`visual-models-v2:${market}:${frame}`);
+  return job(env, userId, "recognize", frameKey, 180000, async (onUsage) => {
+    const result = await recognizeFrame(env, frame, market, signal, onUsage);
+    const products: Product[] = [];
+    for (const [index, p] of result.entries()) {
+      const uncertain =
+        !p.model || p.confidence < 0.85 || Boolean(p.candidates?.length);
+      const fingerprint = await digest(
+        JSON.stringify([
+          market,
+          p.brand.toLowerCase(),
+          p.model.toLowerCase(),
+          p.variant.toLowerCase(),
+          p.model ? "" : p.label.toLowerCase(),
+          // Ambiguous sightings must not overwrite another item's model choices.
+          ...(uncertain ? [frameKey, index] : []),
+        ]),
+      );
+      const product = { ...p, id: crypto.randomUUID() };
+      const stored = await env.DB.prepare(
+        "INSERT INTO scan_products (id,user_id,fingerprint,data,updated_at) VALUES (?,?,?,?,?) ON CONFLICT(user_id,fingerprint) DO UPDATE SET data=json_set(excluded.data, '$.id', scan_products.id),updated_at=excluded.updated_at RETURNING data",
+      )
+        .bind(
+          product.id,
+          userId,
+          fingerprint,
+          JSON.stringify(product),
+          Date.now(),
         )
-          .bind(
-            product.id,
-            userId,
-            fingerprint,
-            JSON.stringify(product),
-            Date.now(),
-          )
-          .first<{ data: string }>();
-        if (!stored)
-          throw new ScanError(
-            "storage_error",
-            "Couldn’t retain this product. Please try again.",
-            503,
-          );
-        products.push(JSON.parse(stored.data) as Product);
-      }
-      return { products, analyzedAt: Date.now() };
-    },
-  );
+        .first<{ data: string }>();
+      if (!stored)
+        throw new ScanError(
+          "storage_error",
+          "Couldn’t retain this product. Please try again.",
+          503,
+        );
+      products.push(JSON.parse(stored.data) as Product);
+    }
+    return { products, analyzedAt: Date.now() };
+  });
 }
 export async function selectModel(
   env: Env,
