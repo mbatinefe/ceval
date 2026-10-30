@@ -133,7 +133,7 @@ export async function recognize(
   signal?: AbortSignal,
 ) {
   requireProvider(env);
-  const frameKey = await digest(`visual-models-v2:${market}:${frame}`);
+  const frameKey = await digest(`visual-snapshots-v3:${market}:${frame}`);
   return job(env, userId, "recognize", frameKey, 180000, async (onUsage) => {
     const result = await recognizeFrame(env, frame, market, signal, onUsage);
     const products: Product[] = [];
@@ -142,10 +142,14 @@ export async function recognize(
         !p.model || p.confidence < 0.85 || Boolean(p.candidates?.length);
       const fingerprint = await digest(
         JSON.stringify([
+          "product-snapshot-v1",
           market,
-          p.brand.toLowerCase(),
-          p.model.toLowerCase(),
-          p.variant.toLowerCase(),
+          // Queued comparisons retain the exact identity and shelf quote they saw.
+          p.brand,
+          p.model,
+          p.variant,
+          p.shelfPriceMinor,
+          p.shelfCurrency,
           p.model ? "" : p.label.toLowerCase(),
           // Ambiguous sightings must not overwrite another item's model choices.
           ...(uncertain ? [frameKey, index] : []),

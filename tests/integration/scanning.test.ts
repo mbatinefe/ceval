@@ -307,6 +307,79 @@ test("cross-owner product IDs cannot trigger price searches", async () => {
   assert.equal(result.status, 404);
   assert.equal(calls.length, 1);
 });
+for (const [field, value] of [
+  ["brand", "SONY"],
+  ["model", "wh-1000xm5"],
+  ["variant", "black"],
+  ["shelfPriceMinor", 24999],
+  ["shelfPriceMinor", null],
+  ["shelfCurrency", "GBP"],
+] as const)
+  test(`a later ${field}=${value} sighting cannot change an earlier queued comparison snapshot`, async () => {
+    const first = await recognize();
+    assert.equal(first.status, 200);
+    const original = (await first.json()).products[0];
+    provider = async () =>
+      response({ products: [{ ...product, [field]: value }] });
+    const bytes = Buffer.from(frame.slice(23), "base64");
+    bytes[25] ^= 1;
+    const later = await request("/api/scan/recognize", {
+      frame: "data:image/jpeg;base64," + bytes.toString("base64"),
+      market: "US",
+      requestId: crypto.randomUUID(),
+    });
+    assert.equal(later.status, 200);
+    const latest = (await later.json()).products[0];
+    provider = async () => offerResponse();
+    for (const expected of [original, latest]) {
+      const compared = await request("/api/scan/compare", {
+        productId: expected.id,
+        mode: "buy",
+        market: "US",
+      });
+      assert.equal(compared.status, 200);
+      assert.deepEqual((await compared.json()).product, expected);
+    }
+    assert.notEqual(latest.id, original.id);
+    assert.equal(latest[field], value);
+    assert.equal(calls.length, 4);
+  });
+test("unchanged comparison fields reuse a product snapshot only within its owning account", async () => {
+  const first = await recognize();
+  assert.equal(first.status, 200);
+  const original = (await first.json()).products[0];
+  provider = async () =>
+    response({
+      products: [
+        {
+          ...product,
+          label: "Sony wireless headphones",
+          box: { ...product.box, x: 0.2 },
+        },
+      ],
+    });
+  const bytes = Buffer.from(frame.slice(23), "base64");
+  bytes[25] ^= 1;
+  const body = {
+    frame: "data:image/jpeg;base64," + bytes.toString("base64"),
+    market: "US",
+    requestId: crypto.randomUUID(),
+  };
+  const again = await request("/api/scan/recognize", body);
+  assert.equal(again.status, 200);
+  assert.equal((await again.json()).products[0].id, original.id);
+  const other = await request("/api/scan/recognize", body, "other");
+  assert.equal(other.status, 200);
+  const otherProduct = (await other.json()).products[0];
+  assert.notEqual(otherProduct.id, original.id);
+  const forbidden = await request("/api/scan/compare", {
+    productId: otherProduct.id,
+    mode: "buy",
+    market: "US",
+  });
+  assert.equal(forbidden.status, 404);
+  assert.equal(calls.length, 3);
+});
 test("provider errors never expose upstream secrets and remain reserved", async () => {
   provider = async () =>
     new Response("test-provider-key internal diagnostics", { status: 401 });
@@ -834,32 +907,37 @@ test("uncertain models require selection before price search and preserve its pr
     "user_selected",
   );
 });
-test("recognition refreshes old cached results that predate visual suggestions", async () => {
-  const legacyKey = createHash("sha256").update(`US:${frame}`).digest("hex");
-  await env.DB.prepare(
-    "INSERT INTO scan_jobs (id,user_id,kind,request_key,status,result,expires_at,created_at) VALUES (?,?,? ,?,'done',?,?,?)",
-  )
-    .bind(
-      crypto.randomUUID(),
-      "shopper",
-      "recognize",
-      legacyKey,
-      JSON.stringify({
-        products: [{ ...product, id: "legacy", model: "", confidence: 0.5 }],
-        analyzedAt: Date.now(),
-      }),
-      Date.now() + 180000,
-      Date.now(),
+for (const prefix of ["", "visual-models-v2:"])
+  test(`recognition refreshes cached ${prefix || "unversioned"} results that predate stable snapshots`, async () => {
+    const legacyKey = createHash("sha256")
+      .update(`${prefix}US:${frame}`)
+      .digest("hex");
+    await env.DB.prepare(
+      "INSERT INTO scan_jobs (id,user_id,kind,request_key,status,result,expires_at,created_at) VALUES (?,?,? ,?,'done',?,?,?)",
     )
-    .run();
-  const productId = await uncertain();
-  assert.notEqual(productId, "legacy");
-  assert.equal(calls.length, 1);
-  const data = await env.DB.prepare("SELECT data FROM scan_products WHERE id=?")
-    .bind(productId)
-    .first<{ data: string }>();
-  assert.equal(JSON.parse(data!.data).candidates.length, 2);
-});
+      .bind(
+        crypto.randomUUID(),
+        "shopper",
+        "recognize",
+        legacyKey,
+        JSON.stringify({
+          products: [{ ...product, id: "legacy", model: "", confidence: 0.5 }],
+          analyzedAt: Date.now(),
+        }),
+        Date.now() + 180000,
+        Date.now(),
+      )
+      .run();
+    const productId = await uncertain();
+    assert.notEqual(productId, "legacy");
+    assert.equal(calls.length, 1);
+    const data = await env.DB.prepare(
+      "SELECT data FROM scan_products WHERE id=?",
+    )
+      .bind(productId)
+      .first<{ data: string }>();
+    assert.equal(JSON.parse(data!.data).candidates.length, 2);
+  });
 test("model selection rejects another owner's product and unstored candidate", async () => {
   const productId = await uncertain();
   assert.equal(
