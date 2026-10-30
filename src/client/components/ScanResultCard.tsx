@@ -9,10 +9,12 @@ import type { Comparison } from "../../shared/scan";
 import { formatPrice } from "../../shared/demo";
 import { marketplaceSearch } from "../../shared/marketplace";
 import { offerSummary } from "../scanner/presentation";
+import { isAllowanceError } from "../scanner/state";
 
 export function ScanResultCard({
   row,
   compact = false,
+  context = "RECENT FIND",
   active = false,
   onFocus,
   onChoose,
@@ -21,6 +23,7 @@ export function ScanResultCard({
 }: {
   row: FoundProduct;
   compact?: boolean;
+  context?: string;
   active?: boolean;
   onFocus?: () => void;
   onChoose: () => void;
@@ -37,12 +40,12 @@ export function ScanResultCard({
   return (
     <article
       className={`${compact ? "current-find" : "scan-result"}${active ? " is-active" : ""}`}
-      id={compact ? undefined : `result-${row.product.id}`}
+      id={compact ? undefined : `result-${row.rowId || row.product.id}`}
     >
       <div className="find-card-heading">
         <div>
           <span className="find-brand">
-            {compact ? "IN FOCUS" : row.product.brand || "Detected item"}
+            {compact ? context : row.product.brand || "Detected item"}
           </span>
           {onFocus ? (
             <button className="find-title" onClick={onFocus}>
@@ -78,7 +81,11 @@ export function ScanResultCard({
           {row.selecting ? "Confirming model…" : "Checking prices…"}
         </p>
       ) : row.error ? (
-        <p className="result-note result-error">{row.error}</p>
+        <p className="result-note result-error">
+          {isAllowanceError(row.errorCode)
+            ? "Price search paused. Try again later."
+            : row.error}
+        </p>
       ) : needsModel ? (
         <p className="result-note">
           {row.product.candidates!.length} possible models · confirm yours

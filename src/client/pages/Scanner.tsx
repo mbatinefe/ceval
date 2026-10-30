@@ -24,6 +24,7 @@ import { ComparisonDialog } from "../components/ComparisonDialog";
 import { ModelChoiceDialog } from "../components/ModelChoiceDialog";
 import { ScanResultCard } from "../components/ScanResultCard";
 import { offerSummary } from "../scanner/presentation";
+import { isAllowanceError } from "../scanner/state";
 import { useScanner, type FoundProduct } from "../scanner/useScanner";
 import { clips } from "../../../public/demo/manifest.json";
 export function Scanner() {
@@ -43,6 +44,9 @@ export function Scanner() {
     ) ||
     scan.found[0];
   const choice = scan.found.find((row) => rowKey(row) === choiceKey);
+  const allowanceNotice = scan.found.find((row) =>
+    isAllowanceError(row.errorCode),
+  )?.error;
   function pauseForDetails() {
     resumeAfterDetails.current = Boolean(
       scan.video.current && !scan.video.current.paused,
@@ -376,6 +380,13 @@ export function Scanner() {
             <ScanResultCard
               row={focused}
               compact
+              context={
+                scan.pins.some((pin) => pin.id === focused.product.id)
+                  ? "IN VIEW"
+                  : rowKey(focused) === focusedKey
+                    ? "SELECTED FIND"
+                    : "RECENT FIND"
+              }
               onChoose={() => choose(focused)}
               onReview={review}
               onRetry={
@@ -411,6 +422,11 @@ export function Scanner() {
             <span className="eyebrow">YOUR FINDS</span>
             <span>{String(scan.found.length).padStart(2, "0")}</span>
           </div>
+          {allowanceNotice && (
+            <p className="results-notice" role="status">
+              {allowanceNotice}
+            </p>
+          )}
           {scan.found.length === 0 ? (
             <div className="results-empty">
               <Tag size={25} />

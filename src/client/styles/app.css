@@ -1820,6 +1820,14 @@ em {
   background: #d2fa6908;
   box-shadow: inset 3px 0 var(--accent);
 }
+.results-notice {
+  margin: 0;
+  padding: 14px 18px;
+  border-bottom: 1px solid #343e2c;
+  color: #dac4a2;
+  font-size: 12px;
+  line-height: 1.5;
+}
 .current-find {
   margin: 14px 0 0;
   padding: 17px;
