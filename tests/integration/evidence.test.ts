@@ -202,3 +202,62 @@ test("selected model qualifiers can be reordered without losing identity evidenc
       [],
     );
 });
+test("unparenthesized MacBook specifications match reordered listing titles without losing qualifiers", () => {
+  const selected: Product = {
+    ...product,
+    brand: "Apple",
+    model: "MacBook Pro 16-inch M2 Pro 2023",
+    variant: "Silver",
+    identification: "user_selected",
+    confidence: 0.45,
+  };
+  const url = "https://shop.example.com/laptop";
+  const offers = [{ url, priceMinor: 129900, currency: "USD", kind: "asking" }];
+  const source = {
+    url,
+    title: 'Apple 2023 MacBook Pro 16" M2 Pro Silver',
+    snippet: "Used laptop USD $1,299.00",
+  };
+  for (const title of [
+    source.title,
+    "Apple MacBook Pro M2 Pro 16-inch 2023 Silver",
+    "Apple 16-inch MacBook Pro M2 Pro 2023 Silver",
+  ]) {
+    const [found] = validateOffers(
+      { offers },
+      [{ ...source, title }],
+      selected,
+      "US",
+      "buy",
+    );
+    assert.equal(found?.priceMinor, 129900, title);
+    assert.equal(found?.match, "possible");
+  }
+  for (const title of [
+    'Apple 2023 MacBook Pro 14" M2 Pro Silver',
+    'Apple 2023 MacBook Pro 16" M1 Pro Silver',
+    'Apple 2023 MacBook Pro 16" M2 Max Silver',
+    'Apple 2021 MacBook Pro 16" M2 Pro Silver',
+    'Apple 2023 MacBook Air 16" M2 Pro Silver',
+    'Apple 2023 MacBook Pro 16" Silver',
+    'Apple MacBook Pro 16" M2 Pro Silver',
+    "Apple 2023 MacBook Pro M2 Pro Silver",
+    "Apple 2023 MacBook Pro 14-inch M2 Pro Silver; also browse 16-inch laptops",
+    "Apple 2021 MacBook Pro 16-inch M1 Pro Silver; compare with 2023 M2 Pro",
+  ])
+    assert.deepEqual(
+      validateOffers({ offers }, [{ ...source, title }], selected, "US", "buy"),
+      [],
+      title,
+    );
+  for (const model of [
+    "MacBook Pro 16-inch M2 2023",
+    "MacBook Pro 16-inch M2 Pro / M2 Max 2023",
+    "MacBook Pro 16-inch M2 Pro 2023 512GB",
+  ])
+    assert.deepEqual(
+      validateOffers({ offers }, [source], { ...selected, model }, "US", "buy"),
+      [],
+      model,
+    );
+});

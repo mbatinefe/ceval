@@ -230,3 +230,42 @@ test("a cited selected model can use reordered qualifiers but cannot omit them",
     [],
   );
 });
+test("native citations accept reordered unparenthesized MacBook specifications only with source proof", () => {
+  const selected: Product = {
+    ...product,
+    brand: "Apple",
+    model: "MacBook Pro 16-inch M2 Pro 2023",
+    variant: "Silver",
+    identification: "user_selected",
+    confidence: 0.45,
+  };
+  const row = {
+    ...offer,
+    priceMinor: 129900,
+    kind: "asking",
+    supportingText:
+      'Apple 2023 MacBook Pro 16" M2 Pro Silver used laptop USD $1,299.00.',
+  };
+  const title = 'Apple 2023 MacBook Pro 16" M2 Pro Silver used laptop';
+  const [found] = citedOffers(
+    [block(row)],
+    [{ ...source, title }],
+    selected,
+    "US",
+    "buy",
+  );
+  assert.equal(found?.priceMinor, 129900);
+  assert.equal(found?.match, "possible");
+  assert.equal(found?.evidenceType, "cited_summary");
+  for (const missing of ["2023 ", '16" ', "M2 Pro "])
+    assert.deepEqual(
+      citedOffers(
+        [block(row)],
+        [{ ...source, title: title.replace(missing, "") }],
+        selected,
+        "US",
+        "buy",
+      ),
+      [],
+    );
+});

@@ -1024,3 +1024,94 @@ test("a returning item keeps its photo and history identity when its authoritati
   assert.equal(next.rows[0].historyId, first.rows[0].historyId);
   assert.equal(next.rows[0].thumbnail, first.rows[0].thumbnail);
 });
+test("a confirmed laptop keeps one find when later candidate qualifiers change order", () => {
+  const chosen = product({
+    brand: "Apple",
+    model: "MacBook Pro 16-inch M2 Pro 2023",
+    variant: "Silver",
+    identification: "user_selected",
+  });
+  const first = see([], [chosen]);
+  const incoming = product({
+    id: "later-view",
+    brand: "",
+    model: "",
+    variant: "Silver",
+    confidence: 0.4,
+    candidates: [
+      candidate("Apple", "MacBook Pro 16-inch (2023, M2 Pro)", "Silver"),
+    ],
+  });
+  const returning = see(first.rows, [incoming], 120000);
+  assert.equal(returning.rows.length, 1);
+  assert.equal(returning.rows[0].product.id, chosen.id);
+  assert.equal(returning.rows[0].product.identification, "user_selected");
+  assert.equal(returning.rows[0].historyId, first.rows[0].historyId);
+});
+test("similar-looking laptops with a different chip or generation remain separate finds", () => {
+  const chosen = product({
+    brand: "Apple",
+    model: "MacBook Pro 16-inch M2 Pro 2023",
+    variant: "Silver",
+    identification: "user_selected",
+  });
+  for (const model of [
+    "MacBook Pro 16-inch (2023, M2 Max)",
+    "MacBook Pro 16-inch (2021, M1 Pro)",
+  ]) {
+    const first = see([], [chosen]);
+    const incoming = product({
+      id: "other-laptop",
+      brand: "Apple",
+      model,
+      variant: "Silver",
+      confidence: 0.95,
+      candidates: [],
+    });
+    assert.equal(see(first.rows, [incoming], 120000).rows.length, 2);
+  }
+});
+test("a strong visual return keeps a user choice when uncertain model suggestions change", () => {
+  const chosen = product({
+    brand: "Apple",
+    model: "MacBook Pro 16-inch M2 Pro 2023",
+    variant: "Silver",
+    identification: "user_selected",
+  });
+  const first = see([], [chosen]);
+  const incoming = product({
+    id: "later-guesses",
+    brand: "",
+    model: "",
+    variant: "Silver",
+    confidence: 0.4,
+    candidates: [candidate("Apple", "MacBook Air 15-inch M2 2023", "Silver")],
+  });
+  const returning = see(first.rows, [incoming], 120000);
+  assert.equal(returning.rows.length, 1);
+  assert.equal(returning.rows[0].product.id, chosen.id);
+});
+test("changed uncertain objects cannot inherit a user choice from a similar background", () => {
+  const visual = detailedFrame(97);
+  const chosen = product({
+    brand: "Apple",
+    model: "MacBook Pro 16-inch M2 Pro 2023",
+    variant: "Silver",
+    identification: "user_selected",
+    box: { x: 0.2, y: 0.2, width: 0.6, height: 0.6 },
+  });
+  const first = see([], [chosen], 1000, visual);
+  const changed = { ...visual, pixels: visual.pixels.slice() };
+  for (let y = 27; y < 63; y++)
+    for (let x = 48; x < 112; x++)
+      changed.pixels[y * 160 + x] = 255 - changed.pixels[y * 160 + x];
+  const incoming = product({
+    ...chosen,
+    id: "different-unreadable-object",
+    model: "",
+    confidence: 0.4,
+    identification: undefined,
+    candidates: [candidate("Apple", "MacBook Air 15-inch M2 2023", "Silver")],
+  });
+  assert.equal(see(first.rows, [incoming], 120000, changed).rows.length, 2);
+});

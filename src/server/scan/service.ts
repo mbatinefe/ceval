@@ -278,6 +278,7 @@ export async function compare(
     "compare",
     await digest(
       JSON.stringify([
+        "public-offers-v2",
         productId,
         mode,
         market,

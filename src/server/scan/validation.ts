@@ -8,6 +8,7 @@ import {
   type ModelCandidate,
 } from "../../shared/scan.ts";
 import { ScanError } from "./errors.ts";
+import { modelIdentityParts } from "../../shared/model-identity.ts";
 export const MAX_FRAME_BYTES = 200_000;
 export function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value))
@@ -193,6 +194,25 @@ export function containsModel(evidence: string, model: string): boolean {
       .replace(/\s+/g, " ")
       .trim();
   const normalized = normalize(evidence);
+  const identity = modelIdentityParts(model);
+  if (identity) {
+    const reference = normalized
+      .toLowerCase()
+      .replace(/(?:\b(?:usd|gbp|try|tl)\b\s*[$£₺]?|[$£₺])\s*\d[\d.,]*/g, " ")
+      .replace(/\b\d[\d.,]*\s*(?:(?:usd|gbp|try|tl)\b|[$£₺])/g, " ")
+      .replace(/\b(macbook)[\s\p{Pd}]+(pro|air)\b/gu, "$1 $2")
+      .replace(/\b(m\d{1,2})[\s\p{Pd}]+(pro|max|ultra)\b/gu, "$1 $2");
+    const groups = [
+      /\bmacbook (?:pro|air)\b/g,
+      /\b\d{1,2}(?:\.\d)? inch\b/g,
+      /\bm\d{1,2}(?: (?:pro|max|ultra))?\b/g,
+      /\b20\d{2}\b/g,
+    ];
+    return groups.every((pattern, index) => {
+      const values = new Set(reference.match(pattern) ?? []);
+      return values.size === 1 && values.has(identity[index]);
+    });
+  }
   if (containsIdentity(normalized, normalize(model))) return true;
   // Parenthesized specifications may move in listing titles; every qualifier still has to match.
   const parts = model.split(/[(),]/).map(normalize).filter(Boolean);

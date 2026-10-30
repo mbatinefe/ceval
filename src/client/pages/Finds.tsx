@@ -210,7 +210,7 @@ export function Finds() {
                 <div>
                   <h2 id="history-heading">Recent scans</h2>
                   <p className="finds-summary">
-                    Your latest {history.length} products · Up to 100 remembered
+                    {history.length} recent finds · Up to 100 remembered
                     automatically.
                   </p>
                 </div>

@@ -8,6 +8,8 @@ import type {
 import type { GrayFrame } from "./tracking.ts";
 import { frameDifference, trackDetection } from "./tracking.ts";
 import { cachedComparison, comparisonKey } from "./state.ts";
+import { modelIdentityKey } from "../../shared/model-identity.ts";
+import { sameObjectAfterPan } from "./visual-return.ts";
 
 export type FoundProduct = {
   rowId?: string;
@@ -85,7 +87,7 @@ function sameModel(
   );
 }
 function modelName(product: { brand: string; model: string }) {
-  const name = normalize(product.model).replaceAll(" ", "");
+  const name = modelIdentityKey(product.model);
   return brand(product.brand) === "sony"
     ? name.replace(/^(alpha|α)(?=\d)/, "a")
     : name;
@@ -357,6 +359,28 @@ function matchScore(
       intersection / (a.width * a.height + b.width * b.height - intersection);
     if (overlap >= 0.55) return 85;
   }
+  // A user's choice outlasts later visual guesses about the same textured object.
+  if (
+    old.identification === "user_selected" &&
+    !exact(incoming) &&
+    (!brand(incoming.brand) || brand(incoming.brand) === brand(old.brand)) &&
+    sighting.frame &&
+    Number.isFinite(visualDistance(sighting.appearance, sighting.appearance)) &&
+    (continuousPosition(
+      sighting.frame,
+      frame,
+      sighting.product.box,
+      incoming.box,
+      0.8,
+    ) ||
+      sameObjectAfterPan(
+        sighting.frame,
+        frame,
+        sighting.product.box,
+        incoming.box,
+      ))
+  )
+    return 88;
   const nearby = now >= sighting.at && now - sighting.at <= 20000;
   const unresolvedDescription = sameUnresolvedDescription(
     sighting.product,
