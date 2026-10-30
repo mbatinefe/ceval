@@ -92,6 +92,14 @@ test("empty, stale or incompatible results cannot supply a floating price", () =
     null,
   );
 });
+test("history can display an explicitly expired price without making live overlays current", () => {
+  const saved = { ...comparison([retail]), expiresAt: 0 };
+  assert.equal(offerSummary(saved), null);
+  const historical = offerSummary(saved, { includeExpired: true });
+  assert.equal(historical?.offer.priceMinor, 19900);
+  assert.equal(historical?.offer.kind, "retail");
+  assert.equal(saved.expiresAt, 0);
+});
 test("compact prices retain possible-match and condition qualifications", () => {
   const result = offerSummary(
     comparison([{ ...retail, match: "possible", condition: "used" }]),
@@ -102,4 +110,16 @@ test("compact prices retain possible-match and condition qualifications", () => 
       .qualification,
     "Check condition",
   );
+});
+test("buy falls back to public asking prices without presenting resale proceeds or savings", () => {
+  const asking = {
+    ...retail,
+    kind: "asking" as const,
+    condition: "used" as const,
+  };
+  const result = offerSummary(comparison([asking]))!;
+  assert.equal(result.offer, asking);
+  assert.equal(result.label, "Asking price");
+  assert.equal(result.savingsMinor, null);
+  assert.equal(offerSummary(comparison([{ ...asking, kind: "sold" }])), null);
 });

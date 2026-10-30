@@ -11,6 +11,8 @@ import { cachedComparison, comparisonKey } from "./state.ts";
 
 export type FoundProduct = {
   rowId?: string;
+  historyId?: string;
+  thumbnail?: string;
   product: Product;
   comparison?: Comparison;
   error?: string;
@@ -436,6 +438,7 @@ type SightingContext = {
   mode: Mode;
   market: Market;
   cache: Map<string, Comparison>;
+  photos?: Map<string, string>;
 };
 type ReconciledSightings = { rows: FoundProduct[]; sightings: FoundProduct[] };
 function* reconciliationSteps(
@@ -495,6 +498,8 @@ function* reconciliationSteps(
         comparisonKey(product, context.mode, context.market);
     const row: FoundProduct = {
       ...(compatible ? previous : {}),
+      historyId: previous?.historyId || crypto.randomUUID(),
+      thumbnail: previous?.thumbnail || context.photos?.get(incoming.id),
       rowId:
         previous?.rowId ||
         previous?.product.id ||

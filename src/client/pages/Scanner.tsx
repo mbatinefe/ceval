@@ -12,6 +12,7 @@ import {
   LoaderCircle,
   ArrowUpRight,
   X,
+  RotateCw,
 } from "lucide-react";
 import {
   markets,
@@ -78,6 +79,45 @@ export function Scanner() {
         row.product.identification !== "user_selected"));
   const identifiable = scan.found.filter((row) => !needsLabel(row));
   const unclear = scan.found.filter(needsLabel);
+  const previousFinds = scan.history
+    .filter(
+      (entry) =>
+        !scan.found.some(
+          (row) =>
+            row.historyId === entry.id || row.product.id === entry.product.id,
+        ),
+    )
+    .slice(0, 8);
+  const recentFinds = previousFinds.length > 0 && (
+    <section className="recent-finds" aria-label="Previous finds">
+      <div className="recent-finds-heading">
+        <h2>Previous finds</h2>
+        <a href="/app/finds">
+          View all <ArrowUpRight size={15} />
+        </a>
+      </div>
+      <div className="recent-finds-strip">
+        {previousFinds.map((entry) => (
+          <a key={entry.id} href="/app/finds" className="recent-find">
+            {entry.thumbnailUrl ? (
+              <img src={entry.thumbnailUrl} alt="" loading="lazy" />
+            ) : (
+              <span className="recent-placeholder">
+                <Tag size={22} />
+              </span>
+            )}
+            <span>
+              <strong>{entry.product.model || entry.product.label}</strong>
+              <small>
+                {entry.source === "sample" ? "Simulated sample · " : ""}
+                {new Date(entry.updatedAt).toLocaleDateString()}
+              </small>
+            </span>
+          </a>
+        ))}
+      </div>
+    </section>
+  );
   const renderFind = (row: FoundProduct) => (
     <ScanResultCard
       key={rowKey(row)}
@@ -169,8 +209,7 @@ export function Scanner() {
       </div>
       {!scan.source && (
         <p className="source-consent">
-          Choose a camera or video to start. Selected frames go to Meta; your
-          video stays on your device.
+          Frames go to Meta. Small product photos are saved to your finds.
         </p>
       )}
       {(scan.cameraPending || scan.cameraProblem) && (
@@ -217,6 +256,7 @@ export function Scanner() {
           </div>
         </div>
       )}
+      {!scan.source && recentFinds}
       <div className="scanner-grid">
         <section className="media-panel" aria-label="Video scanner">
           <div
@@ -410,6 +450,15 @@ export function Scanner() {
               </button>
             )}
           </div>
+          {scan.source && scan.found.length > 0 && (
+            <button
+              className="text-link rescan-view"
+              onClick={scan.rescan}
+              disabled={scan.busy}
+            >
+              <RotateCw size={14} /> Check this view again
+            </button>
+          )}
           {focused && (
             <ScanResultCard
               row={focused}
@@ -447,15 +496,37 @@ export function Scanner() {
             <p>
               Up to 150 MB · 10 minutes. Choosing a source starts scanning when
               it is ready. Your full video stays on this device; selected frames
-              go to Meta for analysis. Ceval does not save those frames.
+              go to Meta for analysis. Small cropped product photos are saved
+              privately to your account with your latest 100 finds. Delete them
+              anytime in Your finds.
             </p>
           </details>
         </section>
         <aside className="scan-results">
           <div className="results-heading">
-            <span className="eyebrow">YOUR FINDS</span>
+            <span className="eyebrow">THIS SCAN</span>
             <span>{String(scan.found.length).padStart(2, "0")}</span>
           </div>
+          {scan.historyState.failed > 0 ? (
+            <p className="history-sync-note" role="status">
+              Some finds haven’t saved.{" "}
+              <button onClick={scan.retryHistory}>Retry saving</button>
+            </p>
+          ) : (
+            scan.found.length > 0 && (
+              <p className="history-sync-note" role="status">
+                {scan.historyState.pending
+                  ? "Saving your finds…"
+                  : "Photos & finds remembered automatically"}
+              </p>
+            )
+          )}
+          {scan.historyLoadError && (
+            <p className="history-sync-note">
+              Previous finds couldn’t load.{" "}
+              <a href="/app/finds">Try Your finds</a>
+            </p>
+          )}
           {allowanceNotice && (
             <p className="results-notice" role="status">
               {allowanceNotice}
@@ -470,8 +541,8 @@ export function Scanner() {
                   : "Your finds appear here"}
               </h2>
               <p>
-                Clear labels help identify the right model. Tap a result to
-                compare prices.
+                Point at a product and hold steady. We’ll identify it and search
+                prices automatically.
               </p>
             </div>
           ) : (
@@ -490,11 +561,12 @@ export function Scanner() {
             </>
           )}
           <a href="/app/finds" className="shelf-link">
-            Your saved finds
+            All finds & history
             <ArrowUpRight size={16} />
           </a>
         </aside>
       </div>
+      {scan.source && recentFinds}
       <details className="sample-library">
         <summary>
           <span>

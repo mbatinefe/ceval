@@ -12,8 +12,11 @@ export function Account({ profile }: { profile: Profile }) {
       await Promise.all([
         api("/api/finds", {}, "DELETE"),
         api("/api/comparisons", {}, "DELETE"),
+        api("/api/scan/history", {}, "DELETE"),
       ]);
-      setMessage("Your saved finds have been cleared.");
+      setMessage(
+        "Your saved finds, recent scan history and product photos have been cleared.",
+      );
       setConfirm(false);
     } catch {
       setMessage("Couldn’t clear your finds. Please try again.");
@@ -80,18 +83,23 @@ export function Account({ profile }: { profile: Profile }) {
             <p>
               Saved finds are linked to your account. Camera access is requested
               only when you choose it. The full video stays on your device;
-              selected frames go to Meta when you start scanning. Ceval does not
-              save those frames.
+              selected frames go to Meta when you start scanning. Ceval
+              remembers up to 100 recent finds with small product photos in your
+              account. You can remove individual scans in Your finds or clear
+              them all here.
             </p>
             {confirm ? (
               <div className="confirm-delete">
-                <p>Remove all your saved finds? This can’t be undone.</p>
+                <p>
+                  Remove all saved finds, recent scan history and product
+                  photos? This can’t be undone.
+                </p>
                 <button
                   className="button danger small"
                   onClick={clear}
                   disabled={busy}
                 >
-                  Clear saved finds
+                  Clear finds and photos
                 </button>
                 <button
                   className="text-button"
@@ -103,7 +111,7 @@ export function Account({ profile }: { profile: Profile }) {
               </div>
             ) : (
               <button className="text-link" onClick={() => setConfirm(true)}>
-                <Trash2 size={16} /> Clear saved finds
+                <Trash2 size={16} /> Clear finds and photos
               </button>
             )}
           </section>

@@ -41,7 +41,12 @@ app.use("*", async (c, next) => {
     c.header("X-Robots-Tag", "noindex, nofollow");
   // Only the two public synthetic videos may be cached; account pages stay private.
   if (!isDemoVideo(c.req.path) || ![200, 206, 304].includes(c.res.status))
-    c.header("Cache-Control", "no-store");
+    c.header(
+      "Cache-Control",
+      c.req.path.startsWith("/api/scan/history")
+        ? "private, no-store"
+        : "no-store",
+    );
 });
 
 for (const clip of demoManifest.clips)
@@ -69,7 +74,13 @@ app.use("/api/*", async (c, next) => {
         const { value, done } = await reader.read();
         if (done) break;
         size += value.length;
-        if (size > (c.req.path === "/api/scan/recognize" ? 280000 : 4096)) {
+        const maxBodyBytes =
+          c.req.path === "/api/scan/recognize"
+            ? 280000
+            : c.req.path === "/api/scan/history"
+              ? 45000
+              : 4096;
+        if (size > maxBodyBytes) {
           await reader.cancel();
           return c.json({ error: "Request is too large." }, 413);
         }

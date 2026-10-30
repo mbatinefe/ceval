@@ -157,13 +157,14 @@ export async function recognize(
       );
       const product = { ...p, id: crypto.randomUUID() };
       const stored = await env.DB.prepare(
-        "INSERT INTO scan_products (id,user_id,fingerprint,data,updated_at) VALUES (?,?,?,?,?) ON CONFLICT(user_id,fingerprint) DO UPDATE SET data=json_set(excluded.data, '$.id', scan_products.id),updated_at=excluded.updated_at RETURNING data",
+        "INSERT INTO scan_products (id,user_id,fingerprint,data,market,updated_at) VALUES (?,?,?,?,?,?) ON CONFLICT(user_id,fingerprint) DO UPDATE SET data=json_set(excluded.data, '$.id', scan_products.id),market=excluded.market,updated_at=excluded.updated_at RETURNING data",
       )
         .bind(
           product.id,
           userId,
           fingerprint,
           JSON.stringify(product),
+          market,
           Date.now(),
         )
         .first<{ data: string }>();
@@ -221,9 +222,16 @@ export async function selectModel(
     JSON.stringify(["selected", market, productId, candidateKey]),
   );
   const stored = await env.DB.prepare(
-    "INSERT INTO scan_products (id,user_id,fingerprint,data,updated_at) VALUES (?,?,?,?,?) ON CONFLICT(user_id,fingerprint) DO UPDATE SET data=json_set(excluded.data,'$.id',scan_products.id),updated_at=excluded.updated_at RETURNING data",
+    "INSERT INTO scan_products (id,user_id,fingerprint,data,market,updated_at) VALUES (?,?,?,?,?,?) ON CONFLICT(user_id,fingerprint) DO UPDATE SET data=json_set(excluded.data,'$.id',scan_products.id),market=excluded.market,updated_at=excluded.updated_at RETURNING data",
   )
-    .bind(product.id, userId, fingerprint, JSON.stringify(product), Date.now())
+    .bind(
+      product.id,
+      userId,
+      fingerprint,
+      JSON.stringify(product),
+      market,
+      Date.now(),
+    )
     .first<{ data: string }>();
   if (!stored)
     throw new ScanError(

@@ -87,8 +87,8 @@ export function ComparisonDialog({
         {comparison.offers.length === 0 ? (
           <div className="offer-empty">
             <p>
-              No sufficiently supported offers found. Try a clearer model label
-              or a different market.
+              We searched shops and public listings but couldn’t verify a price
+              for this model. Check the listings below, or scan its model label.
             </p>
           </div>
         ) : (
@@ -132,7 +132,7 @@ export function ComparisonDialog({
                       <p>{offer.title}</p>
                       {offer.evidenceType === "cited_summary" && (
                         <p className="muted">
-                          Search-reported price · confirm at retailer
+                          Search-reported price · confirm with seller
                         </p>
                       )}
                       <small>

@@ -1002,3 +1002,25 @@ test("exact model identity cannot discard a capacity or color variant on a chang
       2,
     );
 });
+test("a returning item keeps its photo and history identity when its authoritative snapshot changes", () => {
+  const first = reconcileSightings([], [product()], {
+    time: 1,
+    now: 1000,
+    frame,
+    mode: "buy",
+    market: "US",
+    cache: new Map(),
+    photos: new Map([["first", "data:image/jpeg;base64,original-crop"]]),
+  });
+  assert.ok(first.rows[0].historyId);
+  assert.equal(first.rows[0].thumbnail, "data:image/jpeg;base64,original-crop");
+  const next = see(
+    first.rows,
+    [product({ id: "changed-shelf", shelfPriceMinor: 8999 })],
+    2000,
+  );
+  assert.equal(next.rows.length, 1);
+  assert.equal(next.rows[0].product.id, "changed-shelf");
+  assert.equal(next.rows[0].historyId, first.rows[0].historyId);
+  assert.equal(next.rows[0].thumbnail, first.rows[0].thumbnail);
+});

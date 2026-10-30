@@ -42,6 +42,14 @@ export function ScanResultCard({
       className={`${compact ? "current-find" : "scan-result"}${active ? " is-active" : ""}`}
       id={compact ? undefined : `result-${row.rowId || row.product.id}`}
     >
+      {row.thumbnail && (
+        <img
+          className="scan-product-photo"
+          src={row.thumbnail}
+          alt={title}
+          loading="lazy"
+        />
+      )}
       <div className="find-card-heading">
         <div>
           <span className="find-brand">
@@ -78,7 +86,9 @@ export function ScanResultCard({
       {row.searching || row.selecting ? (
         <p className="searching-price">
           <LoaderCircle size={14} className="spin" />
-          {row.selecting ? "Confirming model…" : "Checking prices…"}
+          {row.selecting
+            ? "Confirming model…"
+            : "Searching shops & marketplaces…"}
         </p>
       ) : row.error ? (
         <p className="result-note result-error">
@@ -88,13 +98,13 @@ export function ScanResultCard({
         </p>
       ) : needsModel ? (
         <p className="result-note">
-          {row.product.candidates!.length} possible models · confirm yours
+          Choose your model. We’ll search prices automatically.
         </p>
       ) : (
         !summary && (
           <p className="result-note">
             {row.comparison
-              ? "No supported price found yet."
+              ? "No verified price yet. Check listings or show the model label."
               : unidentified
                 ? "Show the model label for a reliable match."
                 : "Ready to compare."}
@@ -139,7 +149,9 @@ export function ScanResultCard({
             className="find-action primary-action"
             onClick={() => onReview(row.comparison!)}
           >
-            View {row.comparison.mode === "buy" ? "prices" : "listings"}{" "}
+            {row.comparison.offers.length
+              ? `View ${row.comparison.mode === "buy" ? "prices" : "listings"}`
+              : "Search options"}{" "}
             <ArrowUpRight size={14} />
           </button>
         )}
@@ -151,7 +163,7 @@ export function ScanResultCard({
         {!needsModel &&
           !row.searching &&
           !row.selecting &&
-          !row.comparison &&
+          !summary &&
           row.product.model && (
             <a
               className="find-action"

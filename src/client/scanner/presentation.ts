@@ -8,16 +8,25 @@ export type OfferSummary = {
   savingsMinor: number | null;
 };
 
-export function offerSummary(comparison?: Comparison): OfferSummary | null {
-  if (!comparison || comparison.expiresAt <= Date.now()) return null;
+export function offerSummary(
+  comparison?: Comparison,
+  options: { includeExpired?: boolean } = {},
+): OfferSummary | null {
+  if (
+    !comparison ||
+    (!options.includeExpired && comparison.expiresAt <= Date.now())
+  )
+    return null;
   const offers = comparison.offers.filter(
     (offer) =>
       offer.currency === markets[comparison.market].currency &&
       (comparison.mode === "buy"
-        ? offer.kind === "retail"
+        ? offer.kind === "retail" || offer.kind === "asking"
         : offer.kind === "sold" || offer.kind === "asking"),
   );
   offers.sort((a, b) => {
+    if (comparison.mode === "buy" && a.kind !== b.kind)
+      return a.kind === "retail" ? -1 : 1;
     if (comparison.mode === "resale" && a.kind !== b.kind)
       return a.kind === "sold" ? -1 : 1;
     if (a.match !== b.match) return a.match === "exact" ? -1 : 1;

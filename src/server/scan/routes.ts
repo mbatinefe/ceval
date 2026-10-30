@@ -11,10 +11,12 @@ import { marketOf, modeOf, validateFrame, text } from "./validation.ts";
 import type { Comparison } from "../../shared/scan.ts";
 import { ScanError } from "./errors.ts";
 import { consumeLimit } from "../auth/limits.ts";
+import { historyRoutes } from "./history.ts";
 export const scanRoutes = new Hono<{
   Bindings: Env;
   Variables: { body: Record<string, unknown>; session: Session };
 }>();
+scanRoutes.route("/", historyRoutes);
 scanRoutes.get("/scan/capabilities", (c) => c.json(capabilities(c.env)));
 scanRoutes.post("/scan/recognize", async (c) => {
   const body = c.get("body"),

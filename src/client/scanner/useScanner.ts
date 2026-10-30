@@ -41,6 +41,10 @@ import {
   type StartupState,
 } from "./startup";
 import { clips } from "../../../public/demo/manifest.json";
+import { SceneMemory } from "./scene-memory";
+import { productPhotos } from "./photos";
+import { HistoryWriter } from "./history-writer";
+import type { ScanHistoryEntry } from "../../shared/history";
 export type SourceKind = "camera" | "video" | "sample" | null;
 export type ScanPin = Product & { rowId: string };
 export type { FoundProduct } from "./continuity";
@@ -50,6 +54,11 @@ export function useScanner(mode: Mode, market: Market) {
     objectUrl = useRef<string | null>(null);
   const generation = useRef(0);
   const [work] = useState(() => new ScanWork());
+  const [sceneMemory] = useState(() => new SceneMemory());
+  const historyWriter = useRef<HistoryWriter<ScanHistoryEntry> | null>(null);
+  const [history, setHistory] = useState<ScanHistoryEntry[]>([]);
+  const [historyState, setHistoryState] = useState({ pending: 0, failed: 0 });
+  const [historyLoadError, setHistoryLoadError] = useState(false);
   const [detectionTrail] = useState(() => new DetectionTrail());
   const [startup] = useState(() => new MediaStartup());
   const [startupState, setStartupState] = useState<StartupState>("idle");
@@ -91,6 +100,57 @@ export function useScanner(mode: Mode, market: Market) {
     [found, setFound] = useState<FoundProduct[]>([]);
   const [aspect, setAspect] = useState(16 / 9);
   useEffect(() => {
+    let active = true;
+    const writer = new HistoryWriter<ScanHistoryEntry>(async (data, signal) => {
+      const result = await scanRequest<{ entry: ScanHistoryEntry }>(
+        "/api/scan/history",
+        data,
+        signal,
+      );
+      return result.entry;
+    });
+    historyWriter.current = writer;
+    writer.onChange = () => setHistoryState(writer.state);
+    writer.onSaved = (entry) =>
+      setHistory((rows) =>
+        [
+          entry,
+          ...rows.filter(
+            (row) =>
+              row.id !== entry.id &&
+              !(
+                row.product.id === entry.product.id &&
+                row.source === entry.source
+              ),
+          ),
+        ]
+          .sort((a, b) => b.updatedAt - a.updatedAt)
+          .slice(0, 100),
+      );
+    api<{ entries: ScanHistoryEntry[] }>("/api/scan/history")
+      .then(({ entries }) => {
+        if (active)
+          setHistory((rows) =>
+            [
+              ...rows,
+              ...entries.filter(
+                (entry) => !rows.some((row) => row.id === entry.id),
+              ),
+            ]
+              .sort((a, b) => b.updatedAt - a.updatedAt)
+              .slice(0, 100),
+          );
+      })
+      .catch(() => {
+        if (active) setHistoryLoadError(true);
+      });
+    return () => {
+      active = false;
+      writer.dispose();
+      if (historyWriter.current === writer) historyWriter.current = null;
+    };
+  }, [historyWriter]);
+  useEffect(() => {
     startup.onChange = setStartupState;
     return () => {
       startup.onChange = undefined;
@@ -121,12 +181,24 @@ export function useScanner(mode: Mode, market: Market) {
     (rows: FoundProduct[]) => {
       resultsRef.current = rows;
       setFound(rows);
+      if (sourceRef.current)
+        for (const row of rows) {
+          if (!row.historyId) continue;
+          historyWriter.current?.enqueue({
+            id: row.historyId,
+            productId: row.product.id,
+            comparisonId: row.comparison?.id,
+            thumbnail: row.thumbnail,
+            source: sourceRef.current,
+            mode,
+          });
+        }
       if (finished.current)
         setMessage(
           completionMessage(rows, finished.current, work.state.draining),
         );
     },
-    [work],
+    [work, historyWriter, mode],
   );
   const stopAnalysis = useCallback(() => {
     startup.cancel();
@@ -159,6 +231,7 @@ export function useScanner(mode: Mode, market: Market) {
   );
   const closeSource = useCallback(() => {
     stopAnalysis();
+    sceneMemory.clear();
     stream.current?.getTracks().forEach((track) => track.stop());
     stream.current = null;
     if (video.current) {
@@ -181,7 +254,7 @@ export function useScanner(mode: Mode, market: Market) {
     setSourceName("");
     comparisonBlock.current = null;
     setMessage("Choose your camera or a video to get started.");
-  }, [stopAnalysis]);
+  }, [stopAnalysis, sceneMemory]);
   useEffect(() => {
     let active = true;
     api<ScanCapabilities>("/api/scan/capabilities")
@@ -205,8 +278,8 @@ export function useScanner(mode: Mode, market: Market) {
     };
   }, []);
   useEffect(() => {
-    stopAnalysis();
     updateResults([]);
+    stopAnalysis();
     lastAnalysis.current = 0;
   }, [mode, market, stopAnalysis, updateResults]);
   useEffect(() => {
@@ -499,6 +572,21 @@ export function useScanner(mode: Mode, market: Market) {
     if (now < recognitionRecovery.current.retryAt) return;
     if (now - lastAnalysis.current < 6000) return;
     const thumbnail = grayFrame(element);
+    const remembered = sceneMemory.match(
+      thumbnail,
+      new Set(resultsRef.current.map((row) => row.rowId || row.product.id)),
+    );
+    if (remembered) {
+      lastAnalysis.current = now;
+      setMessage("Already found these items. Point at something new.");
+      for (const id of remembered) {
+        const row = resultsRef.current.find(
+          (item) => (item.rowId || item.product.id) === id,
+        );
+        if (row) queueComparison(row);
+      }
+      return;
+    }
     if (
       lastAnalyzed.current &&
       frameDifference(lastAnalyzed.current, thumbnail) < 7 &&
@@ -523,6 +611,8 @@ export function useScanner(mode: Mode, market: Market) {
         if (epoch !== generation.current) return;
         setError("");
         recognitionRecovery.current.retryAt = 0;
+        const photos = await productPhotos(frame, result.products);
+        if (epoch !== generation.current || signal.aborted) return;
         const reconciled = await reconcileCurrentSightings(
           () => resultsRef.current,
           result.products,
@@ -533,6 +623,7 @@ export function useScanner(mode: Mode, market: Market) {
             mode,
             market,
             cache: cache.current,
+            photos,
           },
           signal,
           () => epoch === generation.current,
@@ -540,6 +631,10 @@ export function useScanner(mode: Mode, market: Market) {
         );
         if (!reconciled || epoch !== generation.current || signal.aborted)
           return;
+        sceneMemory.remember(
+          thumbnail,
+          reconciled.sightings.map((row) => row.rowId || row.product.id),
+        );
         detectionTrail.append(grayFrame(element));
         const projected = await detectionTrail.projectMany(
           reconciled.sightings.map(({ product }) => product.box),
@@ -807,6 +902,17 @@ export function useScanner(mode: Mode, market: Market) {
     ready,
     pins,
     found,
+    history,
+    historyState,
+    historyLoadError,
+    retryHistory: () => historyWriter.current?.retry(),
+    rescan: () => {
+      sceneMemory.clear();
+      lastAnalysis.current = 0;
+      lastAnalyzed.current = null;
+      setMessage("Checking this view again…");
+      if (!runningRef.current) start();
+    },
     aspect,
     camera,
     chooseVideo,
