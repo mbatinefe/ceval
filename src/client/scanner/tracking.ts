@@ -182,7 +182,18 @@ function* trackBoxSteps(
     moved.y < 0 ||
     moved.x + moved.width > 1 ||
     moved.y + moved.height > 1
-  )
-    return null;
+  ) {
+    const x = Math.max(0, moved.x),
+      y = Math.max(0, moved.y);
+    const width = Math.min(1, moved.x + moved.width) - x;
+    const height = Math.min(1, moved.y + moved.height) - y;
+    if (
+      width <= 0 ||
+      height <= 0 ||
+      width * height < moved.width * moved.height * 0.8
+    )
+      return null;
+    return { x, y, width, height };
+  }
   return moved;
 }

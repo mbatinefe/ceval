@@ -254,7 +254,8 @@ function matchScore(
     exact(old) &&
     exact(incoming) &&
     sameModel(old, incoming) &&
-    normalize(old.variant) === normalize(incoming.variant)
+    (normalize(old.variant) === normalize(incoming.variant) ||
+      (uniqueModel && !!old.variant && !!incoming.variant))
   )
     return 100;
   const sighting = row.sighting;

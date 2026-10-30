@@ -669,3 +669,44 @@ test("a repeated unknown case tolerates a slightly shifted detection crop within
   assert.equal(next.rows[0].rowId, first.rows[0].rowId);
   assert.equal(next.rows[0].product.model, "");
 });
+
+test("unique exact Sony aliases preserve richer descriptive variants across a changed scene", () => {
+  const camera = product({
+    brand: "Sony",
+    model: "α6000",
+    variant: "Black, body only",
+  });
+  const first = see([], [camera]);
+  const otherScene = {
+    ...frame,
+    pixels: Uint8Array.from(frame.pixels, (value) => 255 - value),
+  };
+  const next = see(
+    first.rows,
+    [{ ...camera, id: "return", model: "Alpha 6000", variant: "Black" }],
+    140000,
+    otherScene,
+  );
+  assert.equal(next.rows.length, 1);
+  assert.equal(next.rows[0].rowId, first.rows[0].rowId);
+  assert.equal(next.rows[0].product.id, camera.id);
+  assert.equal(next.rows[0].product.variant, "Black, body only");
+});
+
+test("exact model identity cannot discard a capacity or color variant on a changed scene", () => {
+  const first = see([], [product({ variant: "Black, 64GB" })]);
+  const otherScene = {
+    ...frame,
+    pixels: Uint8Array.from(frame.pixels, (value) => 255 - value),
+  };
+  for (const variant of ["Black", "Black, 128GB", "White, 64GB"])
+    assert.equal(
+      see(
+        first.rows,
+        [product({ id: "different-variant", variant })],
+        140000,
+        otherScene,
+      ).rows.length,
+      2,
+    );
+});

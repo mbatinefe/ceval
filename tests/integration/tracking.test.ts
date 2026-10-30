@@ -139,6 +139,37 @@ test("tracking finds textured packaging edges when the object center is plain", 
   assert.ok(Math.abs(found.y - 0.23) < 0.015);
 });
 
+test("a slight edge crossing keeps the visible part of a tracked object", () => {
+  const translated = new Uint8Array(width * height);
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width - 2; x++)
+      translated[y * width + x + 2] = pixels[y * width + x];
+  const found = trackBox(
+    frame,
+    { pixels: translated, width, height },
+    { x: 0.6, y: 0.2, width: 0.4, height: 0.4 },
+  );
+  assert.ok(found);
+  assert.ok(Math.abs(found.x - 0.62) < 0.001);
+  assert.ok(Math.abs(found.width - 0.38) < 0.001);
+  assert.equal(found.y, 0.2);
+  assert.ok(Math.abs(found.height - 0.4) < 0.001);
+  assert.ok(found.x + found.width <= 1);
+});
+
+test("an edge crossing with less than eighty percent visible cannot retain a marker", () => {
+  const translated = new Uint8Array(width * height);
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width - 8; x++)
+      translated[y * width + x + 8] = pixels[y * width + x];
+  const found = trackBox(
+    frame,
+    { pixels: translated, width, height },
+    { x: 0.7, y: 0.2, width: 0.3, height: 0.4 },
+  );
+  assert.equal(found, null);
+});
+
 test("delayed projection yields to UI tasks and includes frames appended while catching up", async (t) => {
   let clock = 0;
   t.mock.method(performance, "now", () => (clock += 3));
