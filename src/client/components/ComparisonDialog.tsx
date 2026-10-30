@@ -3,6 +3,7 @@ import { ArrowUpRight, Bookmark, Check, X } from "lucide-react";
 import type { Comparison } from "../../shared/scan";
 import { formatPrice } from "../../shared/demo";
 import { api } from "../lib/api";
+import { marketplaceSearch } from "../../shared/marketplace";
 export function ComparisonDialog({
   comparison,
   onClose,
@@ -60,6 +61,11 @@ export function ComparisonDialog({
         <span className="eyebrow">{comparison.product.brand}</span>
         <h2 id="comparison-title">{comparison.product.model}</h2>
         <p className="muted">{comparison.product.variant}</p>
+        {comparison.product.identification === "user_selected" && (
+          <p className="result-note">
+            Model selected by you from visual suggestions.
+          </p>
+        )}
         {comparison.product.shelfPriceMinor !== null &&
           comparison.product.shelfCurrency && (
             <p className="observed-price">
@@ -159,6 +165,14 @@ export function ComparisonDialog({
             );
           })
         )}
+        <a
+          className="text-link marketplace-link"
+          href={marketplaceSearch(comparison.product)}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Search Facebook Marketplace <ArrowUpRight size={15} />
+        </a>
         <p className="source-note">
           Prices come from retrieved search evidence and may change. Confirm
           availability, condition, delivery and the final price on the source

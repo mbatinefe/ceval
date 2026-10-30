@@ -6,6 +6,14 @@ export const markets = {
 export type Market = keyof typeof markets;
 export type Mode = "buy" | "resale";
 export type Box = { x: number; y: number; width: number; height: number };
+export type ModelCandidate = {
+  brand: string;
+  model: string;
+  variant: string;
+  reason: string;
+};
+export const modelCandidateKey = (candidate: ModelCandidate) =>
+  JSON.stringify([candidate.brand, candidate.model, candidate.variant]);
 export type Product = {
   id: string;
   brand: string;
@@ -16,6 +24,8 @@ export type Product = {
   box: Box;
   shelfPriceMinor: number | null;
   shelfCurrency: string | null;
+  candidates?: ModelCandidate[];
+  identification?: "user_selected";
 };
 export type Offer = {
   title: string;

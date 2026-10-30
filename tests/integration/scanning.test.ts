@@ -1,7 +1,7 @@
 import { test, before, after, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
-import { createHmac } from "node:crypto";
+import { createHmac, createHash } from "node:crypto";
 import { Miniflare, convertV4MiniflareOptions } from "miniflare";
 import worker from "../../src/server/index.ts";
 
@@ -316,6 +316,166 @@ async function identified() {
   assert.equal(r.status, 200);
   return (await r.json()).products[0].id as string;
 }
+const candidate = {
+  brand: "Sony",
+  model: "WH-1000XM5",
+  variant: "Black",
+  reason: "Check the headband and ear-cup hinge shape.",
+};
+const candidateKey = JSON.stringify([
+  candidate.brand,
+  candidate.model,
+  candidate.variant,
+]);
+async function uncertain() {
+  provider = async () =>
+    response({
+      products: [
+        {
+          ...product,
+          model: "",
+          label: "Sony over-ear headphones",
+          confidence: 0.55,
+          candidates: [candidate, { ...candidate, model: "WH-1000XM4" }],
+        },
+      ],
+    });
+  return identified();
+}
+test("uncertain models require selection before price search and preserve its provenance", async () => {
+  const productId = await uncertain();
+  assert.equal(
+    (
+      await request("/api/scan/compare", {
+        productId,
+        mode: "buy",
+        market: "US",
+      })
+    ).status,
+    422,
+  );
+  const selection = await request("/api/scan/select-model", {
+    productId,
+    candidateKey,
+    market: "US",
+  });
+  assert.equal(selection.status, 200, await selection.clone().text());
+  const { product: selected } = await selection.json();
+  assert.equal(selected.model, "WH-1000XM5");
+  assert.equal(selected.identification, "user_selected");
+  assert.equal(selected.confidence, 0.55);
+  assert.notEqual(selected.id, productId);
+  assert.equal(calls.length, 1, "choosing a model is not a paid provider call");
+  const repeat = await request("/api/scan/select-model", {
+    productId,
+    candidateKey,
+    market: "US",
+  });
+  assert.equal((await repeat.json()).product.id, selected.id);
+  provider = async () => offerResponse();
+  const comparison = await request("/api/scan/compare", {
+    productId: selected.id,
+    mode: "buy",
+    market: "US",
+  });
+  assert.equal(comparison.status, 200);
+  assert.equal(
+    (await comparison.json()).product.identification,
+    "user_selected",
+  );
+});
+test("recognition refreshes old cached results that predate visual suggestions", async () => {
+  const legacyKey = createHash("sha256").update(`US:${frame}`).digest("hex");
+  await env.DB.prepare(
+    "INSERT INTO scan_jobs (id,user_id,kind,request_key,status,result,expires_at,created_at) VALUES (?,?,? ,?,'done',?,?,?)",
+  )
+    .bind(
+      crypto.randomUUID(),
+      "shopper",
+      "recognize",
+      legacyKey,
+      JSON.stringify({
+        products: [{ ...product, id: "legacy", model: "", confidence: 0.5 }],
+        analyzedAt: Date.now(),
+      }),
+      Date.now() + 180000,
+      Date.now(),
+    )
+    .run();
+  const productId = await uncertain();
+  assert.notEqual(productId, "legacy");
+  assert.equal(calls.length, 1);
+  const data = await env.DB.prepare("SELECT data FROM scan_products WHERE id=?")
+    .bind(productId)
+    .first<{ data: string }>();
+  assert.equal(JSON.parse(data!.data).candidates.length, 2);
+});
+test("model selection rejects another owner's product and unstored candidate", async () => {
+  const productId = await uncertain();
+  assert.equal(
+    (
+      await request(
+        "/api/scan/select-model",
+        { productId, candidateKey, market: "US" },
+        "other",
+      )
+    ).status,
+    404,
+  );
+  assert.equal(
+    (
+      await request("/api/scan/select-model", {
+        productId,
+        candidateKey: JSON.stringify(["Apple", "MacBook Pro", ""]),
+        market: "US",
+      })
+    ).status,
+    409,
+  );
+  await env.DB.prepare("UPDATE scan_products SET updated_at=? WHERE id=?")
+    .bind(Date.now() - 86400001, productId)
+    .run();
+  assert.equal(
+    (
+      await request("/api/scan/select-model", {
+        productId,
+        candidateKey,
+        market: "US",
+      })
+    ).status,
+    422,
+  );
+  assert.equal(calls.length, 1);
+});
+test("different model choices cannot reuse each other's comparison", async () => {
+  const productId = await uncertain();
+  const selected = [];
+  for (const model of ["WH-1000XM5", "WH-1000XM4"]) {
+    const result = await request("/api/scan/select-model", {
+      productId,
+      candidateKey: JSON.stringify(["Sony", model, "Black"]),
+      market: "US",
+    });
+    assert.equal(result.status, 200);
+    selected.push((await result.json()).product);
+  }
+  assert.notEqual(selected[0].id, selected[1].id);
+  provider = async () => offerResponse();
+  const comparisons = [];
+  for (const p of selected)
+    comparisons.push(
+      await (
+        await request("/api/scan/compare", {
+          productId: p.id,
+          mode: "buy",
+          market: "US",
+        })
+      ).json(),
+    );
+  assert.notEqual(comparisons[0].id, comparisons[1].id);
+  assert.equal(comparisons[0].offers.length, 1);
+  assert.equal(comparisons[1].offers.length, 0);
+});
 function offerResponse(
   snippet = "Sony WH-1000XM5 Black brand new USD $249.99",
   kind = "retail",

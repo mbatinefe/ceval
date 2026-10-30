@@ -13,9 +13,15 @@ import {
   cachedComparison,
   cacheMatchingComparison,
   comparisonKey,
-  playCurrent,
 } from "./state";
 import { ScanWork } from "./work";
+import {
+  MediaStartup,
+  cameraFailure,
+  mediaReadiness,
+  type CameraFailure,
+  type StartupState,
+} from "./startup";
 import { clips } from "../../../public/demo/manifest.json";
 export type SourceKind = "camera" | "video" | "sample" | null;
 export type FoundProduct = {
@@ -24,6 +30,7 @@ export type FoundProduct = {
   error?: string;
   searching?: boolean;
   time: number;
+  selecting?: boolean;
 };
 export function useScanner(mode: Mode, market: Market) {
   const video = useRef<HTMLVideoElement>(null);
@@ -31,6 +38,14 @@ export function useScanner(mode: Mode, market: Market) {
     objectUrl = useRef<string | null>(null);
   const generation = useRef(0);
   const [work] = useState(() => new ScanWork());
+  const [startup] = useState(() => new MediaStartup());
+  const [startupState, setStartupState] = useState<StartupState>("idle");
+  const [cameraPending, setCameraPending] = useState(false);
+  const [previewBlocked, setPreviewBlocked] = useState(false);
+  const [cameraProblem, setCameraProblem] = useState<CameraFailure | null>(
+    null,
+  );
+  const [prepared, setPrepared] = useState(false);
   const finished = useRef<"video" | "error" | null>(null);
   const runningRef = useRef(false),
     lastAnalyzed = useRef<GrayFrame | null>(null),
@@ -41,6 +56,7 @@ export function useScanner(mode: Mode, market: Market) {
     lastDetection = useRef(0);
   const resultsRef = useRef<FoundProduct[]>([]),
     cache = useRef(new Map<string, Comparison>());
+  const pendingSelections = useRef(new Set<string>());
   const sourceRef = useRef<SourceKind>(null);
   const [source, setSource] = useState<SourceKind>(null),
     [sourceName, setSourceName] = useState("");
@@ -58,6 +74,12 @@ export function useScanner(mode: Mode, market: Market) {
   const [pins, setPins] = useState<Product[]>([]),
     [found, setFound] = useState<FoundProduct[]>([]);
   const [aspect, setAspect] = useState(16 / 9);
+  useEffect(() => {
+    startup.onChange = setStartupState;
+    return () => {
+      startup.onChange = undefined;
+    };
+  }, [startup]);
   useEffect(() => {
     work.onChange = () => {
       const state = work.state;
@@ -84,9 +106,12 @@ export function useScanner(mode: Mode, market: Market) {
     setFound(rows);
   }, []);
   const stopAnalysis = useCallback(() => {
+    startup.cancel();
+    setCameraPending(false);
     generation.current++;
     finished.current = null;
     work.cancel();
+    pendingSelections.current.clear();
     runningRef.current = false;
     setRunning(false);
     setBusy(false);
@@ -95,17 +120,22 @@ export function useScanner(mode: Mode, market: Market) {
     previous.current = null;
     lastAnalyzed.current = null;
     updateResults(
-      resultsRef.current.map((row) => ({ ...row, searching: false })),
+      resultsRef.current.map((row) => ({
+        ...row,
+        searching: false,
+        selecting: false,
+      })),
     );
-  }, [updateResults, work]);
+  }, [startup, updateResults, work]);
   const finishAnalysis = useCallback(
     (reason: "video" | "error") => {
+      startup.cancel();
       finished.current = reason;
       runningRef.current = false;
       setRunning(false);
       work.finishInput();
     },
-    [work],
+    [startup, work],
   );
   const closeSource = useCallback(() => {
     stopAnalysis();
@@ -124,7 +154,12 @@ export function useScanner(mode: Mode, market: Market) {
     sourceRef.current = null;
     setSource(null);
     setReady(false);
+    setPrepared(false);
+    setCameraPending(false);
+    setCameraProblem(null);
+    setPreviewBlocked(false);
     setSourceName("");
+    setMessage("Choose your camera or a video to get started.");
   }, [stopAnalysis]);
   useEffect(() => {
     let active = true;
@@ -140,6 +175,7 @@ export function useScanner(mode: Mode, market: Market) {
       });
     return () => {
       active = false;
+      startup.cancel();
       generation.current++;
       work.cancel();
       stream.current?.getTracks().forEach((t) => t.stop());
@@ -159,21 +195,39 @@ export function useScanner(mode: Mode, market: Market) {
         if (sourceRef.current === "camera") {
           closeSource();
           setMessage("Camera stopped while Ceval was in the background.");
+        } else {
+          setCameraPending(false);
+          setMessage(
+            "Scanning stopped while Ceval was in the background. Tap Start scanning to continue.",
+          );
         }
       }
     }
     document.addEventListener("visibilitychange", hidden);
     return () => document.removeEventListener("visibilitychange", hidden);
   }, [closeSource, stopAnalysis]);
+  async function playCameraPreview() {
+    const element = video.current;
+    if (!element || sourceRef.current !== "camera" || document.hidden) return;
+    const result = await startup.preview(() => element.play());
+    if (result === "cancelled") return;
+    setPreviewBlocked(result === "blocked");
+    if (result === "blocked")
+      setMessage(
+        "Camera preview needs a tap. Tap Play camera preview to continue.",
+      );
+    else if (!runningRef.current) setMessage("Camera preview is playing.");
+  }
   async function camera() {
     closeSource();
     setError("");
     updateResults([]);
+    setCameraPending(true);
     setMessage("Waiting for camera permission…");
     const epoch = generation.current;
     try {
       if (!navigator.mediaDevices?.getUserMedia)
-        throw new Error("Camera access needs a supported browser over HTTPS.");
+        throw new DOMException("Camera API unavailable", "NotSupportedError");
       const media = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: "environment" },
@@ -182,41 +236,33 @@ export function useScanner(mode: Mode, market: Market) {
         },
         audio: false,
       });
-      if (epoch !== generation.current) {
+      if (epoch !== generation.current || document.hidden) {
         media.getTracks().forEach((t) => t.stop());
         return;
       }
       stream.current = media;
       sourceRef.current = "camera";
+      setCameraPending(false);
       setSource("camera");
       setSourceName("Live camera");
-      if (video.current) {
-        video.current.srcObject = media;
-        if (
-          !(await playCurrent(
-            () => video.current!.play(),
-            () => epoch === generation.current,
-          ))
-        )
-          return;
-      }
+      startup.arm();
+      if (video.current) video.current.srcObject = media;
       media.getVideoTracks()[0]?.addEventListener("ended", () => {
         if (stream.current === media) {
           closeSource();
-          setMessage("Camera access ended. Open it again to continue.");
+          setCameraProblem(
+            cameraFailure(new DOMException("Camera ended", "NotReadableError")),
+          );
+          setMessage("Camera access ended. Retry camera to continue.");
         }
       });
-      setMessage("Camera ready. Start scanning when a product label is clear.");
+      setMessage("Opening camera. Scanning starts automatically when ready…");
+      void playCameraPreview();
     } catch (err) {
       if (epoch !== generation.current) return;
       closeSource();
-      setError(
-        err instanceof DOMException && err.name === "NotAllowedError"
-          ? "Camera permission was denied. Allow it in your browser settings, or choose a video."
-          : err instanceof Error
-            ? err.message
-            : "Couldn’t open the camera.",
-      );
+      setCameraProblem(cameraFailure(err));
+      setMessage("Camera unavailable. Retry camera or choose a video.");
     }
   }
   function chooseVideo(file: File) {
@@ -233,11 +279,12 @@ export function useScanner(mode: Mode, market: Market) {
     sourceRef.current = "video";
     setSource("video");
     setSourceName(file.name);
+    startup.arm();
     if (video.current) {
       video.current.src = objectUrl.current;
       video.current.load();
     }
-    setMessage("Your video stays on this device. Play it or start scanning.");
+    setMessage("Loading your video. Scanning starts automatically when ready…");
   }
   function sample(clip = clips[0]) {
     closeSource();
@@ -246,40 +293,52 @@ export function useScanner(mode: Mode, market: Market) {
     sourceRef.current = "sample";
     setSource("sample");
     setSourceName(clip.title);
+    startup.arm();
     if (video.current) {
       video.current.src = clip.video;
       video.current.load();
     }
     setMessage(
-      "Generated footage. Recognition and prices use the same analysis as your own video.",
+      "Loading generated footage. Scanning starts automatically when ready…",
     );
   }
   function loaded() {
     const element = video.current;
-    if (!element) return;
-    if (
-      sourceRef.current !== "camera" &&
-      (!Number.isFinite(element.duration) || element.duration > 600)
-    ) {
+    if (!element || !sourceRef.current) return;
+    const readiness = mediaReadiness(element, sourceRef.current === "camera");
+    if (readiness === "invalid") {
       closeSource();
       setError("Choose a playable video up to 10 minutes long.");
       return;
     }
     setAspect(element.videoWidth / element.videoHeight || 16 / 9);
-    setReady(true);
+    setPrepared(
+      element.readyState >= 1 &&
+        element.videoWidth > 0 &&
+        element.videoHeight > 0 &&
+        (sourceRef.current === "camera" || Number.isFinite(element.duration)),
+    );
+    setReady(readiness === "ready");
   }
   const invalidatePosition = useCallback(() => {
     generation.current++;
     finished.current = null;
     if (runningRef.current) work.start();
     else work.cancel();
+    pendingSelections.current.clear();
     setBusy(false);
     tracked.current = [];
     setPins([]);
     previous.current = null;
     lastAnalyzed.current = null;
     lastAnalysis.current = 0;
-    updateResults(resultsRef.current.map((r) => ({ ...r, searching: false })));
+    updateResults(
+      resultsRef.current.map((r) => ({
+        ...r,
+        searching: false,
+        selecting: false,
+      })),
+    );
   }, [updateResults, work]);
   async function analyze() {
     const element = video.current;
@@ -334,6 +393,7 @@ export function useScanner(mode: Mode, market: Market) {
           const row: FoundProduct = {
             product,
             time,
+            selecting: pendingSelections.current.has(product.id),
             comparison:
               cached && cached.expiresAt > Date.now() ? cached : undefined,
           };
@@ -354,8 +414,9 @@ export function useScanner(mode: Mode, market: Market) {
                 r.product.id === product.id
                   ? {
                       ...r,
-                      error:
-                        "A clearer model label is needed before searching.",
+                      error: product.candidates?.length
+                        ? undefined
+                        : "A clearer model label is needed before searching.",
                     }
                   : r,
               ),
@@ -492,35 +553,166 @@ export function useScanner(mode: Mode, market: Market) {
     animation = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(animation);
   }, [finishAnalysis]);
-  async function start() {
-    setError("");
+  async function attemptStart() {
+    const element = video.current;
+    if (!element || !sourceRef.current || document.hidden) return;
     if (!capabilities?.analysisAvailable) {
       setMessage(capabilities?.reason || "Checking analysis availability…");
       return;
     }
-    if (!ready || !video.current) return;
-    stopAnalysis();
+    const result = await startup.attempt(prepared, true, () => element.play());
+    if (result === "blocked") {
+      setMessage("Playback needs a tap. Tap Start scanning to continue.");
+      setError(
+        "Your browser couldn’t start playback automatically. Tap Start scanning; if playback still fails, choose another video.",
+      );
+      return;
+    }
+    if (result !== "started" || document.hidden) return;
+    loaded();
+    if (!sourceRef.current) return;
+    setPreviewBlocked(false);
+    setError("");
     lastAnalysis.current = 0;
     work.start();
     runningRef.current = true;
     setRunning(true);
-    const epoch = generation.current;
-    try {
-      if (
-        !(await playCurrent(
-          () => video.current!.play(),
-          () => epoch === generation.current,
-        ))
-      )
-        return;
-      setMessage("Scanning started. Keep the model label in view.");
-    } catch {
-      stopAnalysis();
-      setError("Tap the video play button, then start scanning.");
-    }
+    setMessage("Scanning started. Keep the model label in view.");
+  }
+  const attemptStartRef = useRef(attemptStart);
+  attemptStartRef.current = attemptStart;
+  useEffect(() => {
+    if (startupState === "waiting" && prepared) void attemptStartRef.current();
+  }, [startupState, prepared, capabilities]);
+  function start() {
+    if (!prepared || !capabilities?.analysisAvailable) return;
+    stopAnalysis();
+    startup.arm();
+    void attemptStart();
   }
   function ended() {
     finishAnalysis("video");
+  }
+  function selectModel(productId: string, candidateKey: string) {
+    const row = resultsRef.current.find(
+      (item) => item.product.id === productId,
+    );
+    if (!row || pendingSelections.current.has(productId)) return;
+    pendingSelections.current.add(productId);
+    const epoch = generation.current;
+    updateResults(
+      resultsRef.current.map((item) =>
+        item.product.id === productId
+          ? { ...item, selecting: true, error: undefined }
+          : item,
+      ),
+    );
+    let selectedId = productId;
+    const queued = work.compare(`selection:${productId}`, async (signal) => {
+      try {
+        const { product } = await scanRequest<{ product: Product }>(
+          "/api/scan/select-model",
+          { productId, candidateKey, market },
+          signal,
+        );
+        if (epoch !== generation.current) return;
+        selectedId = product.id;
+        tracked.current = tracked.current.map((item) =>
+          item.id === productId ? { ...product, box: item.box } : item,
+        );
+        setPins(tracked.current);
+        updateResults(
+          resultsRef.current
+            .filter((item) => item.product.id !== product.id)
+            .map((item) =>
+              item.product.id === productId
+                ? {
+                    ...item,
+                    product,
+                    comparison: undefined,
+                    selecting: false,
+                    searching: true,
+                    error: undefined,
+                  }
+                : item,
+            ),
+        );
+        const cached = cachedComparison(cache.current, product, mode, market);
+        const comparison =
+          cached ||
+          (await scanRequest<Comparison>(
+            "/api/scan/compare",
+            { productId: product.id, mode, market },
+            signal,
+          ));
+        if (epoch !== generation.current) return;
+        if (
+          !cacheMatchingComparison(
+            cache.current,
+            product,
+            mode,
+            market,
+            comparison,
+          )
+        )
+          throw new Error("The product changed. Choose its model again.");
+        updateResults(
+          resultsRef.current.map((item) =>
+            item.product.id === product.id
+              ? {
+                  ...item,
+                  comparison,
+                  selecting: false,
+                  searching: false,
+                  error: undefined,
+                }
+              : item,
+          ),
+        );
+      } catch (err) {
+        if (epoch !== generation.current) return;
+        updateResults(
+          resultsRef.current.map((item) =>
+            item.product.id === selectedId
+              ? {
+                  ...item,
+                  selecting: false,
+                  searching: false,
+                  error:
+                    err instanceof Error
+                      ? err.message
+                      : "Couldn’t compare this model.",
+                }
+              : item,
+          ),
+        );
+      } finally {
+        if (epoch === generation.current) {
+          pendingSelections.current.delete(productId);
+          updateResults(
+            resultsRef.current.map((item) =>
+              item.product.id === productId
+                ? { ...item, selecting: false }
+                : item,
+            ),
+          );
+        }
+      }
+    });
+    if (!queued) {
+      pendingSelections.current.delete(productId);
+      updateResults(
+        resultsRef.current.map((item) =>
+          item.product.id === productId
+            ? {
+                ...item,
+                selecting: false,
+                error: "Search queue is full. Try choosing again shortly.",
+              }
+            : item,
+        ),
+      );
+    }
   }
   return {
     video,
@@ -529,6 +721,12 @@ export function useScanner(mode: Mode, market: Market) {
     capabilities,
     message,
     error,
+    cameraPending,
+    previewBlocked,
+    playCameraPreview,
+    cameraProblem,
+    startupState,
+    prepared,
     running,
     busy,
     finishing,
@@ -542,6 +740,7 @@ export function useScanner(mode: Mode, market: Market) {
     loaded,
     invalidatePosition,
     start,
+    selectModel,
     stopAnalysis: () => {
       stopAnalysis();
       setMessage("Scanning stopped. Your completed finds are kept.");

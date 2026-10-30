@@ -5,6 +5,7 @@ import {
   type Product,
   type Offer,
   type Mode,
+  type ModelCandidate,
 } from "../../shared/scan.ts";
 import { ScanError } from "./errors.ts";
 export const MAX_FRAME_BYTES = 200_000;
@@ -102,6 +103,30 @@ export function parseProducts(value: unknown): Omit<Product, "id">[] {
         "Product positions could not be read.",
         502,
       );
+    const candidates: ModelCandidate[] = [];
+    const seen = new Set<string>();
+    for (const entry of Array.isArray(p.candidates)
+      ? p.candidates.slice(0, 15)
+      : []) {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
+      const candidate = record(entry);
+      const parsed = {
+        brand: text(candidate.brand, 80),
+        model: text(candidate.model, 100),
+        variant: text(candidate.variant, 160),
+        reason: text(candidate.reason, 240),
+      };
+      if (!parsed.brand || !parsed.model || !parsed.reason) continue;
+      const key = JSON.stringify([
+        parsed.brand,
+        parsed.model,
+        parsed.variant,
+      ]).toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      candidates.push(parsed);
+      if (candidates.length === 5) break;
+    }
     const confidence =
       typeof p.confidence === "number" && p.confidence >= 0 && p.confidence <= 1
         ? p.confidence
@@ -111,7 +136,8 @@ export function parseProducts(value: unknown): Omit<Product, "id">[] {
       model: text(p.model, 100),
       variant: text(p.variant),
       label: text(p.label) || "Unidentified product",
-      confidence,
+      confidence: candidates.length ? Math.min(confidence, 0.59) : confidence,
+      ...(candidates.length ? { candidates } : {}),
       box: box as Box,
       shelfPriceMinor:
         Number.isSafeInteger(p.shelfPriceMinor) &&

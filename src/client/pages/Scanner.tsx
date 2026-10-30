@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import {
   Camera,
+  CameraOff,
   Upload,
   Play,
   Square,
@@ -20,6 +21,7 @@ import {
 } from "../../shared/scan";
 import { formatPrice } from "../../shared/demo";
 import { ComparisonDialog } from "../components/ComparisonDialog";
+import { ModelChoices } from "../components/ModelChoices";
 import { useScanner } from "../scanner/useScanner";
 import { clips } from "../../../public/demo/manifest.json";
 export function Scanner() {
@@ -69,6 +71,7 @@ export function Scanner() {
           <button
             className="button dark small"
             onClick={() => void scan.camera()}
+            disabled={scan.cameraPending}
           >
             <Camera size={17} />
             Use camera
@@ -94,6 +97,54 @@ export function Scanner() {
           />
         </div>
       </div>
+      <p className="source-consent">
+        Choosing a camera, video, or sample starts analysis. Selected frames go
+        to Meta; your full video stays on this device.
+      </p>
+      {(scan.cameraPending || scan.cameraProblem) && (
+        <div
+          className="camera-notice"
+          role={scan.cameraProblem ? "alert" : "status"}
+        >
+          {scan.cameraPending ? (
+            <LoaderCircle size={21} className="spin" />
+          ) : (
+            <CameraOff size={21} />
+          )}
+          <div>
+            <strong>
+              {scan.cameraProblem?.title || "Waiting for camera permission"}
+            </strong>
+            <p>
+              {scan.cameraProblem?.detail ||
+                "Respond to your browser’s camera permission request to continue. You can choose a video instead."}
+            </p>
+            <div className="camera-recovery-actions">
+              {scan.cameraPending ? (
+                <button
+                  className="button outline small"
+                  onClick={scan.closeSource}
+                >
+                  Cancel camera request
+                </button>
+              ) : (
+                <button
+                  className="button dark small"
+                  onClick={() => void scan.camera()}
+                >
+                  <Camera size={16} /> Retry camera
+                </button>
+              )}
+              <button
+                className="button outline small"
+                onClick={() => upload.current?.click()}
+              >
+                <Upload size={16} /> Choose video
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="scanner-grid">
         <section className="media-panel" aria-label="Video scanner">
           <div
@@ -113,8 +164,11 @@ export function Scanner() {
                 muted
                 playsInline
                 controls={scan.source !== "camera"}
-                preload="metadata"
+                preload="auto"
                 onLoadedMetadata={scan.loaded}
+                onLoadedData={scan.loaded}
+                onCanPlay={scan.loaded}
+                onDurationChange={scan.loaded}
                 onSeeking={scan.invalidatePosition}
                 onEnded={scan.ended}
                 onError={() => {
@@ -173,6 +227,7 @@ export function Scanner() {
                 <button
                   className="button primary"
                   onClick={() => void scan.camera()}
+                  disabled={scan.cameraPending}
                 >
                   <Camera size={18} /> Open camera
                 </button>
@@ -201,9 +256,25 @@ export function Scanner() {
               </div>
             )}
           </div>
+          {scan.source === "camera" && scan.previewBlocked && (
+            <div className="scan-actions">
+              <p className="scan-status" role="status">
+                Camera access is allowed. Your browser needs a tap to play the
+                preview.
+              </p>
+              <button
+                className="button primary small"
+                onClick={() => void scan.playCameraPreview()}
+              >
+                <Play size={16} /> Play camera preview
+              </button>
+            </div>
+          )}
           <div className="scan-actions">
             <div className="scan-status" role="status">
-              {scan.busy ? (
+              {scan.busy ||
+              scan.startupState === "starting" ||
+              scan.startupState === "waiting" ? (
                 <LoaderCircle size={18} className="spin" />
               ) : (
                 <span
@@ -212,19 +283,30 @@ export function Scanner() {
               )}
               <span>{scan.message}</span>
             </div>
-            {scan.running || scan.finishing ? (
+            {scan.running ||
+            scan.finishing ||
+            scan.startupState === "waiting" ||
+            scan.startupState === "starting" ? (
               <button className="button dark small" onClick={scan.stopAnalysis}>
                 <Square size={15} />
-                {scan.finishing ? "Cancel remaining" : "Stop scanning"}
+                {scan.finishing
+                  ? "Cancel remaining"
+                  : scan.running
+                    ? "Stop scanning"
+                    : "Cancel start"}
               </button>
             ) : (
               <button
                 className="button primary small"
-                disabled={!scan.ready || !scan.capabilities?.analysisAvailable}
+                disabled={
+                  !scan.prepared || !scan.capabilities?.analysisAvailable
+                }
                 onClick={() => void scan.start()}
               >
                 <Play size={16} />
-                Start scanning
+                {scan.startupState === "blocked"
+                  ? "Tap to start scanning"
+                  : "Start scanning"}
               </button>
             )}
           </div>
@@ -242,9 +324,9 @@ export function Scanner() {
           <details className="media-privacy">
             <summary>Video & privacy</summary>
             <p>
-              Up to 150 MB · 10 minutes. Your video stays on this device. When
-              scanning, selected frames go to Meta for analysis; Ceval does not
-              save them.
+              Up to 150 MB · 10 minutes. Choosing a source starts scanning when
+              it is ready. Your full video stays on this device; selected frames
+              go to Meta for analysis. Ceval does not save those frames.
             </p>
           </details>
         </section>
@@ -258,8 +340,8 @@ export function Scanner() {
               <Tag size={25} />
               <h2>Nothing in view.</h2>
               <p>
-                Scan a clear model label. Your products and comparisons will
-                appear here.
+                Show a product. We’ll help identify its model and compare
+                prices.
               </p>
             </div>
           ) : (
@@ -277,10 +359,15 @@ export function Scanner() {
                 </small>
                 <h2>{row.product.model || row.product.label}</h2>
                 <p>{row.product.variant}</p>
-                {row.searching ? (
+                {row.product.identification === "user_selected" && (
+                  <small>Model selected by you</small>
+                )}
+                {row.searching || row.selecting ? (
                   <p className="searching-price">
                     <LoaderCircle size={14} className="spin" />
-                    Searching matching listings…
+                    {row.selecting
+                      ? "Selecting this model…"
+                      : "Searching matching listings…"}
                   </p>
                 ) : row.error ? (
                   <p className="result-note">{row.error}</p>
@@ -311,9 +398,17 @@ export function Scanner() {
                       <ArrowUpRight size={16} />
                     </button>
                   </>
-                ) : (
+                ) : row.product.candidates?.length ? null : (
                   <p className="result-note">Waiting for price comparison.</p>
                 )}
+                {!row.searching &&
+                  !row.selecting &&
+                  Boolean(row.product.candidates?.length) && (
+                    <ModelChoices
+                      candidates={row.product.candidates!}
+                      onChoose={(key) => scan.selectModel(row.product.id, key)}
+                    />
+                  )}
               </article>
             ))
           )}

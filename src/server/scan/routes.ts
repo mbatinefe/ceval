@@ -1,6 +1,12 @@
 import { Hono } from "hono";
 import type { Session } from "../types.ts";
-import { capabilities, recognize, compare, digest } from "./service.ts";
+import {
+  capabilities,
+  recognize,
+  compare,
+  digest,
+  selectModel,
+} from "./service.ts";
 import { marketOf, modeOf, validateFrame, text } from "./validation.ts";
 import type { Comparison } from "../../shared/scan.ts";
 import { ScanError } from "./errors.ts";
@@ -43,6 +49,20 @@ scanRoutes.post("/scan/recognize", async (c) => {
     );
   return c.json(
     await recognize(c.env, userId, frame, market, c.req.raw.signal),
+  );
+});
+scanRoutes.post("/scan/select-model", async (c) => {
+  const body = c.get("body"),
+    userId = c.get("session").user.id;
+  await consumeLimit(c.env.DB, `selection:request:${userId}`, 30, 60);
+  return c.json(
+    await selectModel(
+      c.env,
+      userId,
+      text(body.productId, 80),
+      text(body.candidateKey, 1000),
+      marketOf(body.market),
+    ),
   );
 });
 scanRoutes.post("/scan/compare", async (c) => {

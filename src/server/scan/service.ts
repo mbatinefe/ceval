@@ -1,5 +1,6 @@
 import { metaKey } from "../providers/config.ts";
 import type { Comparison, Market, Mode, Product } from "../../shared/scan.ts";
+import { modelCandidateKey } from "../../shared/scan.ts";
 import { recognizeFrame, searchOffers } from "../providers/meta.ts";
 import { reserveScan, settleScan } from "./budget.ts";
 import type { UsageReporter } from "../providers/usage.ts";
@@ -102,7 +103,7 @@ export async function recognize(
     env,
     userId,
     "recognize",
-    await digest(`${market}:${frame}`),
+    await digest(`visual-models-v1:${market}:${frame}`),
     180000,
     async (onUsage) => {
       const result = await recognizeFrame(env, frame, market, signal, onUsage);
@@ -141,6 +142,61 @@ export async function recognize(
     },
   );
 }
+export async function selectModel(
+  env: Env,
+  userId: string,
+  productId: string,
+  candidateKey: string,
+  market: Market,
+) {
+  const row = await env.DB.prepare(
+    "SELECT data,updated_at FROM scan_products WHERE id=? AND user_id=?",
+  )
+    .bind(productId, userId)
+    .first<{ data: string; updated_at: number }>();
+  if (!row) throw new ScanError("not_found", "Product not found.", 404);
+  if (row.updated_at < Date.now() - 86400000)
+    throw new ScanError(
+      "needs_label",
+      "Scan this product again before choosing a model.",
+      422,
+    );
+  const observed: Product = JSON.parse(row.data);
+  const candidate = observed.candidates?.find(
+    (item) => modelCandidateKey(item) === candidateKey,
+  );
+  if (!candidate)
+    throw new ScanError(
+      "candidate_changed",
+      "These suggestions changed. Choose from the latest scan.",
+      409,
+    );
+  const { candidates: _, ...base } = observed;
+  const product: Product = {
+    ...base,
+    id: crypto.randomUUID(),
+    brand: candidate.brand,
+    model: candidate.model,
+    variant: candidate.variant,
+    label: `${candidate.brand} ${candidate.model}`,
+    identification: "user_selected",
+  };
+  const fingerprint = await digest(
+    JSON.stringify(["selected", market, productId, candidateKey]),
+  );
+  const stored = await env.DB.prepare(
+    "INSERT INTO scan_products (id,user_id,fingerprint,data,updated_at) VALUES (?,?,?,?,?) ON CONFLICT(user_id,fingerprint) DO UPDATE SET data=json_set(excluded.data,'$.id',scan_products.id),updated_at=excluded.updated_at RETURNING data",
+  )
+    .bind(product.id, userId, fingerprint, JSON.stringify(product), Date.now())
+    .first<{ data: string }>();
+  if (!stored)
+    throw new ScanError(
+      "storage_error",
+      "Couldn’t retain this selection. Please try again.",
+      503,
+    );
+  return { product: JSON.parse(stored.data) as Product };
+}
 export async function compare(
   env: Env,
   userId: string,
@@ -156,7 +212,11 @@ export async function compare(
     .first<{ data: string; updated_at: number }>();
   if (!row) throw new ScanError("not_found", "Product not found.", 404);
   const product: Product = JSON.parse(row.data);
-  if (!product.model || !product.brand || product.confidence < 0.85)
+  if (
+    !product.model ||
+    !product.brand ||
+    (product.confidence < 0.85 && product.identification !== "user_selected")
+  )
     throw new ScanError(
       "needs_label",
       "Move closer to the model label before searching prices.",
