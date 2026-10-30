@@ -12,6 +12,8 @@ import type { Session } from "./types.ts";
 import { scanRoutes } from "./scan/routes.ts";
 import { ScanError } from "./scan/errors.ts";
 import { capabilities } from "./scan/service.ts";
+import { isDemoVideo, serveDemoVideo } from "./media/demo-video.ts";
+import demoManifest from "../../public/demo/manifest.json" with { type: "json" };
 type FindRow = {
   id: string;
   productId: string;
@@ -37,8 +39,16 @@ app.use("*", async (c, next) => {
   );
   if (c.env.APP_ENVIRONMENT === "staging")
     c.header("X-Robots-Tag", "noindex, nofollow");
-  c.header("Cache-Control", "no-store");
+  // Only the two public synthetic videos may be cached; account pages stay private.
+  if (!isDemoVideo(c.req.path) || ![200, 206, 304].includes(c.res.status))
+    c.header("Cache-Control", "no-store");
 });
+
+for (const clip of demoManifest.clips)
+  if (isDemoVideo(clip.video))
+    app.all(clip.video, (c) =>
+      serveDemoVideo(c.req.raw, c.env.ASSETS, clip.byteLength),
+    );
 
 app.use("/api/*", async (c, next) => {
   if (!["GET", "HEAD"].includes(c.req.method)) {
