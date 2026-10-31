@@ -147,40 +147,73 @@ export async function discoverVisualMatches(
     );
   }
   try {
-    signal?.throwIfAborted();
+    // Leave time for provider settlement before the three-minute job lease expires.
+    const deadline = AbortSignal.timeout(130000);
+    signal = signal ? AbortSignal.any([signal, deadline]) : deadline;
+    signal.throwIfAborted();
     await reserveVisualSearch(env, userId);
-    const discovery = await reserveScan(
-      env,
-      userId,
-      "compare",
-      `${id}:discovery`,
-    );
-    let candidates: VisualCandidate[];
-    try {
-      candidates = await discoverProductsFromPhoto(
+    const discover = async (previous?: VisualCandidate[]) => {
+      const reservation = await reserveScan(
         env,
-        frame,
-        product,
-        market,
-        signal,
-        (micros) => settleScan(env, discovery, micros),
+        userId,
+        "compare",
+        `${id}:${previous ? "recovery" : "discovery"}`,
       );
-    } finally {
-      await finishScanReservation(env, discovery);
-    }
+      try {
+        return await discoverProductsFromPhoto(
+          env,
+          frame,
+          product,
+          market,
+          signal,
+          (micros) => settleScan(env, reservation, micros),
+          previous,
+        );
+      } finally {
+        await finishScanReservation(env, reservation);
+      }
+    };
+    let candidates = await discover();
     let ranking: VisualSearch["ranking"] = candidates.length
       ? "unavailable"
       : "no_matches";
-    if (candidates.length && !signal?.aborted) {
+    if (!signal?.aborted) {
       const images = new Map<string, string>();
       // Two at a time bounds open connections and total downloaded bytes.
-      for (let i = 0; i < candidates.length; i += 2) {
-        await Promise.all(
-          candidates.slice(i, i + 2).map(async (candidate) => {
-            const image = await candidatePhoto(candidate, signal);
-            if (image) images.set(candidate.id, image);
-          }),
-        );
+      const loadImages = async (rows: VisualCandidate[]) => {
+        for (let i = 0; i < rows.length && !signal?.aborted; i += 2) {
+          await Promise.all(
+            rows.slice(i, i + 2).map(async (candidate) => {
+              const image = await candidatePhoto(candidate, signal);
+              if (image) images.set(candidate.id, image);
+            }),
+          );
+        }
+      };
+      await loadImages(candidates);
+      if (!images.size && !signal?.aborted) {
+        try {
+          const original = candidates;
+          const recovered = await discover(original);
+          candidates = [...recovered, ...candidates]
+            .filter(
+              (candidate, index, all) =>
+                all.findIndex((other) => other.url === candidate.url) === index,
+            )
+            .slice(0, 8);
+          await loadImages(candidates);
+          if (!images.size)
+            candidates = [...original, ...recovered]
+              .filter(
+                (candidate, index, all) =>
+                  all.findIndex((other) => other.url === candidate.url) ===
+                  index,
+              )
+              .slice(0, 8);
+        } catch {
+          // Preserve first-pass evidence if recovery is unavailable or out of budget.
+        }
+        ranking = candidates.length ? "unavailable" : "no_matches";
       }
       if (images.size && !signal?.aborted) {
         let reservation: Awaited<ReturnType<typeof reserveScan>> | undefined;

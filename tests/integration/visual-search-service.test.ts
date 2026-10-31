@@ -155,7 +155,12 @@ beforeEach(async () => {
 });
 
 function mockProviders(
-  options: { beforeRank?: () => Promise<void>; partial?: boolean } = {},
+  options: {
+    beforeRank?: () => Promise<void>;
+    partial?: boolean;
+    blockedFirst?: boolean;
+    alwaysBlocked?: boolean;
+  } = {},
 ) {
   let uploads = 0,
     searches = 0,
@@ -166,6 +171,8 @@ function mockProviders(
     async (input: string | URL, init?: RequestInit) => {
       const url = String(input);
       if (url.startsWith("https://www.sony.com/headphones/")) {
+        if (options.alwaysBlocked || (options.blockedFirst && searches === 1))
+          return new Response("blocked", { status: 403 });
         const model = url.includes("missing") ? "WH-1000XM4" : "WH-1000XM5";
         return new Response(
           `<script type="application/ld+json">${JSON.stringify({ "@type": "Product", name: `Sony ${model} Black headphones`, image: `https://www.sony.com/images/${model}.jpg` })}</script>`,
@@ -203,8 +210,14 @@ function mockProviders(
                     : []),
                   {
                     type: "text_result",
-                    title: "Sony WH-1000XM5 Black headphones",
-                    url: "https://www.sony.com/headphones/test",
+                    title:
+                      options.alwaysBlocked && searches > 1
+                        ? "Sony WH-1000XM4 Black headphones"
+                        : "Sony WH-1000XM5 Black headphones",
+                    url:
+                      options.alwaysBlocked && searches > 1
+                        ? "https://www.sony.com/headphones/missing"
+                        : "https://www.sony.com/headphones/test",
                     snippet: "",
                   },
                 ],
@@ -514,4 +527,40 @@ test("legacy image-search caches are not attributed to Meta or used as model evi
   assert.equal(response.status, 200);
   assert.equal((await response.json()).provider, "meta");
   assert.equal(counts().searches, 1);
+});
+
+test("missing first-pass photos trigger one separately metered Meta recovery search", async () => {
+  const counts = mockProviders({ blockedFirst: true });
+  await request(undefined, payload());
+  const response = await request("/api/scan/visual-matches", {
+    productId: product.id,
+    market: "US",
+  });
+  const result = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(result.ranking, "meta");
+  assert.deepEqual(counts(), { uploads: 0, searches: 2, rankings: 1 });
+  const usage = await env.DB.prepare(
+    "SELECT status,COUNT(*) AS n FROM scan_spend GROUP BY status",
+  ).all();
+  assert.deepEqual(usage.results, [{ status: "estimated", n: 3 }]);
+});
+
+test("blocked stores stop after one recovery search and preserve source links", async () => {
+  const counts = mockProviders({ alwaysBlocked: true });
+  await request(undefined, payload());
+  const response = await request("/api/scan/visual-matches", {
+    productId: product.id,
+    market: "US",
+  });
+  const result = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(result.ranking, "unavailable");
+  assert.equal(result.candidates.length, 2);
+  assert.equal(
+    result.candidates[0].url,
+    "https://www.sony.com/headphones/test",
+  );
+  assert.equal(result.candidates[0].assessment, "unreviewed");
+  assert.deepEqual(counts(), { uploads: 0, searches: 2, rankings: 0 });
 });

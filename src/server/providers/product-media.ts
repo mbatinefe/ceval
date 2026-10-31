@@ -121,6 +121,9 @@ export function searchCandidates(
     if (!merchantPageUrl(url, market) && !marketplace) continue;
     if (
       parsed.pathname === "/" ||
+      [...parsed.searchParams.keys()].some((key) =>
+        /^(?:q|query|search|keywords?|k)$/i.test(key),
+      ) ||
       /^\/(?:collections|blogs?|pages|search|s|c|faq|support|help|pressroom|news|articles|reviews?)(?:\/|$)/i.test(
         parsed.pathname,
       ) ||

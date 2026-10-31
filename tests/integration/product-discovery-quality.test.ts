@@ -432,6 +432,10 @@ test("nested merchant search, question and news pages cannot crowd out product l
   const rows = searchCandidates(
     [
       {
+        url: "https://www.amazon.com/logitech-mx-master-3s/s?k=logitech+mx+master+3s",
+        title: "Logitech mice",
+      },
+      {
         url: "https://www.bestbuy.com/site/searchpage.jsp?id=pcat",
         title: "Nintendo Switch",
       },
