@@ -36,7 +36,7 @@ export type Offer = {
   kind: "retail" | "asking" | "sold";
   match: "exact" | "possible";
   evidence: string;
-  evidenceType?: "cited_summary";
+  evidenceType?: "cited_summary" | "product_page";
 };
 export type ProductSource = { title: string; url: string };
 export type Comparison = {
