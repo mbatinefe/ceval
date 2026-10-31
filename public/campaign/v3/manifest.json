@@ -1,0 +1,20 @@
+{
+  "synthetic": true,
+  "purpose": "Ceval landing page illustrations. Products are unbranded and all depicted prices are illustrative, not live offers.",
+  "assets": [
+    {
+      "id": "scan-resale",
+      "widths": [640, 960],
+      "use": "Phone screen in the landing example: flea market view."
+    },
+    {
+      "id": "resale-camera",
+      "widths": [640, 960, 1536],
+      "use": "Resale value example photograph."
+    },
+    {
+      "id": "open-app-qr",
+      "use": "QR code linking to the production app."
+    }
+  ]
+}

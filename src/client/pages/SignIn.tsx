@@ -1,13 +1,8 @@
 import { useEffect, useState, type FormEvent } from "react";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Mail,
-  ShieldCheck,
-  LoaderCircle,
-} from "lucide-react";
+import { ArrowLeft, LoaderCircle } from "lucide-react";
 import { Brand } from "../components/Brand";
 import { api, ApiError } from "../lib/api";
+import "../styles/landing.css";
 export function SignIn() {
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
@@ -71,53 +66,35 @@ export function SignIn() {
     }
   }
   return (
-    <div className="auth-page">
-      <header className="site-header wrap">
-        <Brand />
-        <a className="quiet-link" href="/">
-          <ArrowLeft size={16} /> Back
-        </a>
-      </header>
-      <main className="auth-layout wrap">
-        <div className="auth-story">
-          <span className="eyebrow">A BETTER LOOK</span>
-          <h1>
-            See more.
-            <br />
-            Spend <em>smarter.</em>
-          </h1>
-          <p>Your next good find starts here.</p>
-          <div className="auth-image">
-            <img
-              src="/demo/electronics-wide-poster.jpg"
-              alt="Products on the simulated Ceval shelf"
-            />
-            <span>YOUR NEXT GOOD FIND ↗</span>
-          </div>
+    <div className="lp lp-signin">
+      <header className="lp-top">
+        <div className="lp-wrap lp-top-inner">
+          <Brand />
+          <a className="lp-top-link lp-back" href="/">
+            <ArrowLeft aria-hidden="true" /> Back
+          </a>
         </div>
-        <section className="auth-card">
-          <span className="auth-icon">
-            <Mail size={25} />
-          </span>
-          <span className="eyebrow">WELCOME TO CEVAL</span>
-          <h2>
-            {step === "email" ? "Welcome to Ceval." : "Check your inbox."}
-          </h2>
-          <p>
+      </header>
+      <main className="lp-wrap lp-si-main">
+        <section className="lp-si-panel" aria-labelledby="signin-title">
+          <h1 id="signin-title">
+            {step === "email" ? "Sign in to Ceval" : "Check your email"}
+          </h1>
+          <p className="lp-si-lede">
             {step === "email" ? (
               signupsOpen ? (
-                "Sign in with a code. No password needed."
+                "We’ll email you a six-digit code. There’s no password to remember."
               ) : (
-                "Existing accounts can sign in. New signups are temporarily paused."
+                "Existing accounts can sign in with an email code. New sign-ups are paused for now."
               )
             ) : (
               <>
-                If this email is eligible, a six-digit code will arrive at{" "}
-                <strong>{email.trim()}</strong>.
+                If <strong>{email.trim()}</strong> can sign in, a six-digit code
+                is on its way.
               </>
             )}
           </p>
-          <form onSubmit={submit}>
+          <form className="lp-si-form" onSubmit={submit}>
             {step === "email" ? (
               <>
                 <label htmlFor="email">Email address</label>
@@ -135,11 +112,11 @@ export function SignIn() {
               </>
             ) : (
               <>
-                <label htmlFor="otp">Sign-in code</label>
+                <label htmlFor="otp">Six-digit code</label>
                 <input
                   key="otp"
                   id="otp"
-                  className="code-input"
+                  className="lp-si-code"
                   type="text"
                   inputMode="numeric"
                   autoComplete="one-time-code"
@@ -152,57 +129,65 @@ export function SignIn() {
                   autoFocus
                   disabled={busy}
                 />
-                <span className="field-hint">
+                <span className="lp-si-hint">
                   Use the latest code. It expires after five minutes.
                 </span>
               </>
             )}
             {error && (
-              <p className="form-error" role="alert">
+              <p className="lp-si-error" role="alert">
                 {error}
               </p>
             )}
             <button
-              className="button primary full"
+              className="lp-btn lp-btn-ink"
               type="submit"
               disabled={busy || (step === "email" && cooldown > 0)}
             >
               {busy ? (
                 <>
-                  <LoaderCircle className="spin" size={18} /> One moment
+                  <LoaderCircle className="spin" aria-hidden="true" />
+                  {step === "email" ? "Sending code…" : "Signing in…"}
                 </>
               ) : step === "email" ? (
-                <>
-                  Continue with email <ArrowRight size={18} />
-                </>
+                cooldown > 0 ? (
+                  `Email me a code in ${cooldown}s`
+                ) : (
+                  "Email me a code"
+                )
               ) : (
-                <>
-                  Open Ceval <ArrowRight size={18} />
-                </>
+                "Sign in"
               )}
             </button>
           </form>
           {step === "code" ? (
-            <div className="auth-actions">
-              <button onClick={sendCode} disabled={busy || cooldown > 0}>
-                {cooldown ? `Resend in ${cooldown}s` : "Send a new code"}
+            <div className="lp-si-actions">
+              <button
+                type="button"
+                onClick={sendCode}
+                disabled={busy || cooldown > 0}
+              >
+                {cooldown
+                  ? `Send a new code in ${cooldown}s`
+                  : "Send a new code"}
               </button>
               <button
+                type="button"
                 onClick={() => {
                   setStep("email");
                   setError("");
                 }}
                 disabled={busy}
               >
-                Change email
+                Use a different email
               </button>
-              <small>Can’t find it? Check your spam folder.</small>
+              <p>Can’t find it? Check your spam folder.</p>
             </div>
           ) : (
-            <div className="auth-footnote">
-              <ShieldCheck size={17} />
-              <span>Your finds, saved to your account.</span>
-            </div>
+            <p className="lp-si-foot">
+              Your finds and product photos are saved to your account. You can
+              delete them at any time.
+            </p>
           )}
         </section>
       </main>
