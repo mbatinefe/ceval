@@ -284,7 +284,7 @@ export async function compare(
     "compare",
     await digest(
       JSON.stringify([
-        "public-offers-v4",
+        "public-offers-v5",
         productId,
         mode,
         market,

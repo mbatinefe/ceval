@@ -38,8 +38,8 @@ export function sourceUrl(value: string, market?: Market): string | null {
   return url.href;
 }
 
-function manufacturerBrand(url: string, brand: string): boolean {
-  const host = new URL(url).hostname.replace(/^www\./, "");
+export function manufacturerHost(brand: string): string | null {
+  const host = `${brand.trim().toLowerCase()}.com`;
   const reviewed = new Set([
     "arzopa.com",
     "bose.com",
@@ -50,7 +50,13 @@ function manufacturerBrand(url: string, brand: string): boolean {
     "sony.com",
     "jbl.com",
   ]);
-  return reviewed.has(host) && host === `${brand.trim().toLowerCase()}.com`;
+  return reviewed.has(host) ? host : null;
+}
+
+function manufacturerBrand(url: string, brand: string): boolean {
+  return (
+    new URL(url).hostname.replace(/^www\./, "") === manufacturerHost(brand)
+  );
 }
 
 function relatedMacBook(title: string, identity: string[]): boolean {
@@ -147,7 +153,7 @@ export function productSources(
 ): ProductSource[] {
   const accepted: ProductSource[] = [];
   const identity = modelIdentityParts(product.model);
-  for (const source of sources) {
+  for (const source of sources.slice(0, 100)) {
     const url = sourceUrl(source.url, market),
       title = text(source.title, 300);
     if (
@@ -166,7 +172,12 @@ export function productSources(
     if (variantConflicts(title, product.variant)) continue;
     if (accepted.some((source) => source.url === url)) continue;
     accepted.push({ title, url });
-    if (accepted.length === 3) break;
   }
-  return accepted;
+  return accepted
+    .sort(
+      (a, b) =>
+        Number(manufacturerBrand(b.url, product.brand)) -
+        Number(manufacturerBrand(a.url, product.brand)),
+    )
+    .slice(0, 3);
 }

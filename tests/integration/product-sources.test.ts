@@ -171,3 +171,25 @@ test("reviewed manufacturer hosts establish brand when native titles omit it", (
     [],
   );
 });
+
+test("an official product page is not crowded out by earlier retailer links", () => {
+  const headphones = {
+    ...product,
+    brand: "Bose",
+    model: "QuietComfort",
+    variant: "Black",
+  };
+  const title = "Bose QuietComfort Headphones Black";
+  const links = [
+    source(title, "https://shop.example.com/product/one"),
+    source(title, "https://shop.example.com/product/two"),
+    source(title, "https://shop.example.com/product/three"),
+    source(title, "https://www.bose.com/p/headphones/quietcomfort/QC.html"),
+  ];
+  const found = productSources(links, headphones, "US");
+  assert.equal(found.length, 3);
+  assert.equal(
+    found[0].url,
+    "https://www.bose.com/p/headphones/quietcomfort/QC.html",
+  );
+});
