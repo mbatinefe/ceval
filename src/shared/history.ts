@@ -1,3 +1,4 @@
+import type { VisualSearch } from "./visual-search.ts";
 import type { Comparison, Market, Mode, Product } from "./scan.ts";
 
 export const MAX_HISTORY_THUMBNAIL_CHARS = 40_000;
@@ -7,6 +8,7 @@ export type ScanHistoryEntry = {
   id: string;
   product: Product;
   comparison?: Comparison;
+  visualSearch?: VisualSearch;
   thumbnailUrl?: string;
   source: ScanHistorySource;
   market?: Market;

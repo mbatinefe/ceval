@@ -10,5 +10,6 @@ AUTH_EMAIL_FROM=
 # Set to the exact deployed HTTPS origin for the selected environment.
 BETTER_AUTH_URL=
 
-# Optional, only if the structured shopping provider is enabled.
+# Optional image search. Uploads product crops to SerpApi for Google Lens.
+# Credentials remain server-side; default hosted search limit is 200/month.
 SERPAPI_API_KEY=

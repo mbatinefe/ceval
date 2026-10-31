@@ -1,3 +1,4 @@
+import type { VisualSearch } from "../../shared/visual-search.ts";
 import { Hono } from "hono";
 import {
   MAX_HISTORY_ENTRIES,
@@ -95,7 +96,27 @@ historyRoutes.get("/scan/history", async (c) => {
   )
     .bind(c.get("session").user.id, MAX_HISTORY_ENTRIES)
     .all<HistoryRow>();
-  return c.json({ entries: rows.results.map(entryOf) });
+  const matches = await c.env.DB.prepare(
+    "SELECT product_id,market,data FROM scan_visual_matches WHERE user_id=?",
+  )
+    .bind(c.get("session").user.id)
+    .all<{ product_id: string; market: Market; data: string }>();
+  return c.json({
+    entries: rows.results.map((row) => {
+      const entry = entryOf(row);
+      const found = matches.results.find(
+        (match) =>
+          match.product_id === entry.product.id &&
+          match.market === (entry.market || "US"),
+      );
+      return {
+        ...entry,
+        ...(found
+          ? { visualSearch: JSON.parse(found.data) as VisualSearch }
+          : {}),
+      };
+    }),
+  });
 });
 historyRoutes.get("/scan/history/:id/image", async (c) => {
   const row = await c.env.DB.prepare(

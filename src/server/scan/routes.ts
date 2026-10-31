@@ -1,3 +1,4 @@
+import { discoverVisualMatches } from "./visual-search.ts";
 import { Hono } from "hono";
 import type { Session } from "../types.ts";
 import {
@@ -18,6 +19,26 @@ export const scanRoutes = new Hono<{
 }>();
 scanRoutes.route("/", historyRoutes);
 scanRoutes.get("/scan/capabilities", (c) => c.json(capabilities(c.env)));
+scanRoutes.post("/scan/visual-matches", async (c) => {
+  const body = c.get("body"),
+    userId = c.get("session").user.id;
+  await consumeLimit(c.env.DB, `visual:request:${userId}`, 30, 60);
+  const task = discoverVisualMatches(
+    c.env,
+    userId,
+    text(body.productId, 80),
+    marketOf(body.market),
+    body.image,
+    c.req.raw.signal,
+  );
+  c.executionCtx.waitUntil(
+    task.then(
+      () => undefined,
+      () => undefined,
+    ),
+  );
+  return c.json(await task);
+});
 scanRoutes.post("/scan/recognize", async (c) => {
   const body = c.get("body"),
     userId = c.get("session").user.id;

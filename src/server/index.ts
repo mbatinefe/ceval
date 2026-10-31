@@ -25,7 +25,7 @@ const app = new Hono<{
   Variables: { body: Record<string, unknown>; session: Session };
 }>();
 const csp =
-  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'";
+  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://encrypted-tbn0.gstatic.com https://encrypted-tbn1.gstatic.com https://encrypted-tbn2.gstatic.com https://encrypted-tbn3.gstatic.com; media-src 'self' blob:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'";
 
 app.use("*", async (c, next) => {
   await next();
@@ -75,7 +75,8 @@ app.use("/api/*", async (c, next) => {
         if (done) break;
         size += value.length;
         const maxBodyBytes =
-          c.req.path === "/api/scan/recognize"
+          c.req.path === "/api/scan/recognize" ||
+          c.req.path === "/api/scan/visual-matches"
             ? 280000
             : c.req.path === "/api/scan/history"
               ? 45000

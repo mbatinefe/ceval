@@ -1,3 +1,5 @@
+import { lensKey } from "../providers/lens.ts";
+import type { VisualSearch } from "../../shared/visual-search.ts";
 import { metaKey } from "../providers/config.ts";
 import type {
   Comparison,
@@ -17,6 +19,7 @@ export function capabilities(env: Env) {
   const enabled = String(env.SCAN_ENABLED) === "true";
   return {
     analysisAvailable: hasKey && enabled,
+    visualSearchAvailable: hasKey && enabled && Boolean(lensKey(env)),
     reason: !hasKey
       ? "Product analysis is not connected yet. You can preview your camera or video."
       : !enabled
@@ -198,16 +201,31 @@ export async function selectModel(
     .bind(productId, userId)
     .first<{ data: string; updated_at: number }>();
   if (!row) throw new ScanError("not_found", "Product not found.", 404);
-  if (row.updated_at < Date.now() - 86400000)
+  let visual: VisualSearch | null = null;
+  if (candidateKey.startsWith("visual:")) {
+    const found = await env.DB.prepare(
+      "SELECT data FROM scan_visual_matches WHERE user_id=? AND product_id=? AND market=?",
+    )
+      .bind(userId, productId, market)
+      .first<{ data: string }>();
+    visual = found ? (JSON.parse(found.data) as VisualSearch) : null;
+  }
+  if (
+    row.updated_at < Date.now() - 86400000 &&
+    !(visual && visual.checkedAt > Date.now() - 86400000)
+  )
     throw new ScanError(
       "needs_label",
       "Scan this product again before choosing a model.",
       422,
     );
   const observed: Product = JSON.parse(row.data);
-  const candidate = observed.candidates?.find(
-    (item) => modelCandidateKey(item) === candidateKey,
-  );
+  const candidate = candidateKey.startsWith("visual:")
+    ? visual?.candidates.find((item) => `visual:${item.id}` === candidateKey)
+        ?.identity
+    : observed.candidates?.find(
+        (item) => modelCandidateKey(item) === candidateKey,
+      );
   if (!candidate)
     throw new ScanError(
       "candidate_changed",

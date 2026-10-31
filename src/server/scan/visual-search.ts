@@ -1,0 +1,246 @@
+import type { Market, Product } from "../../shared/scan.ts";
+import type {
+  VisualSearch,
+  VisualCandidate,
+} from "../../shared/visual-search.ts";
+import { consumeLimit, LimitReached } from "../auth/limits.ts";
+import { lensKey, lensMatches, candidatePhoto } from "../providers/lens.ts";
+import { rankVisualMatches } from "../providers/meta.ts";
+import { applyVisualRanking } from "../providers/visual-ranking.ts";
+import { retrievedPageOffers } from "../providers/product-pages.ts";
+import { reserveScan, settleScan, finishScanReservation } from "./budget.ts";
+import { capabilities, digest } from "./service.ts";
+import { ScanError } from "./errors.ts";
+import { validateFrame } from "./validation.ts";
+export async function storedVisualSearch(
+  env: Env,
+  userId: string,
+  productId: string,
+  market: Market,
+) {
+  const row = await env.DB.prepare(
+    "SELECT data FROM scan_visual_matches WHERE user_id=? AND product_id=? AND market=?",
+  )
+    .bind(userId, productId, market)
+    .first<{ data: string }>();
+  return row ? (JSON.parse(row.data) as VisualSearch) : null;
+}
+async function reserveLens(env: Env, userId: string) {
+  try {
+    await consumeLimit(env.DB, `visual:user:${userId}`, 20, 3600);
+    await consumeLimit(env.DB, "visual:deployment:hour", 40, 3600);
+    const now = new Date(),
+      month = `${now.getUTCFullYear()}-${now.getUTCMonth() + 1}`;
+    const seconds = Math.ceil(
+      (Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1) - Date.now()) /
+        1000,
+    );
+    const configured = Number(
+      Reflect.get(env, "VISUAL_SEARCH_MONTHLY_LIMIT") || 200,
+    );
+    const limit =
+      Number.isSafeInteger(configured) && configured > 0 && configured <= 10000
+        ? configured
+        : 200;
+    // Reserve before upload; provider timeouts may still consume a search.
+    await consumeLimit(
+      env.DB,
+      `visual:deployment:month:${month}`,
+      limit,
+      seconds,
+    );
+  } catch (error) {
+    if (error instanceof LimitReached)
+      throw new ScanError(
+        "visual_limit",
+        "Image search allowance reached. Your previous matches are still available.",
+        429,
+      );
+    throw error;
+  }
+}
+async function verifyCandidatePrices(
+  candidates: VisualCandidate[],
+  observed: Product,
+  market: Market,
+  signal?: AbortSignal,
+) {
+  const timeout = AbortSignal.timeout(8000),
+    bounded = signal ? AbortSignal.any([signal, timeout]) : timeout;
+  await Promise.all(
+    candidates.slice(0, 3).map(async (candidate) => {
+      if (!candidate.identity || bounded.aborted) return;
+      const product: Product = {
+        ...observed,
+        ...candidate.identity,
+        identification: "user_selected",
+        confidence: 0.5,
+        label: candidate.title,
+      };
+      const offers = await retrievedPageOffers(
+        [{ title: candidate.title, url: candidate.url }],
+        product,
+        market,
+        "buy",
+        bounded,
+        () => {
+          delete candidate.price;
+        },
+      );
+      const offer = offers[0];
+      if (offer)
+        candidate.price = {
+          priceMinor: offer.priceMinor,
+          currency: offer.currency,
+          evidenceType: "product_page",
+          kind: offer.kind === "retail" ? "retail" : "asking",
+          condition: offer.condition,
+        };
+    }),
+  );
+}
+export async function discoverVisualMatches(
+  env: Env,
+  userId: string,
+  productId: string,
+  market: Market,
+  image: unknown,
+  signal?: AbortSignal,
+): Promise<VisualSearch> {
+  const row = await env.DB.prepare(
+    "SELECT data FROM scan_products WHERE id=? AND user_id=?",
+  )
+    .bind(productId, userId)
+    .first<{ data: string }>();
+  if (!row) throw new ScanError("not_found", "Product not found.", 404);
+  const cached = await storedVisualSearch(env, userId, productId, market);
+  if (cached && cached.expiresAt > Date.now()) return cached;
+  if (!lensKey(env))
+    throw new ScanError(
+      "visual_unavailable",
+      "Image search is not connected yet. You can still scan labels and search known models.",
+      503,
+    );
+  if (!capabilities(env).analysisAvailable)
+    throw new ScanError(
+      "provider_unavailable",
+      "Product analysis is temporarily unavailable.",
+      503,
+    );
+  let photo = image;
+  if (photo === undefined) {
+    const saved = await env.DB.prepare(
+      "SELECT thumbnail FROM scan_history WHERE user_id=? AND product_id=? AND thumbnail IS NOT NULL ORDER BY updated_at DESC LIMIT 1",
+    )
+      .bind(userId, productId)
+      .first<{ thumbnail: string }>();
+    photo = saved?.thumbnail;
+  }
+  if (!photo)
+    throw new ScanError(
+      "needs_photo",
+      "This find has no saved photo. Scan it again to search by image.",
+      422,
+    );
+  const frame = validateFrame(photo),
+    product = JSON.parse(row.data) as Product;
+  const key = await digest(`visual-v1:${productId}:${market}`),
+    now = Date.now(),
+    id = crypto.randomUUID();
+  await env.DB.prepare(
+    "DELETE FROM scan_jobs WHERE user_id=? AND kind='visual' AND expires_at<?",
+  )
+    .bind(userId, now)
+    .run();
+  const claim = await env.DB.prepare(
+    "INSERT INTO scan_jobs (id,user_id,kind,request_key,status,expires_at,created_at) VALUES (?,?,'visual',?,'pending',?,?) ON CONFLICT(user_id,kind,request_key) DO NOTHING RETURNING id",
+  )
+    .bind(id, userId, key, now + 120000, now)
+    .first();
+  if (!claim) {
+    const completed = await storedVisualSearch(env, userId, productId, market);
+    if (completed && completed.expiresAt > Date.now()) return completed;
+    throw new ScanError(
+      "visual_pending",
+      "This item is already being checked. Wait a moment before trying again.",
+      409,
+    );
+  }
+  try {
+    signal?.throwIfAborted();
+    await reserveLens(env, userId);
+    let candidates = await lensMatches(env, frame, market, signal);
+    let ranking: VisualSearch["ranking"] = candidates.length
+      ? "unavailable"
+      : "no_matches";
+    if (candidates.length && !signal?.aborted) {
+      const images = new Map<string, string>();
+      // Two at a time bounds open connections and total downloaded bytes.
+      for (let i = 0; i < candidates.length; i += 2) {
+        await Promise.all(
+          candidates.slice(i, i + 2).map(async (candidate) => {
+            const image = await candidatePhoto(candidate, signal);
+            if (image) images.set(candidate.id, image);
+          }),
+        );
+      }
+      if (images.size && !signal?.aborted) {
+        let reservation: Awaited<ReturnType<typeof reserveScan>> | undefined;
+        try {
+          reservation = await reserveScan(env, userId, "compare", id);
+          const reserved = reservation;
+          const value = await rankVisualMatches(
+            env,
+            frame,
+            product,
+            candidates,
+            images,
+            signal,
+            (micros) => settleScan(env, reserved, micros),
+          );
+          candidates = applyVisualRanking(candidates, value);
+          ranking = "meta";
+        } catch {
+          // Retrieved photos remain useful when the ranking provider is unavailable.
+          ranking = "unavailable";
+        } finally {
+          if (reservation) await finishScanReservation(env, reservation);
+        }
+      }
+    }
+    candidates = candidates.slice(0, 5);
+    if (!signal?.aborted)
+      await verifyCandidatePrices(candidates, product, market, signal);
+    const result: VisualSearch = {
+      productId,
+      market,
+      candidates,
+      ranking,
+      checkedAt: Date.now(),
+      expiresAt: Date.now() + 1800000,
+    };
+    await env.DB.prepare(
+      "INSERT INTO scan_visual_matches (user_id,product_id,market,data,updated_at) VALUES (?,?,?,?,?) ON CONFLICT(user_id,product_id,market) DO UPDATE SET data=excluded.data,updated_at=excluded.updated_at",
+    )
+      .bind(userId, productId, market, JSON.stringify(result), result.checkedAt)
+      .run();
+    await env.DB.prepare(
+      "UPDATE scan_jobs SET status='done',expires_at=? WHERE id=?",
+    )
+      .bind(result.expiresAt, id)
+      .run();
+    return result;
+  } catch (error) {
+    await env.DB.prepare(
+      "UPDATE scan_jobs SET status='error',expires_at=? WHERE id=?",
+    )
+      .bind(Date.now() + 60000, id)
+      .run();
+    if (error instanceof ScanError) throw error;
+    throw new ScanError(
+      "visual_search_failed",
+      "Image search could not finish. Try again in a minute.",
+      502,
+    );
+  }
+}

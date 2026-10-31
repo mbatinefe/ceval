@@ -53,6 +53,7 @@ export type Comparison = {
 };
 export type ScanCapabilities = {
   analysisAvailable: boolean;
+  visualSearchAvailable?: boolean;
   reason: string | null;
   maxFrameBytes: number;
   maxVideoBytes: number;
