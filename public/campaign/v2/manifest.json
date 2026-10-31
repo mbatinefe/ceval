@@ -11,11 +11,6 @@
       "id": "city-wearer-portrait",
       "widths": [640, 960],
       "use": "Portrait crop of the glasses concept for phones."
-    },
-    {
-      "id": "electronics",
-      "widths": [640, 960, 1600],
-      "use": "Buy cheaper example photograph."
     }
   ]
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { ArrowDown, ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { Brand, BrandMark } from "../components/Brand";
+import { useThemeColor } from "../lib/theme-color";
 import "../styles/landing.css";
 
 function Price({
@@ -12,7 +13,7 @@ function Price({
 }) {
   const [whole, cents = "00"] = value.split(".");
   return (
-    <span className={`lp-price ${className}`}>
+    <span className={`lp-price ${className}`.trim()}>
       <span className="lp-sr-only">${value}</span>
       <span className="lp-price-cur" aria-hidden="true">
         $
@@ -32,7 +33,7 @@ const barcode = [
   1, 3, 2, 1, 1, 2, 1, 1, 3, 1, 2, 1, 1, 2,
 ];
 
-function Barcode() {
+function Barcode({ className = "lp-barcode" }: { className?: string }) {
   let x = 0;
   const bars = barcode.map((width, index) => {
     const bar = index % 2 === 0 ? { x, width } : null;
@@ -41,7 +42,7 @@ function Barcode() {
   });
   return (
     <svg
-      className="lp-barcode"
+      className={className}
       viewBox={`0 0 ${x} 20`}
       preserveAspectRatio="none"
       aria-hidden="true"
@@ -66,6 +67,7 @@ function Corners({ className }: { className: string }) {
   );
 }
 
+// An electronic shelf label that Ceval reads, then updates with its own price.
 function ShelfLabel() {
   return (
     <div className="lp-esl" aria-hidden="true">
@@ -112,136 +114,172 @@ function ShelfLabel() {
   );
 }
 
-function PhoneExample() {
-  return (
-    <figure className="lp-phone" aria-labelledby="lp-phone-caption">
-      <div className="lp-phone-body">
-        <div className="lp-phone-screen">
-          <img
-            src="/campaign/v3/scan-resale-960.jpg"
-            srcSet="/campaign/v3/scan-resale-640.jpg 640w, /campaign/v3/scan-resale-960.jpg 960w"
-            sizes="(max-width: 860px) 78vw, 320px"
-            loading="lazy"
-            decoding="async"
-            alt=""
-          />
-          <span className="lp-phone-island" aria-hidden="true" />
-          <div className="lp-phone-modes" aria-hidden="true">
-            <span>Buy cheaper</span>
-            <span className="is-on">Resale value</span>
-          </div>
-          <Corners className="lp-phone-corners" />
-          <div className="lp-phone-sheet" aria-hidden="true">
-            <div className="lp-sheet-head">
-              <strong>35mm film camera</strong>
-              <span>Possible match</span>
-            </div>
-            <p className="lp-sheet-sub">
-              Used · Check the model name on the body
-            </p>
-            <div className="lp-sheet-prices">
-              <div>
-                <small>Market tag</small>
-                <b>$45</b>
-              </div>
-              <div className="is-ceval">
-                <small>Listed for</small>
-                <b>$95–140</b>
-              </div>
-            </div>
-            <p className="lp-sheet-note">
-              Asking prices from 3 listings. Not completed sales.
-            </p>
-            <span className="lp-sheet-button">See listings</span>
-          </div>
-        </div>
-      </div>
-      <figcaption id="lp-phone-caption">
-        Resale value mode at a flea market. Example prices.
-      </figcaption>
-    </figure>
-  );
-}
+const shelfPhoto = {
+  src: "/campaign/v4/hero-shelf-960.jpg",
+  srcSet:
+    "/campaign/v4/hero-shelf-640.jpg 640w, /campaign/v4/hero-shelf-960.jpg 960w",
+};
 
-function Receipt() {
-  const offers: [string, string, string][] = [
-    ["Online retailer", "219.00", "New · exact match"],
-    ["Online retailer", "229.00", "New · exact match"],
-    ["Marketplace", "155.00", "Used · asking price"],
-  ];
+// The Ceval scanner as it looks on a phone, drawn at app size and scaled.
+function HeroPhone() {
   return (
-    <figure className="lp-receipt" aria-labelledby="lp-receipt-caption">
-      <div className="lp-receipt-shadow">
-        <div className="lp-receipt-paper">
-          <p className="lp-r-title">Ceval · price check</p>
-          <p className="lp-r-item">
-            Wireless headphones
-            <br />
-            Over-ear, black
-          </p>
-          <div className="lp-r-row">
-            <span>Shelf label</span>
-            <i className="lp-r-dots" />
-            <span>$249.00</span>
-          </div>
-          <hr className="lp-r-rule" />
-          {offers.map(([source, price, detail]) => (
-            <div key={price} className="lp-r-offer">
-              <div className="lp-r-row">
-                <span>
-                  {source} <ArrowUpRight aria-hidden="true" />
+    <figure className="lp-device-wrap">
+      <div
+        className="lp-device"
+        role="img"
+        aria-label="Ceval on a phone. The camera locks onto a shelf label that reads $249.00, and Ceval shows the same headphones online for $219.00."
+      >
+        <div className="lp-device-screen">
+          <div className="lp-ui" aria-hidden="true">
+            <div className="lp-ui-status">
+              <span>9:41</span>
+              <i className="lp-ui-island" />
+              <span className="lp-ui-icons">
+                <svg viewBox="0 0 18 12">
+                  <rect x="0" y="8" width="3" height="4" rx="1" />
+                  <rect x="5" y="5.5" width="3" height="6.5" rx="1" />
+                  <rect x="10" y="3" width="3" height="9" rx="1" />
+                  <rect x="15" y="0" width="3" height="12" rx="1" />
+                </svg>
+                <svg viewBox="0 0 16 12">
+                  <path d="M8 2.2c2.4 0 4.6.9 6.2 2.4l1.3-1.4A10.9 10.9 0 0 0 8 .3 10.9 10.9 0 0 0 .5 3.2l1.3 1.4A8.9 8.9 0 0 1 8 2.2Zm0 3.8c1.4 0 2.6.5 3.6 1.4l1.3-1.4A7.2 7.2 0 0 0 8 4.1a7.2 7.2 0 0 0-4.9 1.9l1.3 1.4C5.4 6.5 6.6 6 8 6Zm0 3.7c.5 0 1 .2 1.3.5L8 11.7l-1.3-1.5c.3-.3.8-.5 1.3-.5Z" />
+                </svg>
+                <span className="lp-ui-battery">
+                  <i />
                 </span>
-                <i className="lp-r-dots" />
-                <span>${price}</span>
-              </div>
-              <p className="lp-r-meta">{detail}</p>
+              </span>
             </div>
-          ))}
-          <hr className="lp-r-rule" />
-          <div className="lp-r-row lp-r-total">
-            <span>Lowest new price</span>
-            <i className="lp-r-dots" />
-            <span>$219.00</span>
+            <div className="lp-ui-header">
+              <span className="lp-ui-brand">
+                <BrandMark />
+                ceval
+              </span>
+              <span className="lp-ui-nav">
+                <b>Scan</b>
+                <span>Finds</span>
+                <span>Account</span>
+              </span>
+            </div>
+            <div className="lp-ui-controls">
+              <span className="lp-ui-modes">
+                <b>Buy cheaper</b>
+                <span>Resale value</span>
+              </span>
+              <span className="lp-ui-market">
+                US<small>USD</small>
+              </span>
+            </div>
+            <div className="lp-ui-stage">
+              <img
+                src={shelfPhoto.src}
+                srcSet={shelfPhoto.srcSet}
+                sizes="320px"
+                width="1024"
+                height="1536"
+                fetchPriority="high"
+                decoding="async"
+                alt=""
+              />
+              <span className="lp-ui-live">
+                <i />
+                Live camera
+              </span>
+              <span className="lp-ui-tag">
+                <strong>Wireless headphones</strong>
+                <span>
+                  <Barcode className="lp-ui-barcode" />
+                  <b>$249.00</b>
+                </span>
+              </span>
+              <Corners className="lp-ui-lock" />
+              <span className="lp-ui-pin">
+                <i>1</i>
+                <span>
+                  <small>Online</small>
+                  <Price value="219.00" />
+                </span>
+              </span>
+            </div>
+            <div className="lp-ui-scanning">
+              <span>
+                <i />
+                Scanning. Keep the model label in view.
+              </span>
+              <b>Pause scan</b>
+            </div>
+            <div className="lp-ui-card">
+              <div className="lp-ui-card-head">
+                <img
+                  src="/campaign/v4/hero-shelf-640.jpg"
+                  width="1024"
+                  height="1536"
+                  decoding="async"
+                  alt=""
+                />
+                <span>
+                  <small>In view · Headphones</small>
+                  <b>Over-ear wireless, black</b>
+                </span>
+              </div>
+              <div className="lp-ui-prices">
+                <span>
+                  <small>Shelf label</small>
+                  <s>$249.00</s>
+                </span>
+                <span className="is-found">
+                  <small>Online price</small>
+                  <Price value="219.00" />
+                </span>
+              </div>
+              <p className="lp-ui-evidence">
+                <b>Online retailer</b> · New
+                <strong>$30.00 below the shelf label</strong>
+              </p>
+              <div className="lp-ui-actions">
+                <b>View prices ↗</b>
+                <span>Photo matches ›</span>
+              </div>
+            </div>
           </div>
-          <p className="lp-r-meta">Checked 14:02</p>
         </div>
       </div>
-      <figcaption id="lp-receipt-caption">An example price check.</figcaption>
+      <figcaption>The Ceval scanner. Example prices.</figcaption>
     </figure>
   );
 }
 
-const steps: [string, string][] = [
+const questions: [string, string][] = [
   [
-    "Point at the product",
-    "Open Ceval in your phone’s browser and aim at the item and its price tag. You can also choose a video you’ve already shot.",
+    "Where does Ceval work?",
+    "In your phone’s browser, in Safari or Chrome. There’s no app to install.",
   ],
   [
-    "Confirm the model",
-    "Ceval reads the packaging and the label. When two models look alike, it asks you to choose instead of guessing.",
-  ],
-  [
-    "Compare prices",
-    "Offers from retailers and marketplaces appear with their source, condition and the time they were checked.",
-  ],
-];
-
-const finePrint: [string, string][] = [
-  ["Where it works", "In your phone’s browser. There’s no app to install."],
-  [
-    "What it reads best",
+    "What does it read best?",
     "Electronics and boxed products with a visible model name or number.",
   ],
-  ["Markets", "United States, United Kingdom and Türkiye, in local currency."],
-  ["Camera or video", "Scan live, or choose a video up to 10 minutes long."],
-  ["Camera access", "Ceval asks for the camera only when you tap to start."],
   [
-    "What leaves your phone",
+    "Which markets does it cover?",
+    "The United States, the United Kingdom and Türkiye, in local currency.",
+  ],
+  [
+    "Can I use a video instead?",
+    "Yes. Scan live, or choose a video up to 10 minutes long.",
+  ],
+  [
+    "When does it use the camera?",
+    "Only after you tap to start. You can stop at any time.",
+  ],
+  [
+    "What leaves my phone?",
     "Selected frames, sent to Meta’s Muse Spark model to recognize products and search prices. Your full video stays on your device.",
   ],
   [
-    "What’s saved",
-    "Your recent finds and small product photos, in your account. Delete one or all at any time.",
+    "What does Ceval save?",
+    "Your recent finds and small product photos, in your account. Delete one or all of them at any time.",
+  ],
+  [
+    "Are these sold prices?",
+    "No. Store prices are current offers, and marketplace prices are what sellers are asking, not completed sales.",
   ],
 ];
 
@@ -253,6 +291,26 @@ export function Landing() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+  useThemeColor("#ffffff");
+  // Feature illustrations play once they scroll into view.
+  useEffect(() => {
+    const items = document.querySelectorAll<HTMLElement>("[data-reveal]");
+    if (!("IntersectionObserver" in window)) {
+      items.forEach((item) => (item.dataset.in = "true"));
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) =>
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          (entry.target as HTMLElement).dataset.in = "true";
+          observer.unobserve(entry.target);
+        }),
+      { threshold: 0.4 },
+    );
+    items.forEach((item) => observer.observe(item));
+    return () => observer.disconnect();
+  }, []);
   return (
     <div className="lp">
       <a className="lp-skip" href="#lp-main">
@@ -262,7 +320,7 @@ export function Landing() {
         <div className="lp-wrap lp-top-inner">
           <Brand />
           <nav aria-label="Main navigation">
-            <a className="lp-top-link lp-top-optional" href="#how">
+            <a className="lp-top-link lp-top-optional" href="#features">
               How it works
             </a>
             <a className="lp-top-link lp-top-optional" href="#fine-print">
@@ -284,196 +342,192 @@ export function Landing() {
               <h1 id="lp-title">Is this a good price?</h1>
               <p className="lp-hero-lede">
                 Point your phone at a product and its price tag. Ceval finds the
-                same model online and secondhand, and shows every price with its
-                source.
+                same model online and secondhand, and shows where every price
+                came from.
               </p>
               <div className="lp-hero-actions">
                 <a className="lp-btn lp-btn-ink" href="/app">
                   Open Ceval
                 </a>
-                <a className="lp-link" href="#how">
-                  How it works <ArrowDown aria-hidden="true" />
+                <a className="lp-btn lp-btn-quiet" href="#features">
+                  See how it works
                 </a>
               </div>
               <p className="lp-hero-note">
-                Works in your phone’s browser. Nothing to install.
+                Works in your phone’s browser. No app to install.
               </p>
             </div>
-            <figure className="lp-hero-shot">
-              <div className="lp-shot-frame">
-                <img
-                  src="/campaign/v4/hero-shelf-960.jpg"
-                  srcSet="/campaign/v4/hero-shelf-640.jpg 640w, /campaign/v4/hero-shelf-960.jpg 960w, /campaign/v4/hero-shelf-1280.jpg 1280w"
-                  sizes="(max-width: 860px) 100vw, 520px"
-                  width="1024"
-                  height="1536"
-                  fetchPriority="high"
-                  decoding="async"
-                  alt="Black headphones on a store shelf with an electronic price label."
-                />
-                <ShelfLabel />
-              </div>
-              <figcaption>
-                <span className="lp-sr-only">
-                  The shelf label reads $249.00. Ceval finds the same headphones
-                  online from $219.00.
-                </span>
-                Illustration. Example prices.
-              </figcaption>
-            </figure>
+            <HeroPhone />
           </div>
         </section>
 
         <section
-          className="lp-section lp-how"
-          id="how"
-          aria-labelledby="how-title"
+          className="lp-section lp-features"
+          id="features"
+          aria-labelledby="features-title"
         >
-          <div className="lp-wrap lp-how-grid">
-            <div className="lp-how-copy">
-              <h2 id="how-title">How a price check works</h2>
-              <ol className="lp-steps">
-                {steps.map(([title, text], index) => (
-                  <li key={title}>
-                    <span className="lp-step-n" aria-hidden="true">
-                      {index + 1}
-                    </span>
-                    <div>
-                      <h3>{title}</h3>
-                      <p>{text}</p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            </div>
-            <PhoneExample />
-          </div>
-        </section>
-
-        <section className="lp-section lp-modes" aria-labelledby="modes-title">
           <div className="lp-wrap">
             <div className="lp-section-head">
-              <h2 id="modes-title">Buying new, or buying used</h2>
+              <h2 id="features-title">What a scan tells you</h2>
               <p>
-                Choose a mode before you scan, and Ceval looks for the answer
-                that fits.
+                Ceval reads the product and its price tag, then checks the same
+                model online and secondhand. The examples below use illustrative
+                prices.
               </p>
             </div>
-            <div className="lp-modes-grid">
-              <article className="lp-mode">
-                <div className="lp-mode-shot">
-                  <img
-                    src="/campaign/v2/electronics-960.jpg"
-                    srcSet="/campaign/v2/electronics-640.jpg 640w, /campaign/v2/electronics-960.jpg 960w, /campaign/v2/electronics-1600.jpg 1600w"
-                    sizes="(max-width: 860px) 100vw, 50vw"
-                    loading="lazy"
-                    decoding="async"
-                    alt="Black over-ear headphones on a stand in an electronics store."
-                  />
-                  <div className="lp-mode-tag" aria-hidden="true">
+            <div className="lp-bento">
+              <article className="lp-card lp-card-buy" data-reveal>
+                <div className="lp-card-copy">
+                  <p className="lp-card-kicker">Buy cheaper</p>
+                  <h3>Is it cheaper somewhere else?</h3>
+                  <p>
+                    Ceval checks current offers for the same model and shows how
+                    much less it costs online. Item prices only, before shipping
+                    and tax.
+                  </p>
+                </div>
+                <div className="lp-rail">
+                  <span className="lp-rail-bar" />
+                  <ShelfLabel />
+                </div>
+              </article>
+
+              <article className="lp-card lp-card-resale" data-reveal>
+                <div className="lp-card-copy">
+                  <p className="lp-card-kicker">Resale value</p>
+                  <h3>What’s it worth secondhand?</h3>
+                  <p>
+                    See what similar used items are listed for on public
+                    marketplaces. These are asking prices, not sales.
+                  </p>
+                </div>
+                <div className="lp-panel lp-range" aria-hidden="true">
+                  <div className="lp-range-item">
+                    <img
+                      src="/campaign/v3/resale-camera-640.jpg"
+                      width="640"
+                      height="427"
+                      loading="lazy"
+                      decoding="async"
+                      alt=""
+                    />
                     <span>
-                      <small>Shelf</small>
-                      <b>$249</b>
+                      <b>35mm film camera</b>
+                      <small>Used · 3 listings</small>
                     </span>
-                    <span className="is-ceval">
-                      <small>Online from</small>
-                      <b>$219</b>
+                  </div>
+                  <div className="lp-range-scale">
+                    <span className="lp-range-tag">
+                      <small>Market tag</small>$45
+                    </span>
+                    <span className="lp-range-listed">
+                      <small>Listed for</small>$95–140
+                    </span>
+                    <span className="lp-range-track">
+                      <i className="lp-range-band" />
+                      <i className="lp-range-dot" />
                     </span>
                   </div>
                 </div>
-                <h3>Buy cheaper</h3>
-                <p className="lp-mode-question">
-                  Is it cheaper somewhere else?
-                </p>
-                <p>
-                  Ceval compares the shelf price with current offers for the
-                  same model from retailers and marketplaces.
-                </p>
-                <p className="lp-fine">
-                  Item prices only. Shipping and tax aren’t included. Example
-                  prices.
-                </p>
               </article>
-              <article className="lp-mode">
-                <div className="lp-mode-shot">
+
+              <article className="lp-card lp-card-sources" data-reveal>
+                <div className="lp-card-copy">
+                  <p className="lp-card-kicker">Sources</p>
+                  <h3>Every price links to its page.</h3>
+                  <p>
+                    Each offer shows the store, the condition and when it was
+                    checked. If a price can’t be verified, Ceval says so.
+                  </p>
+                </div>
+                <div className="lp-panel lp-sources" aria-hidden="true">
+                  {[
+                    ["Online retailer", "$219.00", "New · Exact match", true],
+                    [
+                      "Electronics store",
+                      "$229.00",
+                      "New · Exact match",
+                      false,
+                    ],
+                    ["Marketplace", "$155.00", "Used · Asking price", false],
+                  ].map(([store, price, detail, lower]) => (
+                    <div className="lp-source" key={String(store)}>
+                      <span className="lp-source-row">
+                        <b>
+                          {store}
+                          <ArrowUpRight />
+                        </b>
+                        <i />
+                        <strong className={lower ? "is-lower" : undefined}>
+                          {price}
+                        </strong>
+                      </span>
+                      <small>{detail}</small>
+                    </div>
+                  ))}
+                  <p className="lp-sources-time">Checked 14:02</p>
+                </div>
+              </article>
+
+              <article className="lp-card lp-card-models" data-reveal>
+                <div className="lp-card-copy">
+                  <p className="lp-card-kicker">Model check</p>
+                  <h3>When models look alike, you choose.</h3>
+                  <p>
+                    Ceval compares product photos and asks before it searches,
+                    so you don’t get prices for the wrong model.
+                  </p>
+                </div>
+                <div className="lp-panel lp-models" aria-hidden="true">
+                  <p className="lp-models-title">Which one is yours?</p>
+                  {[
+                    ["Over-ear, slim headband", "Looks close", true],
+                    ["Over-ear, slider headband", "Similar design", false],
+                  ].map(([name, match, likely]) => (
+                    <div
+                      className={`lp-model${likely ? " is-chosen" : ""}`}
+                      key={String(name)}
+                    >
+                      <img
+                        src="/campaign/v4/hero-shelf-640.jpg"
+                        width="1024"
+                        height="1536"
+                        loading="lazy"
+                        decoding="async"
+                        alt=""
+                      />
+                      <span>
+                        <b>{name}</b>
+                        <small className={likely ? "is-likely" : undefined}>
+                          {match}
+                        </small>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </article>
+
+              <article className="lp-card lp-card-browser">
+                <div className="lp-card-copy">
+                  <p className="lp-card-kicker">No app to install</p>
+                  <h3>Open it in your phone’s browser.</h3>
+                  <p>Works in Safari and Chrome. Sign in with an email code.</p>
+                </div>
+                <div className="lp-panel lp-qr">
                   <img
-                    src="/campaign/v3/resale-camera-960.jpg"
-                    srcSet="/campaign/v3/resale-camera-640.jpg 640w, /campaign/v3/resale-camera-960.jpg 960w, /campaign/v3/resale-camera-1536.jpg 1536w"
-                    sizes="(max-width: 860px) 100vw, 50vw"
+                    src="/campaign/v3/open-app-qr.svg"
+                    width="112"
+                    height="112"
                     loading="lazy"
-                    decoding="async"
-                    alt="A vintage film camera on a wooden table at a sunlit flea market."
+                    alt="QR code that opens Ceval"
                   />
-                  <div className="lp-mode-tag" aria-hidden="true">
-                    <span>
-                      <small>Market tag</small>
-                      <b>$45</b>
-                    </span>
-                    <span className="is-ceval">
-                      <small>Listed for</small>
-                      <b>$95–140</b>
-                    </span>
-                  </div>
+                  <p>Scan with your phone’s camera to open Ceval.</p>
                 </div>
-                <h3>Resale value</h3>
-                <p className="lp-mode-question">What’s it worth secondhand?</p>
-                <p>
-                  Ceval shows what similar used items are listed for on public
-                  marketplaces. Useful at a flea market, or before you sell.
-                </p>
-                <p className="lp-fine">
-                  These are asking prices, not completed sales. Example prices.
-                </p>
+                <a className="lp-btn lp-btn-ink lp-card-open" href="/app">
+                  Open Ceval
+                </a>
               </article>
             </div>
-          </div>
-        </section>
-
-        <section
-          className="lp-section lp-sources"
-          aria-labelledby="sources-title"
-        >
-          <div className="lp-wrap lp-sources-grid">
-            <div className="lp-sources-copy">
-              <h2 id="sources-title">Every number has a source</h2>
-              <p className="lp-sources-lede">
-                Ceval only shows prices it can link to a page. When it can’t
-                find one, it says so instead of filling the gap.
-              </p>
-              <ul className="lp-rules">
-                <li>
-                  Each price links to the page it came from, with the time it
-                  was checked.
-                </li>
-                <li>
-                  A result is an exact match only when the model and variant
-                  agree. Otherwise it’s marked as possible.
-                </li>
-                <li>
-                  Asking prices are labeled as asking. A listing is never
-                  presented as a sale.
-                </li>
-              </ul>
-            </div>
-            <Receipt />
-          </div>
-        </section>
-
-        <section
-          className="lp-section lp-fineprint"
-          id="fine-print"
-          aria-labelledby="fine-print-title"
-        >
-          <div className="lp-wrap lp-fp-grid">
-            <h2 id="fine-print-title">The fine print</h2>
-            <dl className="lp-fp-list">
-              {finePrint.map(([term, detail]) => (
-                <div key={term}>
-                  <dt>{term}</dt>
-                  <dd>{detail}</dd>
-                </div>
-              ))}
-            </dl>
           </div>
         </section>
 
@@ -504,27 +558,33 @@ export function Landing() {
         </section>
 
         <section
-          className="lp-section lp-closing"
-          aria-labelledby="closing-title"
+          className="lp-section lp-faq"
+          id="fine-print"
+          aria-labelledby="fine-print-title"
         >
-          <div className="lp-wrap lp-closing-grid">
-            <div>
+          <div className="lp-wrap lp-faq-grid">
+            <h2 id="fine-print-title">The fine print</h2>
+            <dl className="lp-faq-list">
+              {questions.map(([question, answer]) => (
+                <div key={question}>
+                  <dt>{question}</dt>
+                  <dd>{answer}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        </section>
+
+        <section className="lp-closing" aria-labelledby="closing-title">
+          <div className="lp-wrap">
+            <div className="lp-closing-card">
+              <span className="lp-closing-mark" aria-hidden="true">
+                <BrandMark />
+              </span>
               <h2 id="closing-title">Try it on the next price tag you see.</h2>
-              <a className="lp-btn lp-btn-ink" href="/app">
+              <a className="lp-btn lp-btn-light" href="/app">
                 Open Ceval
               </a>
-            </div>
-            <div className="lp-qr">
-              <div className="lp-qr-screen">
-                <img
-                  src="/campaign/v3/open-app-qr.svg"
-                  width="136"
-                  height="136"
-                  loading="lazy"
-                  alt="QR code that opens Ceval"
-                />
-                <p>Scan with your phone’s camera to open Ceval.</p>
-              </div>
             </div>
           </div>
         </section>
@@ -533,7 +593,7 @@ export function Landing() {
         <div className="lp-wrap lp-footer-inner">
           <Brand />
           <nav aria-label="Footer navigation">
-            <a href="#how">How it works</a>
+            <a href="#features">How it works</a>
             <a href="#fine-print">Fine print</a>
             <a href="/signin">Sign in</a>
             <a href="/app">Open Ceval</a>

@@ -1,5 +1,10 @@
 {
   "synthetic": true,
-  "purpose": "Ceval landing page hero photograph. The shelf label is drawn by the page; products are unbranded and prices are illustrative.",
-  "assets": [{ "id": "hero-shelf", "widths": [640, 960, 1280] }]
+  "purpose": "Camera view in the landing page phone. The shelf label is drawn by the page; products are unbranded and prices are illustrative.",
+  "assets": [
+    {
+      "id": "hero-shelf",
+      "widths": [640, 960]
+    }
+  ]
 }

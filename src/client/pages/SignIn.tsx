@@ -2,8 +2,10 @@ import { useEffect, useState, type FormEvent } from "react";
 import { ArrowLeft, LoaderCircle } from "lucide-react";
 import { Brand } from "../components/Brand";
 import { api, ApiError } from "../lib/api";
+import { useThemeColor } from "../lib/theme-color";
 import "../styles/landing.css";
 export function SignIn() {
+  useThemeColor("#ffffff");
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [step, setStep] = useState<"email" | "code">("email");
