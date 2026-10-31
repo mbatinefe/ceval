@@ -76,5 +76,26 @@ export function applyVisualRanking(
         : {}),
     });
   }
-  return ranked.slice(0, 5);
+  const identities = new Set<string>();
+  return ranked
+    .filter((candidate) => {
+      if (!candidate.identity) return true;
+      const key = [
+        candidate.identity.brand,
+        candidate.identity.model,
+        candidate.identity.variant,
+      ]
+        .map((value) =>
+          value
+            .normalize("NFKC")
+            .toLowerCase()
+            .replace(/[^\p{L}\p{N}]/gu, " ")
+            .replace(/\s+/g, ""),
+        )
+        .join(":");
+      if (identities.has(key)) return false;
+      identities.add(key);
+      return true;
+    })
+    .slice(0, 5);
 }

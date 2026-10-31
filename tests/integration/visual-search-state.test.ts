@@ -24,6 +24,7 @@ const row: FoundProduct = {
 };
 const result: VisualSearch = {
   provider: "meta",
+  version: 2,
   productId: "unknown",
   market: "US",
   candidates: [],

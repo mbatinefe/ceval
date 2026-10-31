@@ -5,6 +5,7 @@ export type VisualCandidate = {
   url: string;
   source: string;
   thumbnail?: string;
+  photos?: string[];
   assessment: "likely" | "similar" | "unreviewed";
   reason: string;
   identity?: ModelCandidate;
@@ -18,6 +19,7 @@ export type VisualCandidate = {
 };
 export type VisualSearch = {
   provider: "meta";
+  version: 2;
   productId: string;
   market: Market;
   candidates: VisualCandidate[];
@@ -32,4 +34,19 @@ export function visualSearchForMarket(
   market: Market,
 ) {
   return result?.market === market ? result : undefined;
+}
+
+export function visualListingCondition(candidate: VisualCandidate): string {
+  if (/\b(?:refurbished|renewed|reconditioned)\b/i.test(candidate.title))
+    return "Refurbished";
+  if (/\bopen[ -]box\b/i.test(candidate.title)) return "Open box";
+  if (/\b(?:used|pre[ -]?owned)\b/i.test(candidate.title)) return "Used";
+  return (
+    {
+      new: "New",
+      used: "Used",
+      refurbished: "Refurbished",
+      unknown: "",
+    } as const
+  )[candidate.price?.condition || "unknown"];
 }

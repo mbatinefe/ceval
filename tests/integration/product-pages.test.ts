@@ -336,3 +336,56 @@ test("an explicit color contradiction overrides a matching product title", () =>
     [],
   );
 });
+
+test("different variant prices cannot become one unqualified model price", () => {
+  const page = html({
+    "@type": "ProductGroup",
+    brand: { name: "ARZOPA" },
+    hasVariant: [
+      item,
+      {
+        ...item,
+        name: "ARZOPA A1S Black",
+        color: "Black",
+        offers: { ...offer, price: "99.99", url: url + "?variant=black" },
+      },
+    ],
+  });
+  assert.deepEqual(
+    parsePageOffers(page, url, { ...product, variant: "" }, "US", "buy"),
+    [],
+  );
+  assert.equal(
+    parsePageOffers(page, url, product, "US", "buy")[0]?.priceMinor,
+    6999,
+  );
+});
+
+test("a selected color cannot hide storage variants with different prices", () => {
+  const phone = {
+    ...product,
+    brand: "Apple",
+    model: "iPhone 16",
+    variant: "Black",
+  };
+  const page = html({
+    "@type": "ProductGroup",
+    brand: { name: "Apple" },
+    hasVariant: [128, 256].map((size, i) => ({
+      "@type": "Product",
+      name: `Apple iPhone 16 Black ${size}GB`,
+      color: "Black",
+      offers: { ...offer, price: i ? "899.00" : "799.00" },
+    })),
+  });
+  assert.deepEqual(
+    parsePageOffers(
+      page,
+      "https://www.apple.com/shop/buy-iphone/iphone-16",
+      phone,
+      "US",
+      "buy",
+    ),
+    [],
+  );
+});

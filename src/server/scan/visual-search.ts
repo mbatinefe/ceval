@@ -22,7 +22,7 @@ export async function storedVisualSearch(
   market: Market,
 ) {
   const row = await env.DB.prepare(
-    "SELECT data FROM scan_visual_matches WHERE user_id=? AND product_id=? AND market=? AND json_extract(data,'$.provider')='meta'",
+    "SELECT data FROM scan_visual_matches WHERE user_id=? AND product_id=? AND market=? AND json_extract(data,'$.provider')='meta' AND json_extract(data,'$.version')=2",
   )
     .bind(userId, productId, market)
     .first<{ data: string }>();
@@ -124,7 +124,7 @@ export async function discoverVisualMatches(
     );
   const frame = validateFrame(photo),
     product = JSON.parse(row.data) as Product;
-  const key = await digest(`visual-meta-v2:${productId}:${market}`),
+  const key = await digest(`visual-meta-v3:${productId}:${market}`),
     now = Date.now(),
     id = crypto.randomUUID();
   await env.DB.prepare(
@@ -222,6 +222,7 @@ export async function discoverVisualMatches(
       await verifyCandidatePrices(candidates, product, market, signal);
     const result: VisualSearch = {
       provider: "meta",
+      version: 2,
       productId,
       market,
       candidates,

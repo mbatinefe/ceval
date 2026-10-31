@@ -111,7 +111,7 @@ historyRoutes.get("/scan/history", async (c) => {
     .bind(c.get("session").user.id, MAX_HISTORY_ENTRIES)
     .all<HistoryRow>();
   const matches = await c.env.DB.prepare(
-    "SELECT product_id,market,data FROM scan_visual_matches WHERE user_id=? AND json_extract(data,'$.provider')='meta' AND EXISTS(SELECT 1 FROM scan_history h WHERE h.user_id=scan_visual_matches.user_id AND h.product_id=scan_visual_matches.product_id) LIMIT 300",
+    "SELECT product_id,market,data FROM scan_visual_matches WHERE user_id=? AND json_extract(data,'$.provider')='meta' AND json_extract(data,'$.version')=2 AND EXISTS(SELECT 1 FROM scan_history h WHERE h.user_id=scan_visual_matches.user_id AND h.product_id=scan_visual_matches.product_id) LIMIT 300",
   )
     .bind(c.get("session").user.id)
     .all<{ product_id: string; market: Market; data: string }>();

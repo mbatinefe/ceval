@@ -25,6 +25,8 @@ export const merchantHosts = new Set([
   "www.apple.com",
   "www.anker.com",
   "www.logitech.com",
+  "www.logi.com",
+  "www.samsung.com",
   "electronics.sony.com",
   "www.sony.com",
   "www.jbl.com",
@@ -204,6 +206,12 @@ export function parsePageOffers(
       /* Malformed structured data is not price evidence. */
     }
   }
+  // A family with differently priced variants has no single verified price.
+  if (
+    new Set(accepted.map((offer) => `${offer.currency}:${offer.priceMinor}`))
+      .size > 1
+  )
+    return [];
   return accepted
     .filter((o, i) => accepted.findIndex((other) => other.url === o.url) === i)
     .slice(0, 5);

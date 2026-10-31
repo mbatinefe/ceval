@@ -23,6 +23,7 @@ export const productImageHosts = new Set([
   "pisces.bbystatic.com",
   "target.scene7.com",
   "assets.bose.com",
+  "assets.bosecreative.com",
   "assets.nintendo.com",
   "store.storeimages.cdn-apple.com",
   "resource.logitech.com",
@@ -39,6 +40,7 @@ export function candidateImageUrl(value: unknown): string | null {
       url.username ||
       url.password ||
       !productImageHosts.has(url.hostname) ||
+      /(?:global-og-image|samsung-logo|\/logos?\/)/i.test(url.pathname) ||
       url.href.length > 2048
     )
       return null;
@@ -48,10 +50,53 @@ export function candidateImageUrl(value: unknown): string | null {
       url.pathname.startsWith("/cdn/shop/")
     )
       url.searchParams.set("width", "480");
+    if (url.hostname === "assets.bosecreative.com") {
+      url.searchParams.set("format", "jpg");
+      url.searchParams.set("quality", "75");
+      url.searchParams.set("io", "width:640,height:640,transform:fit");
+    }
     return url.href;
   } catch {
     return null;
   }
+}
+export function candidatePageUrl(value: string, market: Market): string | null {
+  const safe = sourceUrl(value, market);
+  if (!safe) return null;
+  const url = new URL(safe);
+  if (/^(?:www\.)?amazon\.(?:com|co\.uk)$/.test(url.hostname)) {
+    const asin = url.pathname.match(
+      /\/(?:dp|gp\/product)\/([A-Z0-9]{10})(?:\/|$)/i,
+    )?.[1];
+    if (asin) {
+      url.pathname = `/dp/${asin.toUpperCase()}`;
+      url.search = "";
+    }
+  }
+  for (const key of [...url.searchParams.keys()])
+    if (
+      /^(?:srsltid|ref|tag|linkCode|camp|creative|sfmc_.+|cgid|bvrrp|bvstate|mc|campaign_id|ad_id|_fid|clkid|afid|cpng|lnm)$/i.test(
+        key,
+      )
+    )
+      url.searchParams.delete(key);
+  return url.href;
+}
+export function officialProductHost(url: string): boolean {
+  const host = new URL(url).hostname.replace(/^www\./, "");
+  return [
+    "arzopa.com",
+    "bose.com",
+    "nintendo.com",
+    "apple.com",
+    "anker.com",
+    "logitech.com",
+    "logi.com",
+    "samsung.com",
+    "sony.com",
+    "electronics.sony.com",
+    "jbl.com",
+  ].includes(host);
 }
 export function searchCandidates(
   sources: ProductSource[],
@@ -59,7 +104,7 @@ export function searchCandidates(
 ): VisualCandidate[] {
   const rows: VisualCandidate[] = [];
   for (const source of sources.slice(0, 40)) {
-    const url = sourceUrl(source.url, market),
+    const url = candidatePageUrl(source.url, market),
       title = text(source.title, 220);
     if (!url || !title || rows.some((row) => row.url === url)) continue;
     const parsed = new URL(url);
@@ -76,7 +121,10 @@ export function searchCandidates(
     if (!merchantPageUrl(url, market) && !marketplace) continue;
     if (
       parsed.pathname === "/" ||
-      /^\/(?:collections|blogs?|pages|search|faq|support|reviews?)(?:\/|$)/i.test(
+      /^\/(?:collections|blogs?|pages|search|s|c|faq|support|help|pressroom|news|articles|reviews?)(?:\/|$)/i.test(
+        parsed.pathname,
+      ) ||
+      /\/(?:searchpage\.jsp|questions|whatsnew|reviews?|news|articles?|support|help)(?:\/|$)/i.test(
         parsed.pathname,
       ) ||
       /\.pdf$/i.test(parsed.pathname)
@@ -96,8 +144,10 @@ export function searchCandidates(
   return rows
     .sort(
       (a, b) =>
+        Number(officialProductHost(b.url)) * 2 +
         Number(Boolean(merchantPageUrl(b.url, market))) -
-        Number(Boolean(merchantPageUrl(a.url, market))),
+        (Number(officialProductHost(a.url)) * 2 +
+          Number(Boolean(merchantPageUrl(a.url, market)))),
     )
     .slice(0, 8);
 }
@@ -132,10 +182,37 @@ export function candidateFromPage(
       types = Array.isArray(row["@type"]) ? row["@type"] : [row["@type"]];
     if (
       types.some((type) =>
-        /^(?:https?:\/\/schema.org\/)?Product$/.test(String(type)),
+        /^(?:https?:\/\/schema.org\/)?Product(?:Group)?$/.test(String(type)),
       )
-    )
-      products.push(row);
+    ) {
+      // Some stores publish the same entity in multiple JSON-LD scripts.
+      // Merge only matching IDs AND names; distinct products remain ambiguous.
+      const entityId = (item: Record<string, unknown>) => {
+        try {
+          return text(item["@id"], 2048)
+            ? new URL(text(item["@id"], 2048), pageUrl).href
+            : "";
+        } catch {
+          return "";
+        }
+      };
+      const id = entityId(row),
+        name = text(row.name, 220).toLowerCase();
+      const existing =
+        id && name
+          ? products.find(
+              (item) =>
+                entityId(item) === id &&
+                text(item.name, 220).toLowerCase() === name,
+            )
+          : undefined;
+      if (existing) {
+        const values = (value: unknown) =>
+          Array.isArray(value) ? value : value ? [value] : [];
+        existing.image = [...values(existing.image), ...values(row.image)];
+        existing.brand ||= row.brand;
+      } else products.push(row);
+    }
     if (row["@graph"]) walk(row["@graph"], depth + 1);
     if (row.mainEntity) walk(row.mainEntity, depth + 1);
   };
@@ -158,55 +235,189 @@ export function candidateFromPage(
       metas.set(key.toLowerCase(), attrs.get("content")!);
   }
   const product = products.length === 1 ? products[0] : null;
+  const productPath =
+    /\/(?:products?|p|dp|shop|store)\//i.test(new URL(pageUrl).pathname) ||
+    /\.html$/i.test(new URL(pageUrl).pathname);
+  const ogProduct =
+    products.length === 0 &&
+    productPath &&
+    Boolean(metas.get("og:title")) &&
+    merchantHosts.has(new URL(pageUrl).hostname);
   const rawImages = product
     ? Array.isArray(product.image)
       ? product.image
       : [product.image]
     : [];
   // Multi-product pages cannot attach an arbitrary variant photo to a model title.
-  if (products.length <= 1 && (product || metas.get("og:type") === "product"))
+  if (
+    products.length <= 1 &&
+    (product || ogProduct || metas.get("og:type") === "product")
+  )
     rawImages.push(metas.get("og:image"));
-  let thumbnail: string | null = null;
-  for (const raw of rawImages) {
+  const photos: string[] = [];
+  for (const raw of rawImages.slice(0, 8)) {
     const value =
       typeof raw === "string"
         ? raw
         : text(obj(raw).url || obj(raw).contentUrl, 2048);
+    if (!value) continue;
     try {
-      thumbnail = candidateImageUrl(new URL(decode(value || ""), pageUrl).href);
+      const image = candidateImageUrl(new URL(decode(value), pageUrl).href);
+      if (image && !photos.includes(image)) photos.push(image);
     } catch {
-      continue;
+      /* Ignore malformed image URLs. */
     }
-    if (thumbnail && value) break;
-    thumbnail = null;
+    if (photos.length === 3) break;
   }
-  const name = product && text(product.name, 220),
+  const name = product
+      ? text(product.name, 220)
+      : ogProduct
+        ? text(metas.get("og:title"), 220)
+        : "",
     brand =
-      product && (text(product.brand, 80) || text(obj(product.brand).name, 80));
+      (product &&
+        (text(product.brand, 80) || text(obj(product.brand).name, 80))) ||
+      (new URL(pageUrl).hostname === "www.apple.com" &&
+      /^\/shop\/buy-(?:airpods|mac|iphone|ipad|watch)(?:\/|$)/.test(
+        new URL(pageUrl).pathname,
+      )
+        ? "Apple"
+        : "");
   return {
     ...candidate,
-    ...(name ? { title: `${brand || ""} ${name}`.trim().slice(0, 220) } : {}),
-    ...(thumbnail ? { thumbnail } : {}),
+    ...(name
+      ? {
+          title:
+            `${brand && !name.toLowerCase().includes(brand.toLowerCase()) ? brand : ""} ${name}`
+              .trim()
+              .slice(0, 220),
+        }
+      : {}),
+    ...(photos.length ? { thumbnail: photos[0], photos } : {}),
   };
+}
+function linkedProducts(
+  html: string,
+  pageUrl: string,
+  market: Market,
+  category: string,
+): ProductSource[] {
+  const matchers = [
+    /monitor|screen|display/i,
+    /headphones?/i,
+    /speakers?/i,
+    /mouse|mice/i,
+    /console|nintendo|switch/i,
+    /power bank|charger/i,
+  ];
+  const categoryMatch = matchers.find((pattern) => pattern.test(category));
+  if (!categoryMatch) return [];
+  const main = html.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i)?.[1] || html;
+  const links: ProductSource[] = [];
+  for (const anchor of main.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)) {
+    const href = anchor[1].match(/\bhref\s*=\s*(["'])(.*?)\1/i)?.[2];
+    if (!href) continue;
+    try {
+      const url = new URL(decode(href), pageUrl);
+      if (
+        url.origin !== new URL(pageUrl).origin ||
+        !/\/(?:products|p|shop\/p)\/[^/]+/i.test(url.pathname)
+      )
+        continue;
+      const title = decode(anchor[2].replace(/<[^>]+>/g, " "))
+        .replace(/\s+/g, " ")
+        .trim();
+      if (
+        !categoryMatch.test(`${title} ${url.pathname}`) ||
+        /(?:replacement|carrying-case|screen-protector|ear-cushions|monitor-stand)/i.test(
+          url.pathname,
+        )
+      )
+        continue;
+      const safe = candidatePageUrl(url.href, market);
+      if (safe && !links.some((link) => link.url === safe))
+        links.push({
+          url: safe,
+          title:
+            title ||
+            decodeURIComponent(url.pathname.split("/").pop()!).replaceAll(
+              "-",
+              " ",
+            ),
+        });
+    } catch {
+      /* Unsafe and malformed catalog links are ignored. */
+    }
+    if (links.length >= 12) break;
+  }
+  return links;
 }
 export async function retrieveCandidatePhotos(
   candidates: VisualCandidate[],
   market: Market,
   signal?: AbortSignal,
+  discovery?: { sources: ProductSource[]; category: string },
 ): Promise<VisualCandidate[]> {
-  const timeout = AbortSignal.timeout(10000),
+  const timeout = AbortSignal.timeout(14000),
     bounded = signal ? AbortSignal.any([signal, timeout]) : timeout;
-  const result = [...candidates];
+  const pages = new Map<string, { html: string; url: string }>();
+  let result = [...candidates];
+  if (discovery && !bounded.aborted) {
+    const official = discovery.sources
+      .map((source) => ({
+        ...source,
+        url: candidatePageUrl(source.url, market),
+      }))
+      .filter((source): source is ProductSource =>
+        Boolean(
+          source.url &&
+          officialProductHost(source.url) &&
+          merchantPageUrl(source.url, market),
+        ),
+      );
+    const seed =
+      official.find((source) =>
+        /\/collections\/(?!all(?:[/?]|$))/.test(source.url),
+      ) || official.find((source) => /\/products\//.test(source.url));
+    if (seed)
+      try {
+        const page = await readProductPage(
+          seed.url,
+          market,
+          AbortSignal.any([bounded, AbortSignal.timeout(3500)]),
+        );
+        if (page) {
+          pages.set(seed.url, page);
+          const links = linkedProducts(
+            page.html,
+            page.url,
+            market,
+            discovery.category,
+          );
+          const existing = new Map(
+            result.map((candidate) => [candidate.url, candidate]),
+          );
+          result = searchCandidates(
+            [...result.map((c) => ({ title: c.title, url: c.url })), ...links],
+            market,
+          ).map((candidate) => existing.get(candidate.url) || candidate);
+        }
+      } catch {
+        /* Initial search candidates remain available when a catalog blocks retrieval. */
+      }
+  }
   let next = 0;
   const worker = async () => {
     while (next < result.length && !bounded.aborted) {
       const index = next++;
       try {
-        const page = await readProductPage(result[index].url, market, bounded);
+        const page =
+          pages.get(result[index].url) ||
+          (await readProductPage(result[index].url, market, bounded));
         if (page)
           result[index] = candidateFromPage(result[index], page.html, page.url);
       } catch {
-        /* The source link remains useful if the merchant blocks page access. */
+        /* Keep source links if individual product pages are unavailable. */
       }
     }
   };
@@ -247,31 +458,46 @@ export async function candidatePhoto(
   candidate: VisualCandidate,
   signal?: AbortSignal,
 ): Promise<string | null> {
-  const url = candidateImageUrl(candidate.thumbnail);
-  if (!url) return null;
-  try {
-    const deadline = AbortSignal.timeout(4000);
-    const response = await fetch(url, {
-      redirect: "manual",
-      headers: {
-        "User-Agent": "CevalProductResearch/0.1",
-        Accept: "image/jpeg,image/png,image/webp",
-      },
-      signal: signal ? AbortSignal.any([signal, deadline]) : deadline,
-    });
-    const mime = (response.headers.get("content-type") || "").split(";")[0];
-    if (
-      !response.ok ||
-      !["image/jpeg", "image/png", "image/webp"].includes(mime)
-    ) {
-      await response.body?.cancel();
-      return null;
+  const urls = [
+    ...new Set(
+      [candidate.thumbnail, ...(candidate.photos || [])]
+        .map(candidateImageUrl)
+        .filter((url): url is string => Boolean(url)),
+    ),
+  ].slice(0, 3);
+  const deadline = AbortSignal.timeout(6000),
+    bounded = signal ? AbortSignal.any([signal, deadline]) : deadline;
+  for (const url of urls) {
+    if (bounded.aborted) break;
+    try {
+      const response = await fetch(url, {
+        redirect: "manual",
+        headers: {
+          "User-Agent": "CevalProductResearch/0.1",
+          Accept: "image/jpeg,image/png,image/webp",
+        },
+        signal: bounded,
+      });
+      const mime = (response.headers.get("content-type") || "")
+        .split(";")[0]
+        .toLowerCase()
+        .trim();
+      if (
+        !response.ok ||
+        !["image/jpeg", "image/png", "image/webp"].includes(mime)
+      ) {
+        await response.body?.cancel();
+        continue;
+      }
+      const bytes = await boundedBytes(response, 500000);
+      let binary = "";
+      for (const byte of bytes) binary += String.fromCharCode(byte);
+      // Display the same image that Meta actually received when a fallback succeeds.
+      candidate.thumbnail = url;
+      return `data:${mime};base64,${btoa(binary)}`;
+    } catch {
+      /* Try another image from the same product page within the shared deadline. */
     }
-    const bytes = await boundedBytes(response, 500000);
-    let binary = "";
-    for (const byte of bytes) binary += String.fromCharCode(byte);
-    return `data:${mime};base64,${btoa(binary)}`;
-  } catch {
-    return null;
   }
+  return null;
 }

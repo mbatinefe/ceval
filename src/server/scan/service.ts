@@ -203,7 +203,7 @@ export async function selectModel(
   let visual: VisualSearch | null = null;
   if (candidateKey.startsWith("visual:")) {
     const found = await env.DB.prepare(
-      "SELECT data FROM scan_visual_matches WHERE user_id=? AND product_id=? AND market=? AND json_extract(data,'$.provider')='meta'",
+      "SELECT data FROM scan_visual_matches WHERE user_id=? AND product_id=? AND market=? AND json_extract(data,'$.provider')='meta' AND json_extract(data,'$.version')=2",
     )
       .bind(userId, productId, market)
       .first<{ data: string }>();

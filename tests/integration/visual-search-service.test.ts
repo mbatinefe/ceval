@@ -470,6 +470,7 @@ test("legacy image-search caches are not attributed to Meta or used as model evi
   const counts = mockProviders();
   await request(undefined, payload());
   const legacy = {
+    provider: "meta",
     productId: product.id,
     market: "US",
     candidates: [
