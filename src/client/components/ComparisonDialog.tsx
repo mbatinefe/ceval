@@ -156,7 +156,9 @@ export function ComparisonDialog({
                         <summary>
                           {offer.evidenceType === "cited_summary"
                             ? "Meta’s cited summary"
-                            : "Source evidence"}
+                            : offer.evidenceType === "product_page"
+                              ? "Product page evidence"
+                              : "Source evidence"}
                         </summary>
                         <p>{offer.evidence}</p>
                       </details>

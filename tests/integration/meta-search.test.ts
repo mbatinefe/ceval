@@ -61,6 +61,8 @@ test("one metered search can return public marketplace evidence after selecting 
     globalThis,
     "fetch",
     async (_url: string, init: RequestInit) => {
+      if (!_url.includes("api.meta.ai"))
+        return new Response("blocked", { status: 403 });
       calls++;
       request = JSON.parse(String(init.body));
       return Response.json({
@@ -121,7 +123,7 @@ test("one metered search can return public marketplace evidence after selecting 
   assert.deepEqual(request.tools, [
     {
       type: "web_search",
-      search_context_size: "low",
+      search_context_size: "medium",
       user_location: { type: "approximate", country: "US" },
     },
   ]);
@@ -241,4 +243,209 @@ test("uncompleted searches and generated citations cannot manufacture product li
     [],
   );
   assert.deepEqual(sources, []);
+});
+
+test("a search without snippets or a final answer verifies a real merchant price with one Meta charge", async (t) => {
+  const monitor: Product = {
+    ...product,
+    brand: "ARZOPA",
+    model: "A1S",
+    variant: "Gray",
+  };
+  const url = "https://www.arzopa.com/collections/all/products/a1s";
+  const calls: string[] = [],
+    charges: number[] = [];
+  t.mock.method(globalThis, "fetch", async (input: string) => {
+    calls.push(String(input));
+    if (String(input).includes("api.meta.ai"))
+      return Response.json({
+        status: "completed",
+        usage: { input_tokens: 100, output_tokens: 100 },
+        output: [
+          {
+            type: "web_search_call",
+            status: "completed",
+            action: { type: "search", queries: ["ARZOPA A1S US"] },
+            results: [
+              {
+                type: "text_result",
+                url,
+                title: "ARZOPA A1S Gray portable monitor",
+                snippet: "",
+              },
+            ],
+          },
+        ],
+      });
+    assert.equal(String(input), "https://www.arzopa.com/products/a1s");
+    return new Response(
+      '<script type="application/ld+json">' +
+        JSON.stringify({
+          "@type": "Product",
+          name: "ARZOPA A1S Gray portable monitor",
+          brand: "ARZOPA",
+          color: "Gray",
+          offers: {
+            "@type": "Offer",
+            price: "69.99",
+            priceCurrency: "USD",
+            availability: "https://schema.org/InStock",
+            itemCondition: "https://schema.org/NewCondition",
+          },
+        }) +
+        "</script>",
+      { headers: { "content-type": "text/html" } },
+    );
+  });
+  const found = await searchOffers(
+    { META_API_KEY: "test-key" } as Env,
+    monitor,
+    "buy",
+    "US",
+    undefined,
+    async (charge) => {
+      charges.push(charge);
+    },
+  );
+  assert.equal(calls.length, 2);
+  assert.deepEqual(charges, [3050]);
+  assert.equal(found[0]?.priceMinor, 6999);
+  assert.equal(found[0]?.evidenceType, "product_page");
+  assert.equal(found[0]?.match, "possible");
+});
+
+test("a model's unsupported price cannot survive a blocked merchant page", async (t) => {
+  const monitor: Product = {
+    ...product,
+    brand: "ARZOPA",
+    model: "A1S",
+    variant: "Gray",
+  };
+  const url = "https://www.arzopa.com/products/a1s";
+  let sources: ProductSource[] = [];
+  t.mock.method(globalThis, "fetch", async (input: string) => {
+    if (!String(input).includes("api.meta.ai"))
+      return new Response("blocked", { status: 403 });
+    return Response.json({
+      status: "completed",
+      output: [
+        {
+          type: "web_search_call",
+          status: "completed",
+          results: [
+            { type: "text_result", url, title: "ARZOPA A1S Gray", snippet: "" },
+          ],
+        },
+        {
+          type: "message",
+          content: [
+            {
+              type: "output_text",
+              text: JSON.stringify({
+                url,
+                priceMinor: 1999,
+                currency: "USD",
+                kind: "retail",
+                supportingText: "ARZOPA A1S Gray new USD 19.99",
+              }),
+              annotations: [],
+            },
+          ],
+        },
+      ],
+    });
+  });
+  const found = await searchOffers(
+    { META_API_KEY: "test-key" } as Env,
+    monitor,
+    "buy",
+    "US",
+    undefined,
+    undefined,
+    (result) => {
+      sources = result;
+    },
+  );
+  assert.deepEqual(found, []);
+  assert.equal(sources[0]?.url, url);
+});
+
+test("merchant stock overrides an optimistic native-cited model summary", async (t) => {
+  const monitor = {
+    ...product,
+    brand: "ARZOPA",
+    model: "A1S",
+    variant: "Black",
+  };
+  const url = "https://www.arzopa.com/products/a1s";
+  const line = JSON.stringify({
+    url,
+    priceMinor: 6999,
+    currency: "USD",
+    kind: "retail",
+    supportingText: "ARZOPA A1S Black new In Stock for USD 69.99",
+  });
+  t.mock.method(globalThis, "fetch", async (input: string) => {
+    if (String(input).includes("api.meta.ai"))
+      return Response.json({
+        status: "completed",
+        output: [
+          {
+            type: "web_search_call",
+            status: "completed",
+            results: [
+              {
+                type: "text_result",
+                url,
+                title: "ARZOPA A1S monitor",
+                snippet: "",
+              },
+            ],
+          },
+          {
+            type: "message",
+            content: [
+              {
+                type: "output_text",
+                text: line,
+                annotations: [
+                  {
+                    type: "url_citation",
+                    url,
+                    start_index: 0,
+                    end_index: Array.from(line).length,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      });
+    return new Response(
+      '<script type="application/ld+json">' +
+        JSON.stringify({
+          "@type": "Product",
+          name: "ARZOPA A1S Black",
+          brand: "ARZOPA",
+          color: "Black",
+          offers: {
+            "@type": "Offer",
+            price: "69.99",
+            priceCurrency: "USD",
+            availability: "https://schema.org/OutOfStock",
+          },
+        }) +
+        "</script>",
+      { headers: { "content-type": "text/html" } },
+    );
+  });
+  assert.deepEqual(
+    await searchOffers(
+      { META_API_KEY: "test-key" } as Env,
+      monitor,
+      "buy",
+      "US",
+    ),
+    [],
+  );
 });

@@ -123,3 +123,25 @@ test("retrieved product links are deduplicated and bounded to three", () => {
     ],
   );
 });
+
+test("US product links exclude foreign storefronts and tracking duplicates", () => {
+  const monitor = { ...product, brand: "ARZOPA", model: "A1S" };
+  const title = "ARZOPA A1S Portable Monitor";
+  const sources = [
+    source(title, "https://www.amazon.co.uk/dp/B123456789"),
+    source(title, "https://www.arzopa.com/en-ca/products/a1s"),
+    source(
+      title,
+      "https://www.arzopa.com/collections/all/products/a1s?utm_source=search",
+    ),
+    source(title, "https://www.arzopa.com/products/a1s?utm_source=another"),
+    source(title, "https://www.arzopa.com/products/a1s?variant=gray"),
+  ];
+  assert.deepEqual(
+    productSources(sources, monitor, "US").map((s) => s.url),
+    [
+      "https://www.arzopa.com/products/a1s",
+      "https://www.arzopa.com/products/a1s?variant=gray",
+    ],
+  );
+});

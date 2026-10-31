@@ -1,4 +1,4 @@
-import type { Product, ProductSource } from "../../shared/scan.ts";
+import type { Market, Product, ProductSource } from "../../shared/scan.ts";
 import { modelIdentityParts } from "../../shared/model-identity.ts";
 import {
   containsIdentity,
@@ -7,6 +7,36 @@ import {
   text,
   type Source,
 } from "../scan/validation.ts";
+
+export function sourceUrl(value: string, market?: Market): string | null {
+  const safe = safeUrl(value);
+  if (!safe) return null;
+  const url = new URL(safe);
+  let path: string;
+  try {
+    path = decodeURIComponent(url.pathname).toLowerCase();
+  } catch {
+    return null;
+  }
+  if (
+    market === "US" &&
+    (/\.(?:co\.uk|ca|com\.au|co\.nz|sg|hk|com\.tr|de|fr|jp)$/.test(
+      url.hostname,
+    ) ||
+      /\/(?:[a-z]{2}-)?(?:uk|gb|ca|au|nz|sg|hk|tr|de|fr|jp)(?:\/|$)/.test(path))
+  )
+    return null;
+  url.pathname = url.pathname.replace(
+    /^\/collections\/[^/]+\/products\//,
+    "/products/",
+  );
+  if (url.pathname !== "/") url.pathname = url.pathname.replace(/\/$/, "");
+  for (const key of [...url.searchParams.keys()]) {
+    if (/^(?:utm_.+|gclid|fbclid|msclkid|_pos|_sid|_ss)$/i.test(key))
+      url.searchParams.delete(key);
+  }
+  return url.href;
+}
 
 function relatedMacBook(title: string, identity: string[]): boolean {
   const value = title
@@ -76,7 +106,7 @@ function productPage(url: string, title: string): boolean {
     return false;
   if (
     /(?:^|[\/_-])(search|s|sch|b|browse|category|categories|collection|collections|reviews?|news|articles?|blogs?|forums?|community|support|manuals?|downloads?|watch|results)(?:[\/_.-]|$)/.test(
-      path,
+      path.replace(/^\/collections\/[^/]+\/products\//, "/products/"),
     ) ||
     /\.(pdf|mp4|jpg|png)$/.test(path)
   )
@@ -98,11 +128,12 @@ function productPage(url: string, title: string): boolean {
 export function productSources(
   sources: Source[],
   product: Product,
+  market?: Market,
 ): ProductSource[] {
   const accepted: ProductSource[] = [];
   const identity = modelIdentityParts(product.model);
   for (const source of sources) {
-    const url = safeUrl(source.url),
+    const url = sourceUrl(source.url, market),
       title = text(source.title, 300);
     if (
       !url ||

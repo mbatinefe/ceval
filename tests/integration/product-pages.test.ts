@@ -257,3 +257,42 @@ test("an already cancelled comparison does not fetch merchant pages", async (t) 
     [],
   );
 });
+
+test("real catalog typography and decimal display sizes preserve exact model identity", () => {
+  const consoleProduct = {
+    ...product,
+    brand: "Nintendo",
+    model: "Switch OLED",
+    variant: "White",
+  };
+  assert.equal(
+    parsePageOffers(
+      html({
+        "@type": "Product",
+        name: "Nintendo Switch™ - OLED Model White set",
+        brand: "Nintendo",
+        offers: offer,
+      }),
+      "https://www.nintendo.com/us/store/products/nintendo-switch-oled-model-white-set",
+      consoleProduct,
+      "US",
+      "buy",
+    )[0]?.priceMinor,
+    6999,
+  );
+  const monitor = { ...product, model: "Z1C", variant: "Black" };
+  assert.equal(
+    parsePageOffers(
+      html({
+        ...item,
+        name: 'Arzopa Z1C 16.1" FHD Display - Black',
+        color: "Black",
+      }),
+      url,
+      monitor,
+      "US",
+      "buy",
+    )[0]?.priceMinor,
+    6999,
+  );
+});

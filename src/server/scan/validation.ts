@@ -175,6 +175,8 @@ export function safeUrl(value: unknown): string | null {
   }
 }
 export function containsIdentity(evidence: string, identity: string): boolean {
+  evidence = evidence.replace(/[™®©]/g, "");
+  identity = identity.replace(/[™®©]/g, "");
   const tokens = identity.match(/[\p{L}\p{N}]+/gu);
   if (!tokens?.length) return false;
   return new RegExp(
@@ -185,6 +187,7 @@ export function containsIdentity(evidence: string, identity: string): boolean {
 export function containsModel(evidence: string, model: string): boolean {
   const normalize = (value: string) =>
     value
+      .replace(/[™®©]/g, "")
       .normalize("NFKC")
       .replace(
         /\b(\d{1,2}(?:\.\d)?)\s*(?:["″]|[-\s]*inch(?:es)?\b)/gi,

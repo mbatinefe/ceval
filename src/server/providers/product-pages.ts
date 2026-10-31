@@ -9,9 +9,10 @@ import {
 import {
   containsIdentity,
   containsModel,
-  safeUrl,
   validateOffers,
 } from "../scan/validation.ts";
+
+import { sourceUrl } from "./product-sources.ts";
 
 // Exact public merchant hosts only. Every redirect passes the same check.
 const hosts = new Set([
@@ -53,23 +54,8 @@ const schemaType = (value: unknown, name: string) =>
   );
 
 function allowedUrl(value: string, market: Market): string | null {
-  const safe = safeUrl(value);
-  if (!safe) return null;
-  const url = new URL(safe);
-  if (!hosts.has(url.hostname)) return null;
-  let path: string;
-  try {
-    path = decodeURIComponent(url.pathname).toLowerCase();
-  } catch {
-    return null;
-  }
-  if (
-    market === "US" &&
-    (url.hostname.endsWith(".co.uk") ||
-      /\/(?:[a-z]{2}-)?(?:uk|gb|ca|au|nz|sg|hk|tr|de|fr|jp)(?:\/|$)/.test(path))
-  )
-    return null;
-  return safe;
+  const safe = sourceUrl(value, market);
+  return safe && hosts.has(new URL(safe).hostname) ? safe : null;
 }
 
 function compatibleName(name: string, product: Product): boolean {
@@ -79,14 +65,17 @@ function compatibleName(name: string, product: Product): boolean {
   if (!tokens) return false;
   const suffix = name.match(
     new RegExp(
-      `(?<![\\p{L}\\p{N}])${tokens.join("[\\s-]*")}\\s+(\\d+|pro|ultra|plus|ii|iii|iv)(?![\\p{L}\\p{N}])`,
+      `(?<![\\p{L}\\p{N}])${tokens.join("[\\s-]*")}\\s+(\\d+(?:\\.\\d+)?|pro|ultra|plus|ii|iii|iv)(?![\\p{L}\\p{N}])`,
       "iu",
     ),
   )?.[1];
   return (
     !suffix ||
-    (/^\d+$/.test(suffix) &&
-      new RegExp(`${suffix}\\s*(?:[- ]?inch|["″]|hz|gb|tb)`, "i").test(name))
+    (/^\d+(?:\.\d+)?$/.test(suffix) &&
+      new RegExp(
+        `${suffix.replace(".", "\\.")}\\s*(?:[- ]?inch|["″]|hz|gb|tb)`,
+        "i",
+      ).test(name))
   );
 }
 
@@ -199,6 +188,7 @@ export function parsePageOffers(
   product: Product,
   market: Market,
   mode: Mode,
+  onProduct?: () => void,
 ): Offer[] {
   if (!allowedUrl(url, market) || html.length > MAX_BYTES) return [];
   const accepted: Offer[] = [];
@@ -211,10 +201,12 @@ export function parsePageOffers(
       return;
     }
     const item = obj(value);
-    if (schemaType(item["@type"], "Product"))
+    if (schemaType(item["@type"], "Product")) {
+      onProduct?.();
       accepted.push(
         ...productOffers(item, inheritedBrand, url, product, market, mode),
       );
+    }
     if (schemaType(item["@type"], "ProductGroup"))
       walk(item.hasVariant, depth + 1, item.brand);
     if (item["@graph"]) walk(item["@graph"], depth + 1);
@@ -291,6 +283,7 @@ export async function retrievedPageOffers(
   market: Market,
   mode: Mode,
   signal?: AbortSignal,
+  onChecked?: (urls: string[]) => void,
 ): Promise<Offer[]> {
   if (signal?.aborted) return [];
   const controller = new AbortController();
@@ -311,9 +304,13 @@ export async function retrievedPageOffers(
       const index = next++;
       try {
         const page = await readPage(urls[index], market, controller.signal);
+        let hasProduct = false;
         results[index] = page
-          ? parsePageOffers(page.html, page.url, product, market, mode)
+          ? parsePageOffers(page.html, page.url, product, market, mode, () => {
+              hasProduct = true;
+            })
           : [];
+        if (page && hasProduct) onChecked?.([urls[index], page.url]);
       } catch {
         results[index] = [];
       }
