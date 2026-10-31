@@ -145,3 +145,29 @@ test("US product links exclude foreign storefronts and tracking duplicates", () 
     ],
   );
 });
+
+test("reviewed manufacturer hosts establish brand when native titles omit it", () => {
+  const headphones = {
+    ...product,
+    brand: "Bose",
+    model: "QuietComfort",
+    variant: "Black",
+  };
+  const title = "Shop QuietComfort Noise Cancelling Headphones";
+  assert.equal(
+    productSources(
+      [source(title, "https://www.bose.com/p/headphones/quietcomfort/QC.html")],
+      headphones,
+      "US",
+    ).length,
+    1,
+  );
+  assert.deepEqual(
+    productSources(
+      [source(title, "https://bose.attacker.com/p/quietcomfort")],
+      headphones,
+      "US",
+    ),
+    [],
+  );
+});

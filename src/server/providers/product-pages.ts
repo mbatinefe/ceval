@@ -6,12 +6,13 @@ import {
   type Product,
   type ProductSource,
 } from "../../shared/scan.ts";
-import {
-  containsIdentity,
-  containsModel,
-  validateOffers,
-} from "../scan/validation.ts";
+import { containsIdentity, validateOffers } from "../scan/validation.ts";
 
+import {
+  matchesModel,
+  variantConflicts,
+  containsVariant,
+} from "./product-identity.ts";
 import { sourceUrl } from "./product-sources.ts";
 
 // Exact public merchant hosts only. Every redirect passes the same check.
@@ -58,32 +59,12 @@ function allowedUrl(value: string, market: Market): string | null {
   return safe && hosts.has(new URL(safe).hostname) ? safe : null;
 }
 
-function compatibleName(name: string, product: Product): boolean {
-  if (!containsModel(name, product.model)) return false;
-  // A family name alone cannot identify a newer generation or tier.
-  const tokens = product.model.match(/[\p{L}\p{N}]+/gu);
-  if (!tokens) return false;
-  const suffix = name.match(
-    new RegExp(
-      `(?<![\\p{L}\\p{N}])${tokens.join("[\\s-]*")}\\s+(\\d+(?:\\.\\d+)?|pro|ultra|plus|ii|iii|iv)(?![\\p{L}\\p{N}])`,
-      "iu",
-    ),
-  )?.[1];
-  return (
-    !suffix ||
-    (/^\d+(?:\.\d+)?$/.test(suffix) &&
-      new RegExp(
-        `${suffix.replace(".", "\\.")}\\s*(?:[- ]?inch|["″]|hz|gb|tb)`,
-        "i",
-      ).test(name))
-  );
-}
-
 function compatibleVariant(item: Json, name: string, variant: string): boolean {
   if (!variant) return true;
-  const normalize = (v: string) => v.toLowerCase().replace(/\bgrey\b/g, "gray");
-  const evidence = normalize([name, str(item.color), str(item.size)].join(" "));
-  return containsIdentity(evidence, normalize(variant));
+  const evidence = [name, str(item.color), str(item.size)].join(" ");
+  return (
+    !variantConflicts(evidence, variant) && containsVariant(evidence, variant)
+  );
 }
 
 function productOffers(
@@ -99,7 +80,7 @@ function productOffers(
   const brand = str(brandValue) || str(obj(brandValue).name);
   if (
     !containsIdentity(`${brand} ${name}`, product.brand) ||
-    !compatibleName(name, product) ||
+    !matchesModel(name, product.model) ||
     !compatibleVariant(item, name, product.variant)
   )
     return [];
@@ -238,7 +219,10 @@ async function readPage(
     const response = await fetch(url, {
       redirect: "manual",
       signal,
-      headers: { Accept: "text/html,application/xhtml+xml" },
+      headers: {
+        Accept: "text/html,application/xhtml+xml",
+        "User-Agent": "CevalProductResearch/0.1",
+      },
     });
     if ([301, 302, 303, 307, 308].includes(response.status)) {
       await response.body?.cancel();

@@ -296,3 +296,43 @@ test("real catalog typography and decimal display sizes preserve exact model ide
     6999,
   );
 });
+
+test("punctuated and ordinal generations cannot become the base model", () => {
+  const requested = {
+    ...product,
+    brand: "Apple",
+    model: "AirPods Max",
+    variant: "",
+  };
+  for (const name of [
+    "Apple AirPods Max (2nd generation)",
+    "Apple AirPods Max - 2",
+    "Apple AirPods Max – 2",
+    "Apple AirPods Max II",
+    "Apple AirPods Max Pro",
+  ]) {
+    assert.deepEqual(
+      parsePageOffers(
+        html({ ...item, name, brand: "Apple" }),
+        "https://www.apple.com/shop/buy-airpods/airpods-max-2",
+        requested,
+        "US",
+        "buy",
+      ),
+      [],
+      name,
+    );
+  }
+});
+test("an explicit color contradiction overrides a matching product title", () => {
+  assert.deepEqual(
+    parsePageOffers(
+      html({ ...item, color: "Black" }),
+      url,
+      product,
+      "US",
+      "buy",
+    ),
+    [],
+  );
+});

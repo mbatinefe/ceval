@@ -10,6 +10,7 @@ import { retrievedPageOffers } from "./product-pages.ts";
 import { ScanError } from "../scan/errors.ts";
 import { citedOffers, type AnswerBlock } from "./citations.ts";
 import { metaChargeMicros, type UsageReporter } from "./usage.ts";
+import { matchesModel, variantConflicts } from "./product-identity.ts";
 import { productSources, sourceUrl } from "./product-sources.ts";
 import {
   record,
@@ -309,9 +310,15 @@ export async function searchOffers(
     },
   );
   // Readable merchant data takes precedence, including unavailable or conflicting variants.
-  const remaining = [...direct, ...cited].filter(
-    (o) => !checked.has(sourceUrl(o.url, market) ?? o.url),
-  );
+  const remaining = [...direct, ...cited].filter((o) => {
+    const url = sourceUrl(o.url, market);
+    return (
+      url !== null &&
+      !checked.has(url) &&
+      matchesModel(o.evidence, product.model) &&
+      !variantConflicts(o.evidence, product.variant)
+    );
+  });
   return [...pages, ...remaining]
     .filter(
       (offer, index, offers) =>

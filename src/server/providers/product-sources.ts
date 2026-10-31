@@ -1,8 +1,8 @@
 import type { Market, Product, ProductSource } from "../../shared/scan.ts";
+import { matchesModel, variantConflicts } from "./product-identity.ts";
 import { modelIdentityParts } from "../../shared/model-identity.ts";
 import {
   containsIdentity,
-  containsModel,
   safeUrl,
   text,
   type Source,
@@ -36,6 +36,21 @@ export function sourceUrl(value: string, market?: Market): string | null {
       url.searchParams.delete(key);
   }
   return url.href;
+}
+
+function manufacturerBrand(url: string, brand: string): boolean {
+  const host = new URL(url).hostname.replace(/^www\./, "");
+  const reviewed = new Set([
+    "arzopa.com",
+    "bose.com",
+    "nintendo.com",
+    "apple.com",
+    "anker.com",
+    "logitech.com",
+    "sony.com",
+    "jbl.com",
+  ]);
+  return reviewed.has(host) && host === `${brand.trim().toLowerCase()}.com`;
 }
 
 function relatedMacBook(title: string, identity: string[]): boolean {
@@ -137,16 +152,18 @@ export function productSources(
       title = text(source.title, 300);
     if (
       !url ||
-      !containsIdentity(title, product.brand) ||
+      (!containsIdentity(title, product.brand) &&
+        !manufacturerBrand(url, product.brand)) ||
       !productPage(url, title)
     )
       continue;
     if (
       identity
         ? !relatedMacBook(title, identity)
-        : !containsModel(title, product.model)
+        : !matchesModel(title, product.model)
     )
       continue;
+    if (variantConflicts(title, product.variant)) continue;
     if (accepted.some((source) => source.url === url)) continue;
     accepted.push({ title, url });
     if (accepted.length === 3) break;

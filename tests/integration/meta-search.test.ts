@@ -449,3 +449,90 @@ test("merchant stock overrides an optimistic native-cited model summary", async 
     [],
   );
 });
+
+test("all price paths reject known market, variant and generation contradictions", async (t) => {
+  let control = {
+    brand: "ARZOPA",
+    model: "A1S",
+    variant: "Gray",
+    title: "ARZOPA A1S Gray",
+    url: "https://www.arzopa.com/uk/products/a1s",
+    cited: false,
+  };
+  t.mock.method(globalThis, "fetch", async (input: string) => {
+    if (!String(input).includes("api.meta.ai"))
+      return new Response("blocked", { status: 403 });
+    const { url, title, cited } = control;
+    const line = JSON.stringify({
+      url,
+      priceMinor: 6999,
+      currency: "USD",
+      kind: "retail",
+      supportingText: title + " USD 69.99 new condition",
+    });
+    return Response.json({
+      status: "completed",
+      output: [
+        {
+          type: "web_search_call",
+          status: "completed",
+          results: [
+            {
+              type: "text_result",
+              url,
+              title,
+              snippet: cited ? "" : title + " USD 69.99 new condition",
+            },
+          ],
+        },
+        {
+          type: "message",
+          content: [
+            {
+              type: "output_text",
+              text: line,
+              annotations: cited
+                ? [
+                    {
+                      type: "url_citation",
+                      url,
+                      start_index: 0,
+                      end_index: Array.from(line).length,
+                    },
+                  ]
+                : [],
+            },
+          ],
+        },
+      ],
+    });
+  });
+  const controls = [
+    control,
+    {
+      ...control,
+      url: "https://www.arzopa.com/products/a1s",
+      title: "ARZOPA A1S Black",
+    },
+    {
+      ...control,
+      brand: "Apple",
+      model: "AirPods Max",
+      variant: "",
+      title: "Apple AirPods Max 2",
+      url: "https://www.apple.com/shop/buy-airpods/airpods-max-2",
+      cited: true,
+    },
+  ];
+  for (control of controls)
+    assert.deepEqual(
+      await searchOffers(
+        { META_API_KEY: "test-key" } as Env,
+        { ...product, ...control },
+        "buy",
+        "US",
+      ),
+      [],
+      control.title,
+    );
+});
