@@ -5,7 +5,7 @@ import {
   matchesModel,
   variantConflicts,
 } from "./product-identity.ts";
-import { obj } from "./lens.ts";
+import { obj } from "./product-media.ts";
 export const visualFeatures = [
   "shape",
   "color",

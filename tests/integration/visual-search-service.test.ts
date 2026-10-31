@@ -118,7 +118,6 @@ before(async () => {
     SCAN_ENABLED: "true",
     SCAN_TOTAL_BUDGET_MICROS: "100000000",
     META_API_KEY: "test-only",
-    SERPAPI_API_KEY: "test-only",
     ASSETS: { fetch: async () => new Response("page") },
   } as unknown as Env;
 });
@@ -166,39 +165,59 @@ function mockProviders(
     "fetch",
     async (input: string | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url === "https://serpapi.com/image") {
-        uploads++;
-        return Response.json({ image_id: "test-image" });
+      if (url.startsWith("https://www.sony.com/headphones/")) {
+        const model = url.includes("missing") ? "WH-1000XM4" : "WH-1000XM5";
+        return new Response(
+          `<script type="application/ld+json">${JSON.stringify({ "@type": "Product", name: `Sony ${model} Black headphones`, image: `https://www.sony.com/images/${model}.jpg` })}</script>`,
+          { headers: { "Content-Type": "text/html" } },
+        );
       }
-      if (url.startsWith("https://serpapi.com/search?")) {
-        searches++;
-        return Response.json({
-          visual_matches: [
-            ...(options.partial
-              ? [
-                  {
-                    title: "Sony WH-1000XM4 Black headphones",
-                    link: "https://www.sony.com/headphones/missing",
-                    thumbnail:
-                      "https://encrypted-tbn1.gstatic.com/images?q=unavailable",
-                  },
-                ]
-              : []),
-            {
-              title: "Sony WH-1000XM5 Black headphones",
-              link: "https://www.sony.com/headphones/test",
-              thumbnail: "https://encrypted-tbn0.gstatic.com/images?q=test",
-              price: { currency: "USD", extracted_value: 199.99 },
-            },
-          ],
-        });
-      }
-      if (url.startsWith("https://encrypted-tbn0.gstatic.com/"))
+      if (url === "https://www.sony.com/images/WH-1000XM5.jpg")
         return new Response(
           Uint8Array.from(atob(thumbnail.slice(23)), (c) => c.charCodeAt(0)),
           { headers: { "Content-Type": "image/jpeg" } },
         );
       if (url === "https://api.meta.ai/v1/responses") {
+        const requestBody = JSON.parse(String(init?.body));
+        if (requestBody.tools) {
+          searches++;
+          assert.equal(requestBody.input[0].content[1].image_url, thumbnail);
+          return Response.json({
+            status: "completed",
+            usage: { input_tokens: 100, output_tokens: 100 },
+            output: [
+              {
+                type: "web_search_call",
+                status: "completed",
+                action: { type: "search", query: "Sony headphones models" },
+                results: [
+                  ...(options.partial
+                    ? [
+                        {
+                          type: "text_result",
+                          title: "Sony WH-1000XM4 Black headphones",
+                          url: "https://www.sony.com/headphones/missing",
+                          snippet: "",
+                        },
+                      ]
+                    : []),
+                  {
+                    type: "text_result",
+                    title: "Sony WH-1000XM5 Black headphones",
+                    url: "https://www.sony.com/headphones/test",
+                    snippet: "",
+                  },
+                ],
+              },
+              {
+                type: "message",
+                content: [
+                  { type: "output_text", text: "Candidate models found." },
+                ],
+              },
+            ],
+          });
+        }
         rankings++;
         await options.beforeRank?.();
         const body = JSON.parse(String(init?.body));
@@ -259,7 +278,7 @@ test("unknown models can search stored photos; results survive reload and duplic
     market: "US",
   });
   assert.equal(repeat.status, 200);
-  assert.deepEqual(counts(), { uploads: 1, searches: 1, rankings: 1 });
+  assert.deepEqual(counts(), { uploads: 0, searches: 1, rankings: 1 });
   const history = await (await request()).json();
   assert.equal(
     history.entries[0].visualSearch.candidates[0].id,
@@ -278,7 +297,8 @@ test("unknown models can search stored photos; results survive reload and duplic
   const spend = await env.DB.prepare(
     "SELECT status,amount FROM scan_spend",
   ).all();
-  assert.equal(spend.results.length, 1);
+  assert.equal(spend.results.length, 2);
+  assert.ok(spend.results.every((row) => row.status === "estimated"));
   assert.equal(spend.results[0].status, "estimated");
 });
 test("visual discovery requires authentication, origin and ownership before provider traffic", async () => {
@@ -315,8 +335,8 @@ test("missing photo or provider does not spend credits or silently use text sear
     422,
   );
   await request(undefined, payload());
-  const copy = Reflect.get(env, "SERPAPI_API_KEY");
-  Reflect.deleteProperty(env, "SERPAPI_API_KEY");
+  const copy = Reflect.get(env, "META_API_KEY");
+  Reflect.deleteProperty(env, "META_API_KEY");
   try {
     const response = await request("/api/scan/visual-matches", {
       productId: product.id,
@@ -324,9 +344,9 @@ test("missing photo or provider does not spend credits or silently use text sear
       image: thumbnail,
     });
     assert.equal(response.status, 503);
-    assert.equal((await response.json()).code, "visual_unavailable");
+    assert.equal((await response.json()).code, "provider_unavailable");
   } finally {
-    Reflect.set(env, "SERPAPI_API_KEY", copy);
+    Reflect.set(env, "META_API_KEY", copy);
   }
   assert.deepEqual(counts(), { uploads: 0, searches: 0, rankings: 0 });
 });
@@ -347,7 +367,7 @@ test("concurrent discoveries share a product lock and cannot spend twice", async
   ]);
   assert.ok(results.some((r) => r.status === 200));
   assert.ok(results.every((r) => r.status === 200 || r.status === 409));
-  assert.deepEqual(counts(), { uploads: 1, searches: 1, rankings: 1 });
+  assert.deepEqual(counts(), { uploads: 0, searches: 1, rankings: 1 });
 });
 
 test("deleting a find removes candidate history and prevents cached access", async () => {
@@ -444,4 +464,53 @@ test("a removed find can be scanned again without an obsolete cache lock", async
     200,
   );
   assert.equal(counts().searches, 2);
+});
+
+test("legacy image-search caches are not attributed to Meta or used as model evidence", async () => {
+  const counts = mockProviders();
+  await request(undefined, payload());
+  const legacy = {
+    productId: product.id,
+    market: "US",
+    candidates: [
+      {
+        id: "legacy",
+        identity: {
+          brand: "Sony",
+          model: "WH-1000XM5",
+          variant: "Black",
+          reason: "old",
+        },
+      },
+    ],
+    ranking: "meta",
+    checkedAt: Date.now(),
+    expiresAt: Date.now() + 1800000,
+  };
+  await env.DB.prepare(
+    "INSERT INTO scan_visual_matches (user_id,product_id,market,data,updated_at) VALUES (?,?,?,?,?)",
+  )
+    .bind("shopper", product.id, "US", JSON.stringify(legacy), Date.now())
+    .run();
+  assert.equal(
+    (await (await request()).json()).entries[0].visualSearch,
+    undefined,
+  );
+  assert.notEqual(
+    (
+      await request("/api/scan/select-model", {
+        productId: product.id,
+        market: "US",
+        candidateKey: "visual:legacy",
+      })
+    ).status,
+    200,
+  );
+  const response = await request("/api/scan/visual-matches", {
+    productId: product.id,
+    market: "US",
+  });
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).provider, "meta");
+  assert.equal(counts().searches, 1);
 });

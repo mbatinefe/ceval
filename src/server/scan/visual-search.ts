@@ -4,8 +4,11 @@ import type {
   VisualCandidate,
 } from "../../shared/visual-search.ts";
 import { consumeLimit, LimitReached } from "../auth/limits.ts";
-import { lensKey, lensMatches, candidatePhoto } from "../providers/lens.ts";
-import { rankVisualMatches } from "../providers/meta.ts";
+import { candidatePhoto } from "../providers/product-media.ts";
+import {
+  discoverProductsFromPhoto,
+  rankVisualMatches,
+} from "../providers/meta.ts";
 import { applyVisualRanking } from "../providers/visual-ranking.ts";
 import { retrievedPageOffers } from "../providers/product-pages.ts";
 import { reserveScan, settleScan, finishScanReservation } from "./budget.ts";
@@ -19,36 +22,16 @@ export async function storedVisualSearch(
   market: Market,
 ) {
   const row = await env.DB.prepare(
-    "SELECT data FROM scan_visual_matches WHERE user_id=? AND product_id=? AND market=?",
+    "SELECT data FROM scan_visual_matches WHERE user_id=? AND product_id=? AND market=? AND json_extract(data,'$.provider')='meta'",
   )
     .bind(userId, productId, market)
     .first<{ data: string }>();
   return row ? (JSON.parse(row.data) as VisualSearch) : null;
 }
-async function reserveLens(env: Env, userId: string) {
+async function reserveVisualSearch(env: Env, userId: string) {
   try {
     await consumeLimit(env.DB, `visual:user:${userId}`, 20, 3600);
     await consumeLimit(env.DB, "visual:deployment:hour", 40, 3600);
-    const now = new Date(),
-      month = `${now.getUTCFullYear()}-${now.getUTCMonth() + 1}`;
-    const seconds = Math.ceil(
-      (Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1) - Date.now()) /
-        1000,
-    );
-    const configured = Number(
-      Reflect.get(env, "VISUAL_SEARCH_MONTHLY_LIMIT") || 200,
-    );
-    const limit =
-      Number.isSafeInteger(configured) && configured > 0 && configured <= 10000
-        ? configured
-        : 200;
-    // Reserve before upload; provider timeouts may still consume a search.
-    await consumeLimit(
-      env.DB,
-      `visual:deployment:month:${month}`,
-      limit,
-      seconds,
-    );
   } catch (error) {
     if (error instanceof LimitReached)
       throw new ScanError(
@@ -126,12 +109,6 @@ export async function discoverVisualMatches(
     );
   const cached = await storedVisualSearch(env, userId, productId, market);
   if (cached && cached.expiresAt > Date.now()) return cached;
-  if (!lensKey(env))
-    throw new ScanError(
-      "visual_unavailable",
-      "Image search is not connected yet. You can still scan labels and search known models.",
-      503,
-    );
   if (!capabilities(env).analysisAvailable)
     throw new ScanError(
       "provider_unavailable",
@@ -147,7 +124,7 @@ export async function discoverVisualMatches(
     );
   const frame = validateFrame(photo),
     product = JSON.parse(row.data) as Product;
-  const key = await digest(`visual-v1:${productId}:${market}`),
+  const key = await digest(`visual-meta-v2:${productId}:${market}`),
     now = Date.now(),
     id = crypto.randomUUID();
   await env.DB.prepare(
@@ -158,7 +135,7 @@ export async function discoverVisualMatches(
   const claim = await env.DB.prepare(
     "INSERT INTO scan_jobs (id,user_id,kind,request_key,status,expires_at,created_at,product_id) VALUES (?,?,'visual',?,'pending',?,?,?) ON CONFLICT(user_id,kind,request_key) DO NOTHING RETURNING id",
   )
-    .bind(id, userId, key, now + 120000, now, productId)
+    .bind(id, userId, key, now + 180000, now, productId)
     .first();
   if (!claim) {
     const completed = await storedVisualSearch(env, userId, productId, market);
@@ -171,8 +148,26 @@ export async function discoverVisualMatches(
   }
   try {
     signal?.throwIfAborted();
-    await reserveLens(env, userId);
-    let candidates = await lensMatches(env, frame, market, signal);
+    await reserveVisualSearch(env, userId);
+    const discovery = await reserveScan(
+      env,
+      userId,
+      "compare",
+      `${id}:discovery`,
+    );
+    let candidates: VisualCandidate[];
+    try {
+      candidates = await discoverProductsFromPhoto(
+        env,
+        frame,
+        product,
+        market,
+        signal,
+        (micros) => settleScan(env, discovery, micros),
+      );
+    } finally {
+      await finishScanReservation(env, discovery);
+    }
     let ranking: VisualSearch["ranking"] = candidates.length
       ? "unavailable"
       : "no_matches";
@@ -190,7 +185,12 @@ export async function discoverVisualMatches(
       if (images.size && !signal?.aborted) {
         let reservation: Awaited<ReturnType<typeof reserveScan>> | undefined;
         try {
-          reservation = await reserveScan(env, userId, "compare", id);
+          reservation = await reserveScan(
+            env,
+            userId,
+            "compare",
+            `${id}:ranking`,
+          );
           const reserved = reservation;
           const visible = candidates.filter((candidate) =>
             images.has(candidate.id),
@@ -221,6 +221,7 @@ export async function discoverVisualMatches(
     if (!signal?.aborted)
       await verifyCandidatePrices(candidates, product, market, signal);
     const result: VisualSearch = {
+      provider: "meta",
       productId,
       market,
       candidates,

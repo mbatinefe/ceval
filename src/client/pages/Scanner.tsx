@@ -223,8 +223,8 @@ export function Scanner() {
       </div>
       {!scan.source && (
         <p className="source-consent">
-          Frames go to Meta. Product crops go to SerpApi for image search and
-          are saved to your finds.
+          Selected frames go to Meta for analysis and search. Product crops are
+          saved privately to your finds.
         </p>
       )}
       {(scan.cameraPending || scan.cameraProblem) && (
@@ -512,10 +512,9 @@ export function Scanner() {
             <p>
               Up to 150 MB · 10 minutes. Choosing a source starts scanning when
               it is ready. Your full video stays on this device; selected frames
-              go to Meta for analysis. Product crops go to SerpApi for Google
-              Lens image search. Small cropped product photos are saved
-              privately to your account with your latest 100 finds. Delete them
-              anytime in Your finds.
+              go to Meta for analysis and product search. Small cropped product
+              photos are saved privately to your account with your latest 100
+              finds. Delete them anytime in Your finds.
             </p>
           </details>
         </section>

@@ -176,7 +176,7 @@ export function VisualMatchesDialog({
               ))}
             </div>
             <p className="visual-footnote">
-              Google Lens via SerpApi · Checked{" "}
+              Meta search · Checked{" "}
               {new Date(result.checkedAt).toLocaleString()}. Prices belong to
               the pictured listings; your item may be a different model.
             </p>
@@ -189,8 +189,8 @@ export function VisualMatchesDialog({
           </button>
         )}
         <p className="visual-footnote">
-          The product crop is sent to SerpApi for image search and Meta for
-          comparison.
+          Meta searches from your photo and compares it with product photos
+          retrieved from stores.
         </p>
       </div>
     </dialog>

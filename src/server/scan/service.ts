@@ -1,4 +1,3 @@
-import { lensKey } from "../providers/lens.ts";
 import type { VisualSearch } from "../../shared/visual-search.ts";
 import { metaKey } from "../providers/config.ts";
 import type {
@@ -19,7 +18,7 @@ export function capabilities(env: Env) {
   const enabled = String(env.SCAN_ENABLED) === "true";
   return {
     analysisAvailable: hasKey && enabled,
-    visualSearchAvailable: hasKey && enabled && Boolean(lensKey(env)),
+    visualSearchAvailable: hasKey && enabled,
     reason: !hasKey
       ? "Product analysis is not connected yet. You can preview your camera or video."
       : !enabled
@@ -204,7 +203,7 @@ export async function selectModel(
   let visual: VisualSearch | null = null;
   if (candidateKey.startsWith("visual:")) {
     const found = await env.DB.prepare(
-      "SELECT data FROM scan_visual_matches WHERE user_id=? AND product_id=? AND market=?",
+      "SELECT data FROM scan_visual_matches WHERE user_id=? AND product_id=? AND market=? AND json_extract(data,'$.provider')='meta'",
     )
       .bind(userId, productId, market)
       .first<{ data: string }>();

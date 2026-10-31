@@ -23,6 +23,7 @@ const row: FoundProduct = {
   time: 0,
 };
 const result: VisualSearch = {
+  provider: "meta",
   productId: "unknown",
   market: "US",
   candidates: [],

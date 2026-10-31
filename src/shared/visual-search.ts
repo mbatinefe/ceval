@@ -17,6 +17,7 @@ export type VisualCandidate = {
   };
 };
 export type VisualSearch = {
+  provider: "meta";
   productId: string;
   market: Market;
   candidates: VisualCandidate[];

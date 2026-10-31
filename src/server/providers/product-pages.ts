@@ -16,7 +16,7 @@ import {
 import { sourceUrl } from "./product-sources.ts";
 
 // Exact public merchant hosts only. Every redirect passes the same check.
-const hosts = new Set([
+export const merchantHosts = new Set([
   "arzopa.com",
   "www.arzopa.com",
   "www.bose.com",
@@ -54,9 +54,9 @@ const schemaType = (value: unknown, name: string) =>
       v.replace(/^https?:\/\/schema.org\//, "") === name,
   );
 
-function allowedUrl(value: string, market: Market): string | null {
+export function merchantPageUrl(value: string, market: Market): string | null {
   const safe = sourceUrl(value, market);
-  return safe && hosts.has(new URL(safe).hostname) ? safe : null;
+  return safe && merchantHosts.has(new URL(safe).hostname) ? safe : null;
 }
 
 function compatibleVariant(item: Json, name: string, variant: string): boolean {
@@ -129,7 +129,7 @@ function productOffers(
         const resolved = new URL(str(offer.url), pageUrl);
         if (!str(offer.url) || resolved.origin !== new URL(pageUrl).origin)
           continue;
-        url = allowedUrl(resolved.href, market) ?? "";
+        url = merchantPageUrl(resolved.href, market) ?? "";
         if (!url) continue;
       } catch {
         continue;
@@ -171,7 +171,7 @@ export function parsePageOffers(
   mode: Mode,
   onProduct?: () => void,
 ): Offer[] {
-  if (!allowedUrl(url, market) || html.length > MAX_BYTES) return [];
+  if (!merchantPageUrl(url, market) || html.length > MAX_BYTES) return [];
   const accepted: Offer[] = [];
   let visited = 0;
   const walk = (value: unknown, depth = 0, inheritedBrand?: unknown) => {
@@ -209,13 +209,13 @@ export function parsePageOffers(
     .slice(0, 5);
 }
 
-async function readPage(
+export async function readProductPage(
   url: string,
   market: Market,
   signal: AbortSignal,
 ): Promise<{ html: string; url: string } | null> {
   for (let redirects = 0; redirects <= 2; redirects++) {
-    if (!allowedUrl(url, market) || signal.aborted) return null;
+    if (!merchantPageUrl(url, market) || signal.aborted) return null;
     const response = await fetch(url, {
       redirect: "manual",
       signal,
@@ -277,7 +277,7 @@ export async function retrievedPageOffers(
   const urls = [
     ...new Set(
       sources
-        .map((s) => allowedUrl(s.url, market))
+        .map((s) => merchantPageUrl(s.url, market))
         .filter((u): u is string => Boolean(u)),
     ),
   ].slice(0, 3);
@@ -287,7 +287,11 @@ export async function retrievedPageOffers(
     while (next < urls.length && !controller.signal.aborted) {
       const index = next++;
       try {
-        const page = await readPage(urls[index], market, controller.signal);
+        const page = await readProductPage(
+          urls[index],
+          market,
+          controller.signal,
+        );
         let hasProduct = false;
         results[index] = page
           ? parsePageOffers(page.html, page.url, product, market, mode, () => {
