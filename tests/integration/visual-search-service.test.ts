@@ -155,7 +155,9 @@ beforeEach(async () => {
   await seedComparison({ ...comparison, id: "other-comparison" }, "other");
 });
 
-function mockProviders() {
+function mockProviders(
+  options: { beforeRank?: () => Promise<void>; partial?: boolean } = {},
+) {
   let uploads = 0,
     searches = 0,
     rankings = 0;
@@ -172,6 +174,16 @@ function mockProviders() {
         searches++;
         return Response.json({
           visual_matches: [
+            ...(options.partial
+              ? [
+                  {
+                    title: "Sony WH-1000XM4 Black headphones",
+                    link: "https://www.sony.com/headphones/missing",
+                    thumbnail:
+                      "https://encrypted-tbn1.gstatic.com/images?q=unavailable",
+                  },
+                ]
+              : []),
             {
               title: "Sony WH-1000XM5 Black headphones",
               link: "https://www.sony.com/headphones/test",
@@ -188,6 +200,7 @@ function mockProviders() {
         );
       if (url === "https://api.meta.ai/v1/responses") {
         rankings++;
+        await options.beforeRank?.();
         const body = JSON.parse(String(init?.body));
         const parts = body.input[0].content;
         const candidate = JSON.parse(
@@ -301,6 +314,7 @@ test("missing photo or provider does not spend credits or silently use text sear
     ).status,
     422,
   );
+  await request(undefined, payload());
   const copy = Reflect.get(env, "SERPAPI_API_KEY");
   Reflect.deleteProperty(env, "SERPAPI_API_KEY");
   try {
@@ -318,6 +332,7 @@ test("missing photo or provider does not spend credits or silently use text sear
 });
 test("concurrent discoveries share a product lock and cannot spend twice", async () => {
   const counts = mockProviders();
+  await request(undefined, payload());
   const results = await Promise.all([
     request("/api/scan/visual-matches", {
       productId: product.id,
@@ -333,4 +348,100 @@ test("concurrent discoveries share a product lock and cannot spend twice", async
   assert.ok(results.some((r) => r.status === 200));
   assert.ok(results.every((r) => r.status === 200 || r.status === 409));
   assert.deepEqual(counts(), { uploads: 1, searches: 1, rankings: 1 });
+});
+
+test("deleting a find removes candidate history and prevents cached access", async () => {
+  mockProviders();
+  const saved = await (await request(undefined, payload())).json();
+  const response = await request("/api/scan/visual-matches", {
+    productId: product.id,
+    market: "US",
+  });
+  assert.equal(response.status, 200);
+  await request(`/api/scan/history/${saved.entry.id}`, {}, "shopper", "DELETE");
+  const rows = await env.DB.prepare(
+    "SELECT COUNT(*) AS n FROM scan_visual_matches",
+  ).first<{ n: number }>();
+  assert.equal(rows?.n, 0);
+  assert.equal(
+    (
+      await request("/api/scan/visual-matches", {
+        productId: product.id,
+        market: "US",
+      })
+    ).status,
+    422,
+  );
+});
+test("an in-flight result cannot recreate matches after its find is deleted", async () => {
+  let begin!: () => void, release!: () => void;
+  const began = new Promise<void>((resolve) => (begin = resolve)),
+    gate = new Promise<void>((resolve) => (release = resolve));
+  mockProviders({
+    beforeRank: async () => {
+      begin();
+      await gate;
+    },
+  });
+  const saved = await (await request(undefined, payload())).json();
+  const task = request("/api/scan/visual-matches", {
+    productId: product.id,
+    market: "US",
+  });
+  await began;
+  await request(`/api/scan/history/${saved.entry.id}`, {}, "shopper", "DELETE");
+  release();
+  const response = await task;
+  assert.equal(response.status, 404);
+  const row = await env.DB.prepare(
+    "SELECT COUNT(*) AS n FROM scan_visual_matches",
+  ).first<{ n: number }>();
+  assert.equal(row?.n, 0);
+});
+test("a candidate whose photo failed cannot be endorsed by visual ranking", async () => {
+  mockProviders({ partial: true });
+  await request(undefined, payload());
+  const response = await request("/api/scan/visual-matches", {
+    productId: product.id,
+    market: "US",
+  });
+  assert.equal(response.status, 200);
+  const result = await response.json();
+  const missing = result.candidates.find((c: { url: string }) =>
+    c.url.includes("missing"),
+  );
+  assert.ok(missing);
+  assert.equal(missing.assessment, "unreviewed");
+  assert.equal(missing.identity, undefined);
+  const visible = result.candidates.find(
+    (c: { url: string }) => !c.url.includes("missing"),
+  );
+  assert.equal(visible.assessment, "likely");
+});
+
+test("a removed find can be scanned again without an obsolete cache lock", async () => {
+  const counts = mockProviders();
+  const body = payload();
+  await request(undefined, body);
+  assert.equal(
+    (
+      await request("/api/scan/visual-matches", {
+        productId: product.id,
+        market: "US",
+      })
+    ).status,
+    200,
+  );
+  await request(`/api/scan/history/${body.id}`, {}, "shopper", "DELETE");
+  await request(undefined, payload());
+  assert.equal(
+    (
+      await request("/api/scan/visual-matches", {
+        productId: product.id,
+        market: "US",
+      })
+    ).status,
+    200,
+  );
+  assert.equal(counts().searches, 2);
 });

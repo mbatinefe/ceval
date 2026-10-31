@@ -6,6 +6,20 @@ import {
   variantConflicts,
 } from "./product-identity.ts";
 import { obj } from "./lens.ts";
+export const visualFeatures = [
+  "shape",
+  "color",
+  "bezel",
+  "stand",
+  "ports",
+  "buttons",
+  "headband",
+  "earcups",
+  "logo",
+  "pattern",
+  "materials",
+  "packaging",
+] as const;
 export function applyVisualRanking(
   candidates: VisualCandidate[],
   value: unknown,
@@ -23,8 +37,22 @@ export function applyVisualRanking(
     if (row.assessment !== "likely" && row.assessment !== "similar") continue;
     const brand = text(row.brand, 80),
       model = text(row.model, 100),
-      variant = text(row.variant, 100),
-      reason = text(row.reason, 360);
+      variant = text(row.variant, 100);
+    const features = Array.isArray(row.features)
+      ? [
+          ...new Set(
+            row.features.filter(
+              (feature): feature is (typeof visualFeatures)[number] =>
+                visualFeatures.includes(
+                  feature as (typeof visualFeatures)[number],
+                ),
+            ),
+          ),
+        ].slice(0, 3)
+      : [];
+    const reason = features.length
+      ? `Similar ${features.join(", ")}. Check the model label and specifications.`
+      : "Similar visible design. Check the model label and specifications.";
     const grounded =
       brand &&
       model &&

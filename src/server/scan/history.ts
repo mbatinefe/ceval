@@ -86,6 +86,20 @@ function entryOf(row: HistoryRow): ScanHistoryEntry {
   };
 }
 
+const removeOrphanMatches = (db: D1Database, userId: string) =>
+  db
+    .prepare(
+      "DELETE FROM scan_visual_matches WHERE user_id=? AND NOT EXISTS(SELECT 1 FROM scan_history h WHERE h.user_id=scan_visual_matches.user_id AND h.product_id=scan_visual_matches.product_id)",
+    )
+    .bind(userId);
+
+const removeOrphanVisualJobs = (db: D1Database, userId: string) =>
+  db
+    .prepare(
+      "DELETE FROM scan_jobs WHERE user_id=? AND kind='visual' AND NOT EXISTS(SELECT 1 FROM scan_history h WHERE h.user_id=scan_jobs.user_id AND h.product_id=scan_jobs.product_id)",
+    )
+    .bind(userId);
+
 export const historyRoutes = new Hono<{
   Bindings: Env;
   Variables: { body: Record<string, unknown>; session: Session };
@@ -97,7 +111,7 @@ historyRoutes.get("/scan/history", async (c) => {
     .bind(c.get("session").user.id, MAX_HISTORY_ENTRIES)
     .all<HistoryRow>();
   const matches = await c.env.DB.prepare(
-    "SELECT product_id,market,data FROM scan_visual_matches WHERE user_id=?",
+    "SELECT product_id,market,data FROM scan_visual_matches WHERE user_id=? AND EXISTS(SELECT 1 FROM scan_history h WHERE h.user_id=scan_visual_matches.user_id AND h.product_id=scan_visual_matches.product_id) LIMIT 300",
   )
     .bind(c.get("session").user.id)
     .all<{ product_id: string; market: Market; data: string }>();
@@ -227,6 +241,8 @@ historyRoutes.post("/scan/history", async (c) => {
     c.env.DB.prepare(
       "DELETE FROM scan_history WHERE user_id=? AND id NOT IN (SELECT id FROM scan_history WHERE user_id=? ORDER BY updated_at DESC,id DESC LIMIT ?)",
     ).bind(userId, userId, MAX_HISTORY_ENTRIES),
+    removeOrphanMatches(c.env.DB, userId),
+    removeOrphanVisualJobs(c.env.DB, userId),
   ]);
   const row = results[1].results[0];
   if (!row)
@@ -238,14 +254,23 @@ historyRoutes.post("/scan/history", async (c) => {
   return c.json({ entry: entryOf(row) });
 });
 historyRoutes.delete("/scan/history/:id", async (c) => {
-  await c.env.DB.prepare("DELETE FROM scan_history WHERE user_id=? AND id=?")
-    .bind(c.get("session").user.id, c.req.param("id"))
-    .run();
+  const userId = c.get("session").user.id;
+  await c.env.DB.batch([
+    c.env.DB.prepare("DELETE FROM scan_history WHERE user_id=? AND id=?").bind(
+      userId,
+      c.req.param("id"),
+    ),
+    removeOrphanMatches(c.env.DB, userId),
+    removeOrphanVisualJobs(c.env.DB, userId),
+  ]);
   return c.json({ deleted: true });
 });
 historyRoutes.delete("/scan/history", async (c) => {
-  await c.env.DB.prepare("DELETE FROM scan_history WHERE user_id=?")
-    .bind(c.get("session").user.id)
-    .run();
+  const userId = c.get("session").user.id;
+  await c.env.DB.batch([
+    c.env.DB.prepare("DELETE FROM scan_history WHERE user_id=?").bind(userId),
+    removeOrphanMatches(c.env.DB, userId),
+    removeOrphanVisualJobs(c.env.DB, userId),
+  ]);
   return c.json({ deleted: true });
 });

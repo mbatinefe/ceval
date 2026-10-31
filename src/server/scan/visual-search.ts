@@ -113,6 +113,17 @@ export async function discoverVisualMatches(
     .bind(productId, userId)
     .first<{ data: string }>();
   if (!row) throw new ScanError("not_found", "Product not found.", 404);
+  const saved = await env.DB.prepare(
+    "SELECT id,thumbnail FROM scan_history WHERE user_id=? AND product_id=? ORDER BY updated_at DESC LIMIT 1",
+  )
+    .bind(userId, productId)
+    .first<{ id: string; thumbnail: string | null }>();
+  if (!saved)
+    throw new ScanError(
+      "needs_photo",
+      "This find is no longer in your history. Scan it again to search by image.",
+      422,
+    );
   const cached = await storedVisualSearch(env, userId, productId, market);
   if (cached && cached.expiresAt > Date.now()) return cached;
   if (!lensKey(env))
@@ -127,15 +138,7 @@ export async function discoverVisualMatches(
       "Product analysis is temporarily unavailable.",
       503,
     );
-  let photo = image;
-  if (photo === undefined) {
-    const saved = await env.DB.prepare(
-      "SELECT thumbnail FROM scan_history WHERE user_id=? AND product_id=? AND thumbnail IS NOT NULL ORDER BY updated_at DESC LIMIT 1",
-    )
-      .bind(userId, productId)
-      .first<{ thumbnail: string }>();
-    photo = saved?.thumbnail;
-  }
+  const photo = image ?? saved.thumbnail;
   if (!photo)
     throw new ScanError(
       "needs_photo",
@@ -153,9 +156,9 @@ export async function discoverVisualMatches(
     .bind(userId, now)
     .run();
   const claim = await env.DB.prepare(
-    "INSERT INTO scan_jobs (id,user_id,kind,request_key,status,expires_at,created_at) VALUES (?,?,'visual',?,'pending',?,?) ON CONFLICT(user_id,kind,request_key) DO NOTHING RETURNING id",
+    "INSERT INTO scan_jobs (id,user_id,kind,request_key,status,expires_at,created_at,product_id) VALUES (?,?,'visual',?,'pending',?,?,?) ON CONFLICT(user_id,kind,request_key) DO NOTHING RETURNING id",
   )
-    .bind(id, userId, key, now + 120000, now)
+    .bind(id, userId, key, now + 120000, now, productId)
     .first();
   if (!claim) {
     const completed = await storedVisualSearch(env, userId, productId, market);
@@ -189,16 +192,22 @@ export async function discoverVisualMatches(
         try {
           reservation = await reserveScan(env, userId, "compare", id);
           const reserved = reservation;
+          const visible = candidates.filter((candidate) =>
+            images.has(candidate.id),
+          );
+          const unseen = candidates.filter(
+            (candidate) => !images.has(candidate.id),
+          );
           const value = await rankVisualMatches(
             env,
             frame,
             product,
-            candidates,
+            visible,
             images,
             signal,
             (micros) => settleScan(env, reserved, micros),
           );
-          candidates = applyVisualRanking(candidates, value);
+          candidates = [...applyVisualRanking(visible, value), ...unseen];
           ranking = "meta";
         } catch {
           // Retrieved photos remain useful when the ranking provider is unavailable.
@@ -219,11 +228,26 @@ export async function discoverVisualMatches(
       checkedAt: Date.now(),
       expiresAt: Date.now() + 1800000,
     };
-    await env.DB.prepare(
-      "INSERT INTO scan_visual_matches (user_id,product_id,market,data,updated_at) VALUES (?,?,?,?,?) ON CONFLICT(user_id,product_id,market) DO UPDATE SET data=excluded.data,updated_at=excluded.updated_at",
+    const stored = await env.DB.prepare(
+      "INSERT INTO scan_visual_matches (user_id,product_id,market,data,updated_at) SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM scan_history WHERE user_id=? AND product_id=? AND id=?) ON CONFLICT(user_id,product_id,market) DO UPDATE SET data=excluded.data,updated_at=excluded.updated_at RETURNING product_id",
     )
-      .bind(userId, productId, market, JSON.stringify(result), result.checkedAt)
-      .run();
+      .bind(
+        userId,
+        productId,
+        market,
+        JSON.stringify(result),
+        result.checkedAt,
+        userId,
+        productId,
+        saved.id,
+      )
+      .first();
+    if (!stored)
+      throw new ScanError(
+        "not_found",
+        "This find was removed while image search was running.",
+        404,
+      );
     await env.DB.prepare(
       "UPDATE scan_jobs SET status='done',expires_at=? WHERE id=?",
     )

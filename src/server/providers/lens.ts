@@ -18,7 +18,7 @@ export function candidateImageUrl(value: unknown): string | null {
       !url.port &&
       !url.username &&
       !url.password &&
-      /^encrypted-tbn[0-9]\.gstatic\.com$/.test(url.hostname) &&
+      /^encrypted-tbn[0-3]\.gstatic\.com$/.test(url.hostname) &&
       url.pathname === "/images" &&
       url.searchParams.has("q") &&
       url.href.length <= 2048

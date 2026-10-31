@@ -6,3 +6,5 @@ CREATE TABLE scan_visual_matches (
   updated_at INTEGER NOT NULL,
   PRIMARY KEY(user_id,product_id,market)
 );
+
+ALTER TABLE scan_jobs ADD COLUMN product_id TEXT;

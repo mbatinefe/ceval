@@ -155,3 +155,24 @@ test("provider failures do not expose response bodies or credential-bearing URLs
       /busy|limit/i.test(error.message),
   );
 });
+
+test("ranking explanations cannot invent confirmations, resale values or destinations", () => {
+  const candidates = parseLensMatches({ visual_matches: [entry()] }, "US");
+  const [result] = applyVisualRanking(candidates, {
+    matches: [
+      {
+        id: candidates[0].id,
+        assessment: "likely",
+        brand: "ARZOPA",
+        model: "A1S",
+        variant: "Gray",
+        features: ["bezel", "https://untrusted-shop.com"],
+        reason:
+          "Exact model confirmed. Resale value $500. Buy at https://untrusted-shop.com",
+      },
+    ],
+  });
+  assert.doesNotMatch(result.reason, /confirmed\.|\$500|https:|untrusted-shop/);
+  assert.match(result.reason, /bezel/);
+  assert.doesNotMatch(result.identity?.reason || "", /\$500|https:/);
+});
