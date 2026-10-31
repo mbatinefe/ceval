@@ -56,15 +56,15 @@ export function ProductDialog({
     >
       <div className="dialog-content">
         <div className="dialog-head">
-          <span className="pill subtle">
-            <span className="tiny-dot" /> DEMO PRODUCT
+          <span className="pill">
+            <span className="tiny-dot" /> Demo product
           </span>
           <button
             className="icon-button"
             aria-label="Close product details"
             onClick={onClose}
           >
-            <X size={21} />
+            <X aria-hidden="true" />
           </button>
         </div>
         <span className="eyebrow">{product.brand}</span>
@@ -74,14 +74,14 @@ export function ProductDialog({
         </p>
         <div className="shelf-price">
           <div>
-            <Tag size={18} />
+            <Tag aria-hidden="true" />
             <span>Example shelf price</span>
           </div>
           <strong>{formatPrice(product.storePriceMinor)}</strong>
           <small>USD · Fictional price in the simulated scene</small>
         </div>
         <div className="offer-empty">
-          <CircleHelp size={22} />
+          <CircleHelp aria-hidden="true" />
           <div>
             <h3>
               {mode === "buy"
@@ -106,17 +106,17 @@ export function ProductDialog({
           disabled={busy || saved}
         >
           {busy ? (
-            <LoaderCircle className="spin" size={18} />
+            <LoaderCircle className="spin" aria-hidden="true" />
           ) : saved ? (
-            <Check size={18} />
+            <Check aria-hidden="true" />
           ) : (
-            <Bookmark size={18} />
+            <Bookmark aria-hidden="true" />
           )}{" "}
           {saved ? "Saved to your finds" : "Save this example"}
         </button>
         {saved && (
           <a className="dialog-saved-link" href="/app/finds">
-            View saved finds <ArrowUpRight size={17} />
+            View saved finds <ArrowUpRight aria-hidden="true" />
           </a>
         )}
       </div>

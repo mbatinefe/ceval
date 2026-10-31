@@ -4,6 +4,7 @@ import type { Comparison } from "../../shared/scan";
 import { formatPrice } from "../../shared/demo";
 import { api } from "../lib/api";
 import { marketplaceSearch } from "../../shared/marketplace";
+import { Price } from "./Price";
 export function ComparisonDialog({
   comparison,
   onClose,
@@ -45,17 +46,15 @@ export function ComparisonDialog({
     >
       <div className="dialog-content">
         <div className="dialog-head">
-          <span className="pill subtle">
-            {comparison.mode === "buy"
-              ? "ONLINE COMPARISON"
-              : "RESALE LISTINGS"}
+          <span className="pill">
+            {comparison.mode === "buy" ? "Online prices" : "Resale listings"}
           </span>
           <button
             className="icon-button"
             aria-label="Close comparison"
             onClick={onClose}
           >
-            <X size={21} />
+            <X aria-hidden="true" />
           </button>
         </div>
         <span className="eyebrow">{comparison.product.brand}</span>
@@ -68,20 +67,21 @@ export function ComparisonDialog({
         )}
         {comparison.product.shelfPriceMinor !== null &&
           comparison.product.shelfCurrency && (
-            <p className="observed-price">
-              Observed shelf label:{" "}
-              <strong>
-                {formatPrice(
-                  comparison.product.shelfPriceMinor,
-                  comparison.product.shelfCurrency,
-                )}
-              </strong>
-              <br />
-              <small>Read from the frame; check the label before buying.</small>
-            </p>
+            <div className="observed-price">
+              <small className="price-label">Shelf label</small>
+              <Price
+                minor={comparison.product.shelfPriceMinor}
+                currency={comparison.product.shelfCurrency}
+              />
+              <p>Read from your camera. Check the label before buying.</p>
+            </div>
           )}
         <p className="comparison-time">
-          Checked {new Date(comparison.checkedAt).toLocaleString()}
+          Checked{" "}
+          {new Date(comparison.checkedAt).toLocaleString(undefined, {
+            dateStyle: "medium",
+            timeStyle: "short",
+          })}
           {stale ? " · Saved result; scan again for current prices" : ""}
         </p>
         {comparison.offers.length === 0 ? (
@@ -125,10 +125,19 @@ export function ComparisonDialog({
                           rel="noopener noreferrer"
                         >
                           {new URL(offer.url).hostname.replace(/^www\./, "")}
-                          <ArrowUpRight size={14} />
+                          <ArrowUpRight aria-hidden="true" />
                         </a>
-                        <strong>
-                          {formatPrice(offer.priceMinor, offer.currency)}
+                        <strong
+                          className={
+                            difference !== null && difference > 0
+                              ? "is-lower"
+                              : undefined
+                          }
+                        >
+                          <Price
+                            minor={offer.priceMinor}
+                            currency={offer.currency}
+                          />
                         </strong>
                       </div>
                       <p>{offer.title}</p>
@@ -149,7 +158,7 @@ export function ComparisonDialog({
                       {difference !== null && difference > 0 && (
                         <p className="price-difference">
                           {formatPrice(difference, offer.currency)} lower item
-                          price · before shipping/tax
+                          price, before shipping and tax
                         </p>
                       )}
                       <details>
@@ -177,7 +186,7 @@ export function ComparisonDialog({
               <article className="offer-card" key={source.url}>
                 <a href={source.url} target="_blank" rel="noopener noreferrer">
                   <strong>{source.title}</strong>
-                  <ArrowUpRight size={16} />
+                  <ArrowUpRight aria-hidden="true" />
                 </a>
                 <small>
                   {new URL(source.url).hostname.replace(/^www\./, "")}
@@ -192,7 +201,7 @@ export function ComparisonDialog({
           target="_blank"
           rel="noopener noreferrer"
         >
-          Search Facebook Marketplace <ArrowUpRight size={15} />
+          Search Facebook Marketplace <ArrowUpRight aria-hidden="true" />
         </a>
         <p className="source-note">
           Prices come from retrieved search evidence and may change. Confirm
@@ -209,7 +218,11 @@ export function ComparisonDialog({
           onClick={save}
           disabled={saved || busy}
         >
-          {saved ? <Check size={17} /> : <Bookmark size={17} />}{" "}
+          {saved ? (
+            <Check aria-hidden="true" />
+          ) : (
+            <Bookmark aria-hidden="true" />
+          )}{" "}
           {saved ? "Saved to your finds" : busy ? "Saving…" : "Save comparison"}
         </button>
       </div>

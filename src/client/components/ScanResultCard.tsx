@@ -10,6 +10,7 @@ import { formatPrice } from "../../shared/demo";
 import { marketplaceSearch } from "../../shared/marketplace";
 import { offerSummary } from "../scanner/presentation";
 import { isAllowanceError } from "../scanner/state";
+import { Price } from "./Price";
 
 export function ScanResultCard({
   row,
@@ -39,55 +40,71 @@ export function ScanResultCard({
     !row.product.model ||
     (row.product.confidence < 0.85 &&
       row.product.identification !== "user_selected");
+  const { shelfPriceMinor, shelfCurrency } = row.product;
+  const savings =
+    summary?.savingsMinor != null && row.errorCode !== "shelf_changed"
+      ? summary.savingsMinor
+      : null;
   return (
     <article
       className={`${compact ? "current-find" : "scan-result"}${active ? " is-active" : ""}`}
       id={compact ? undefined : `result-${row.rowId || row.product.id}`}
     >
-      {row.thumbnail && (
-        <img
-          className="scan-product-photo"
-          src={row.thumbnail}
-          alt={title}
-          loading="lazy"
-        />
-      )}
-      <div className="find-card-heading">
-        <div>
+      <div className="find-head">
+        {row.thumbnail && (
+          <img
+            className="scan-product-photo"
+            src={row.thumbnail}
+            alt={title}
+            loading="lazy"
+          />
+        )}
+        <div className="find-name">
           <span className="find-brand">
-            {compact ? context : row.product.brand || "Detected item"}
+            {compact
+              ? [context, row.product.brand].filter(Boolean).join(" · ")
+              : row.product.brand || "Detected item"}
           </span>
           {onFocus ? (
             <button className="find-title" onClick={onFocus}>
               {title}
             </button>
           ) : (
-            <h2>{title}</h2>
+            <h2 className="find-title">{title}</h2>
+          )}
+          {!compact && row.product.variant && (
+            <p className="find-variant">
+              {row.product.variant}
+              {row.product.identification === "user_selected"
+                ? " · Model chosen by you"
+                : ""}
+            </p>
           )}
         </div>
-        {summary && (
-          <div className="find-price">
-            <strong>
-              {formatPrice(summary.offer.priceMinor, summary.offer.currency)}
-            </strong>
-            <small>
-              {summary.label}
-              {summary.qualification && <span>{summary.qualification}</span>}
-            </small>
-          </div>
-        )}
       </div>
-      {!compact && row.product.variant && (
-        <p className="find-variant">
-          {row.product.variant}
-          {row.product.identification === "user_selected"
-            ? " · Model chosen by you"
-            : ""}
-        </p>
+      {summary && (
+        <div className="find-prices">
+          {shelfPriceMinor !== null && shelfCurrency && (
+            <div className="find-shelf">
+              <small className="price-label">Shelf label</small>
+              <b className={savings !== null ? "is-struck" : undefined}>
+                {formatPrice(shelfPriceMinor, shelfCurrency)}
+              </b>
+            </div>
+          )}
+          <div className="find-price">
+            <small className="price-label">{summary.label}</small>
+            <Price
+              minor={summary.offer.priceMinor}
+              currency={summary.offer.currency}
+            />
+            {summary.qualification && <span>{summary.qualification}</span>}
+          </div>
+        </div>
       )}
       {row.visualSearching && (
         <p className="searching-price">
-          <LoaderCircle size={14} className="spin" />
+          <LoaderCircle className="spin" aria-hidden="true" />
           Finding matches from your photo…
         </p>
       )}
@@ -98,10 +115,10 @@ export function ScanResultCard({
       ) : null}
       {row.searching || row.selecting ? (
         <p className="searching-price">
-          <LoaderCircle size={14} className="spin" />
+          <LoaderCircle className="spin" aria-hidden="true" />
           {row.selecting
             ? "Confirming model…"
-            : "Searching shops & marketplaces…"}
+            : "Searching shops and marketplaces…"}
         </p>
       ) : row.error ? (
         <p className="result-note result-error">
@@ -126,49 +143,19 @@ export function ScanResultCard({
           </p>
         )
       )}
-      {summary && !compact && (
+      {summary && (
         <p className="find-evidence">
-          {new URL(summary.offer.url).hostname.replace(/^www\./, "")} ·{" "}
-          {summary.offer.match === "possible"
-            ? "Possible match"
-            : summary.offer.condition === "unknown"
-              ? "Check condition"
-              : summary.offer.condition}
-          {summary.savingsMinor !== null &&
-            row.errorCode !== "shelf_changed" && (
-              <span>
-                {formatPrice(summary.savingsMinor, summary.offer.currency)}{" "}
-                below shelf label
-              </span>
-            )}
+          <b>{new URL(summary.offer.url).hostname.replace(/^www\./, "")}</b>
+          {summary.offer.condition === "new" ? " · New" : ""}
+          {savings !== null && (
+            <strong>
+              {formatPrice(savings, summary.offer.currency)} below the shelf
+              label
+            </strong>
+          )}
         </p>
       )}
       <div className="find-actions">
-        {onVisual && row.thumbnail && (
-          <button className="find-action primary-action" onClick={onVisual}>
-            {row.visualSearching
-              ? "See image search"
-              : row.visualSearch
-                ? "View photo matches"
-                : "Find image matches"}
-            <ChevronRight size={15} />
-          </button>
-        )}
-        {unidentified && !needsModel && !row.searching && !onVisual && (
-          <a
-            className="find-action"
-            href={`https://www.google.com/search?${new URLSearchParams({ q: [row.product.brand, row.product.label, row.product.variant].filter(Boolean).join(" ") })}`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Search this item <ArrowUpRight size={14} />
-          </a>
-        )}
-        {needsModel && !row.selecting && (
-          <button className="find-action primary-action" onClick={onChoose}>
-            Choose model <ChevronRight size={15} />
-          </button>
-        )}
         {row.comparison && (
           <button
             className="find-action primary-action"
@@ -178,13 +165,41 @@ export function ScanResultCard({
               ? `View ${row.comparison.mode === "buy" ? "prices" : "listings"}`
               : row.comparison.sources?.length
                 ? "See product pages"
-                : "Search options"}{" "}
-            <ArrowUpRight size={14} />
+                : "Search options"}
+            <ArrowUpRight aria-hidden="true" />
           </button>
+        )}
+        {needsModel && !row.selecting && (
+          <button className="find-action primary-action" onClick={onChoose}>
+            Choose model <ChevronRight aria-hidden="true" />
+          </button>
+        )}
+        {onVisual && row.thumbnail && (
+          <button
+            className={`find-action${row.comparison || needsModel ? "" : " primary-action"}`}
+            onClick={onVisual}
+          >
+            {row.visualSearching
+              ? "Searching by photo…"
+              : row.visualSearch
+                ? "Photo matches"
+                : "Search by photo"}
+            <ChevronRight aria-hidden="true" />
+          </button>
+        )}
+        {unidentified && !needsModel && !row.searching && !onVisual && (
+          <a
+            className="find-action"
+            href={`https://www.google.com/search?${new URLSearchParams({ q: [row.product.brand, row.product.label, row.product.variant].filter(Boolean).join(" ") })}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Search this item <ArrowUpRight aria-hidden="true" />
+          </a>
         )}
         {onRetry && !row.searching && !row.selecting && (
           <button className="find-action" onClick={onRetry}>
-            <RotateCw size={13} /> Retry search
+            <RotateCw aria-hidden="true" /> Retry search
           </button>
         )}
         {!needsModel &&
@@ -198,7 +213,7 @@ export function ScanResultCard({
               target="_blank"
               rel="noopener noreferrer"
             >
-              Marketplace <ArrowUpRight size={14} />
+              Marketplace <ArrowUpRight aria-hidden="true" />
             </a>
           )}
       </div>

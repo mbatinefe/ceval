@@ -1,12 +1,6 @@
 import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import {
-  ScanLine,
-  Bookmark,
-  UserRound,
-  ArrowUpRight,
-  LoaderCircle,
-} from "lucide-react";
+import { ScanLine, Bookmark, UserRound, LoaderCircle } from "lucide-react";
 import { Brand } from "./components/Brand";
 import { Landing } from "./pages/Landing";
 import { SignIn } from "./pages/SignIn";
@@ -37,34 +31,33 @@ function Workspace() {
     };
   }, []);
   const nav = [
-    { href: "/app", label: "Explore", icon: ScanLine },
-    { href: "/app/finds", label: "Your finds", icon: Bookmark },
+    { href: "/app", label: "Scan", icon: ScanLine },
+    { href: "/app/finds", label: "Finds", icon: Bookmark },
     { href: "/app/account", label: "Account", icon: UserRound },
   ];
   return (
     <div className="workspace">
-      <header className="app-header app-wrap">
-        <Brand />
-        <nav className="app-nav" aria-label="App navigation">
-          {nav.map(({ href, label, icon: Icon }) => (
-            <a
-              key={href}
-              href={href}
-              aria-current={path === href ? "page" : undefined}
-            >
-              <Icon size={18} />
-              <span>{label}</span>
-            </a>
-          ))}
-        </nav>
-        <a href="/" className="back-home">
-          The idea <ArrowUpRight size={16} />
-        </a>
+      <header className="app-header">
+        <div className="app-wrap app-header-inner">
+          <Brand />
+          <nav className="app-nav" aria-label="App navigation">
+            {nav.map(({ href, label, icon: Icon }) => (
+              <a
+                key={href}
+                href={href}
+                aria-current={path === href ? "page" : undefined}
+              >
+                <Icon aria-hidden="true" />
+                <span>{label}</span>
+              </a>
+            ))}
+          </nav>
+        </div>
       </header>
       {error ? (
         <main className="empty-state">
-          <h1>Let’s try that again.</h1>
-          <p>We couldn’t load your account.</p>
+          <h1>Couldn’t load your account</h1>
+          <p>Check your connection, then reload Ceval.</p>
           <button
             className="button primary"
             onClick={() => window.location.reload()}
@@ -74,8 +67,8 @@ function Workspace() {
         </main>
       ) : !profile ? (
         <main className="empty-state">
-          <LoaderCircle className="spin" />
-          <p>Getting your space ready…</p>
+          <LoaderCircle className="spin" aria-hidden="true" />
+          <p>Loading your account…</p>
         </main>
       ) : path === "/app/finds" ? (
         <Finds />

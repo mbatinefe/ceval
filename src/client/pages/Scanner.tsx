@@ -3,13 +3,13 @@ import { useRef, useState } from "react";
 import {
   Camera,
   CameraOff,
+  ChevronDown,
   Upload,
   Play,
   Square,
   Tag,
   TrendingUp,
   Film,
-  ScanLine,
   LoaderCircle,
   ArrowUpRight,
   X,
@@ -21,9 +21,9 @@ import {
   type Market,
   type Mode,
 } from "../../shared/scan";
-import { formatPrice } from "../../shared/demo";
 import { ComparisonDialog } from "../components/ComparisonDialog";
 import { ModelChoiceDialog } from "../components/ModelChoiceDialog";
+import { Price } from "../components/Price";
 import { ScanResultCard } from "../components/ScanResultCard";
 import { offerSummary } from "../scanner/presentation";
 import { isAllowanceError } from "../scanner/state";
@@ -106,7 +106,7 @@ export function Scanner() {
       <div className="recent-finds-heading">
         <h2>Previous finds</h2>
         <a href="/app/finds">
-          View all <ArrowUpRight size={15} />
+          View all <ArrowUpRight aria-hidden="true" />
         </a>
       </div>
       <div className="recent-finds-strip">
@@ -116,7 +116,7 @@ export function Scanner() {
               <img src={entry.thumbnailUrl} alt="" loading="lazy" />
             ) : (
               <span className="recent-placeholder">
-                <Tag size={22} />
+                <Tag aria-hidden="true" />
               </span>
             )}
             <span>
@@ -154,17 +154,28 @@ export function Scanner() {
   );
   return (
     <main className={`live-scanner app-wrap${scan.source ? " has-feed" : ""}`}>
-      <div className="scanner-heading">
-        <div>
-          <span className="eyebrow">
-            {scan.source ? "YOUR FIELD OF VIEW" : "CEVAL SCANNER"}
-          </span>
-          <h1>
-            Look closer<span className="accent">.</span>
-          </h1>
+      <h1 className="sr-only">Scan</h1>
+      <div className="scanner-controls">
+        <div className="mode-switch" role="group" aria-label="Comparison mode">
+          <button aria-pressed={mode === "buy"} onClick={() => setMode("buy")}>
+            <Tag aria-hidden="true" />
+            Buy cheaper
+          </button>
+          <button
+            aria-pressed={mode === "resale"}
+            onClick={() => setMode("resale")}
+          >
+            <TrendingUp aria-hidden="true" />
+            Resale value
+          </button>
         </div>
         <label className="market-select">
-          Market
+          <span className="sr-only">Market</span>
+          <span className="market-value" aria-hidden="true">
+            {market}
+            <small>{markets[market].currency}</small>
+          </span>
+          <ChevronDown aria-hidden="true" />
           <select
             value={market}
             onChange={(e) => setMarket(e.target.value as Market)}
@@ -176,57 +187,19 @@ export function Scanner() {
             ))}
           </select>
         </label>
+        <input
+          ref={upload}
+          type="file"
+          accept="video/*,.mov,.mp4,.m4v,.webm"
+          hidden
+          aria-label="Choose a video"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) scan.chooseVideo(file);
+            e.target.value = "";
+          }}
+        />
       </div>
-      <div className="scanner-toolbar">
-        <div className="mode-switch" role="group" aria-label="Comparison mode">
-          <button aria-pressed={mode === "buy"} onClick={() => setMode("buy")}>
-            <Tag size={17} />
-            Buy cheaper
-          </button>
-          <button
-            aria-pressed={mode === "resale"}
-            onClick={() => setMode("resale")}
-          >
-            <TrendingUp size={17} />
-            Resale value
-          </button>
-        </div>
-        <div className="source-buttons">
-          <button
-            className="button dark small"
-            onClick={() => void scan.camera()}
-            disabled={scan.cameraPending}
-          >
-            <Camera size={17} />
-            Use camera
-          </button>
-          <button
-            className="button outline small"
-            onClick={() => upload.current?.click()}
-          >
-            <Upload size={17} />
-            Choose video
-          </button>
-          <input
-            ref={upload}
-            type="file"
-            accept="video/*,.mov,.mp4,.m4v,.webm"
-            hidden
-            aria-label="Choose a video"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) scan.chooseVideo(file);
-              e.target.value = "";
-            }}
-          />
-        </div>
-      </div>
-      {!scan.source && (
-        <p className="source-consent">
-          Selected frames go to Meta for analysis and search. Product crops are
-          saved privately to your finds.
-        </p>
-      )}
       {(scan.cameraPending || scan.cameraProblem) && (
         <div
           className="camera-notice"
@@ -271,7 +244,6 @@ export function Scanner() {
           </div>
         </div>
       )}
-      {!scan.source && recentFinds}
       <div className="scanner-grid">
         <section className="media-panel" aria-label="Video scanner">
           <div
@@ -338,12 +310,14 @@ export function Scanner() {
                         }}
                       >
                         <strong>
-                          {summary
-                            ? formatPrice(
-                                summary.offer.priceMinor,
-                                summary.offer.currency,
-                              )
-                            : product.model || "Identify item"}
+                          {summary ? (
+                            <Price
+                              minor={summary.offer.priceMinor}
+                              currency={summary.offer.currency}
+                            />
+                          ) : (
+                            product.model || "Identify item"
+                          )}
                         </strong>
                         <small>
                           {summary
@@ -364,47 +338,61 @@ export function Scanner() {
             </div>
             {!scan.source && (
               <div className="source-empty">
-                <span className="empty-scan-icon">
-                  <ScanLine size={36} />
-                </span>
                 <span className="viewfinder-corner top-left" />
                 <span className="viewfinder-corner top-right" />
                 <span className="viewfinder-corner bottom-left" />
                 <span className="viewfinder-corner bottom-right" />
-                <h2>Worth a closer look.</h2>
-                <p>Your camera. A video. A new find.</p>
+                <h2>Point at a product and its price tag.</h2>
+                <p>
+                  {mode === "buy"
+                    ? "Ceval reads the label, then checks what the same model costs online."
+                    : "Ceval reads the item, then finds what similar ones are listed for secondhand."}
+                </p>
                 <button
                   className="button primary"
                   onClick={() => void scan.camera()}
                   disabled={scan.cameraPending}
                 >
-                  <Camera size={18} /> Open camera
+                  <Camera aria-hidden="true" /> Open camera
                 </button>
-                <button className="text-link" onClick={() => scan.sample()}>
-                  <Film size={16} /> Try a sample instead{" "}
-                  <ArrowUpRight size={15} />
-                </button>
+                <div className="source-alt">
+                  <button
+                    className="text-link"
+                    onClick={() => upload.current?.click()}
+                  >
+                    <Upload aria-hidden="true" /> Choose a video
+                  </button>
+                  <button className="text-link" onClick={() => scan.sample()}>
+                    <Film aria-hidden="true" /> Try a sample
+                  </button>
+                </div>
               </div>
             )}
             {scan.source && (
               <div className="input-label">
                 <span>
-                  <i />
+                  <i className={scan.source === "camera" ? "is-live" : ""} />
                   {scan.source === "camera"
-                    ? "LIVE CAMERA"
+                    ? "Live camera"
                     : scan.source === "sample"
-                      ? "GENERATED TEST FOOTAGE"
-                      : "YOUR VIDEO"}
+                      ? "Simulated sample"
+                      : "Your video"}
                 </span>
                 <button
                   aria-label="Close video source"
                   onClick={scan.closeSource}
                 >
-                  <X size={17} />
+                  <X aria-hidden="true" />
                 </button>
               </div>
             )}
           </div>
+          {!scan.source && (
+            <p className="source-consent">
+              Selected frames go to Meta for recognition and price search. Small
+              product photos are saved privately to your finds.
+            </p>
+          )}
           {scan.source === "camera" && scan.previewBlocked && (
             <div className="scan-actions">
               <p className="scan-status" role="status">
@@ -415,63 +403,65 @@ export function Scanner() {
                 className="button primary small"
                 onClick={() => void scan.playCameraPreview()}
               >
-                <Play size={16} /> Play camera preview
+                <Play aria-hidden="true" /> Play camera preview
               </button>
             </div>
           )}
-          <div className="scan-actions">
-            <div className="scan-status" role="status">
-              {scan.busy ||
-              scan.startupState === "starting" ||
-              scan.startupState === "waiting" ? (
-                <LoaderCircle size={18} className="spin" />
+          {scan.source && (
+            <div className="scan-actions">
+              <div className="scan-status" role="status">
+                {scan.busy ||
+                scan.startupState === "starting" ||
+                scan.startupState === "waiting" ? (
+                  <LoaderCircle className="spin" aria-hidden="true" />
+                ) : (
+                  <span
+                    className={`status-dot ${scan.running ? "active" : ""}`}
+                  />
+                )}
+                <span>{scan.message}</span>
+              </div>
+              {scan.running ||
+              scan.finishing ||
+              scan.startupState === "waiting" ||
+              scan.startupState === "starting" ? (
+                <button
+                  className="button dark small"
+                  onClick={() => {
+                    scan.stopAnalysis();
+                    scan.video.current?.pause();
+                  }}
+                >
+                  <Square aria-hidden="true" />
+                  {scan.finishing
+                    ? "Cancel remaining"
+                    : scan.running
+                      ? "Pause scan"
+                      : "Cancel start"}
+                </button>
               ) : (
-                <span
-                  className={`status-dot ${scan.running ? "active" : ""}`}
-                />
+                <button
+                  className="button primary small"
+                  disabled={
+                    !scan.prepared || !scan.capabilities?.analysisAvailable
+                  }
+                  onClick={() => void scan.start()}
+                >
+                  <Play aria-hidden="true" />
+                  {scan.startupState === "blocked"
+                    ? "Tap to start scanning"
+                    : "Start scanning"}
+                </button>
               )}
-              <span>{scan.message}</span>
             </div>
-            {scan.running ||
-            scan.finishing ||
-            scan.startupState === "waiting" ||
-            scan.startupState === "starting" ? (
-              <button
-                className="button dark small"
-                onClick={() => {
-                  scan.stopAnalysis();
-                  scan.video.current?.pause();
-                }}
-              >
-                <Square size={15} />
-                {scan.finishing
-                  ? "Cancel remaining"
-                  : scan.running
-                    ? "Pause scan"
-                    : "Cancel start"}
-              </button>
-            ) : (
-              <button
-                className="button primary small"
-                disabled={
-                  !scan.prepared || !scan.capabilities?.analysisAvailable
-                }
-                onClick={() => void scan.start()}
-              >
-                <Play size={16} />
-                {scan.startupState === "blocked"
-                  ? "Tap to start scanning"
-                  : "Start scanning"}
-              </button>
-            )}
-          </div>
+          )}
           {scan.source && scan.found.length > 0 && (
             <button
               className="text-link rescan-view"
               onClick={scan.rescan}
               disabled={scan.busy}
             >
-              <RotateCw size={14} /> Check this view again
+              <RotateCw aria-hidden="true" /> Check this view again
             </button>
           )}
           {focused && (
@@ -508,7 +498,7 @@ export function Scanner() {
             </div>
           )}
           <details className="media-privacy">
-            <summary>Video & privacy</summary>
+            <summary>Video and privacy</summary>
             <p>
               Up to 150 MB · 10 minutes. Choosing a source starts scanning when
               it is ready. Your full video stays on this device; selected frames
@@ -520,8 +510,8 @@ export function Scanner() {
         </section>
         <aside className="scan-results">
           <div className="results-heading">
-            <span className="eyebrow">THIS SCAN</span>
-            <span>{String(scan.found.length).padStart(2, "0")}</span>
+            <h2>This scan</h2>
+            <span>{scan.found.length}</span>
           </div>
           {scan.historyState.failed > 0 ? (
             <p className="history-sync-note" role="status">
@@ -533,7 +523,7 @@ export function Scanner() {
               <p className="history-sync-note" role="status">
                 {scan.historyState.pending
                   ? "Saving your finds…"
-                  : "Photos & finds remembered automatically"}
+                  : "Photos and finds are saved automatically."}
               </p>
             )
           )}
@@ -550,15 +540,15 @@ export function Scanner() {
           )}
           {scan.found.length === 0 ? (
             <div className="results-empty">
-              <Tag size={25} />
+              <Tag aria-hidden="true" />
               <h2>
                 {scan.source
                   ? "Looking for your first find"
                   : "Your finds appear here"}
               </h2>
               <p>
-                Point at a product and hold steady. We’ll identify it and search
-                prices automatically.
+                Point at a product and hold steady. Ceval identifies it and
+                searches prices automatically.
               </p>
             </div>
           ) : (
@@ -577,18 +567,18 @@ export function Scanner() {
             </>
           )}
           <a href="/app/finds" className="shelf-link">
-            All finds & history
-            <ArrowUpRight size={16} />
+            All finds and history
+            <ArrowUpRight aria-hidden="true" />
           </a>
         </aside>
       </div>
-      {scan.source && recentFinds}
+      {recentFinds}
       <details className="sample-library">
         <summary>
           <span>
-            <Film size={16} /> Sample library
+            <Film aria-hidden="true" /> Sample videos
           </span>
-          <small>{clips.length} synthetic clips +</small>
+          <small>{clips.length} simulated clips</small>
         </summary>
         <p>
           Generated scenes with pans and zooms. Prices on labels are fictional.

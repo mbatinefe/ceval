@@ -7,7 +7,7 @@ import {
   X,
   Columns2,
 } from "lucide-react";
-import { formatPrice } from "../../shared/demo";
+import { Price } from "./Price";
 import type { Mode, Product } from "../../shared/scan";
 import {
   visualCandidateKey,
@@ -94,7 +94,7 @@ export function VisualMatchesDialog({
       />
     ) : (
       <span className="visual-photo-missing">
-        <ImageOff size={24} />
+        <ImageOff aria-hidden="true" />
         <small>Photo unavailable</small>
       </span>
     );
@@ -110,20 +110,20 @@ export function VisualMatchesDialog({
     >
       <div className="dialog-content">
         <div className="dialog-head">
-          <span className="eyebrow">PHOTO MATCHES</span>
+          <span className="pill">Photo matches</span>
           <button
             className="icon-button"
             aria-label="Close image matches"
             onClick={onClose}
           >
-            <X size={21} />
+            <X aria-hidden="true" />
           </button>
         </div>
         <div className="visual-query">
           {photo && <img src={photo} alt="Your scanned item" />}
           <div>
             <h2 id="visual-title">
-              {compared.length ? "Compare the models." : "Find its match."}
+              {compared.length ? "Which one is yours?" : "Search by photo"}
             </h2>
             <p>{product.model || product.label}</p>
           </div>
@@ -140,7 +140,7 @@ export function VisualMatchesDialog({
         <div aria-live="polite" aria-atomic="true">
           {searching ? (
             <div className="visual-loading">
-              <LoaderCircle className="spin" size={20} />
+              <LoaderCircle className="spin" aria-hidden="true" />
               <div>
                 <strong>
                   {elapsed < 15
@@ -185,7 +185,13 @@ export function VisualMatchesDialog({
                 <article className="visual-candidate" key={candidate.id}>
                   <div className="visual-candidate-photo">
                     {imageOf(candidate.thumbnail, modelName(candidate))}
-                    <span>
+                    <span
+                      className={
+                        candidate.assessment === "likely"
+                          ? "is-likely"
+                          : undefined
+                      }
+                    >
                       {candidate.assessment === "likely"
                         ? "Looks close"
                         : "Similar design"}
@@ -207,12 +213,10 @@ export function VisualMatchesDialog({
                     </p>
                     {candidate.price ? (
                       <div className="visual-price">
-                        <strong>
-                          {formatPrice(
-                            candidate.price.priceMinor,
-                            candidate.price.currency,
-                          )}
-                        </strong>
+                        <Price
+                          minor={candidate.price.priceMinor}
+                          currency={candidate.price.currency}
+                        />
                         <span>
                           {candidate.price.kind === "asking"
                             ? "Seller’s asking price"
@@ -245,7 +249,7 @@ export function VisualMatchesDialog({
                         target="_blank"
                         rel="noopener noreferrer"
                       >
-                        View listing <ArrowUpRight size={14} />
+                        View listing <ArrowUpRight aria-hidden="true" />
                       </a>
                     </div>
                     {photo && candidate.thumbnail && (
@@ -258,7 +262,7 @@ export function VisualMatchesDialog({
                           )
                         }
                       >
-                        <Columns2 size={14} />
+                        <Columns2 aria-hidden="true" />
                         {inspecting === candidate.id
                           ? "Hide comparison"
                           : "Compare photos"}
@@ -302,21 +306,25 @@ export function VisualMatchesDialog({
                         <small>{candidate.source}</small>
                         <strong>{candidate.title}</strong>
                       </span>
-                      <ArrowUpRight size={17} />
+                      <ArrowUpRight aria-hidden="true" />
                     </a>
                   ))}
                 </div>
               </details>
             )}
             <p className="visual-footnote">
-              Checked {new Date(result.checkedAt).toLocaleString()}. Prices
-              belong to the listed models; your item may differ.
+              Checked{" "}
+              {new Date(result.checkedAt).toLocaleString(undefined, {
+                dateStyle: "medium",
+                timeStyle: "short",
+              })}
+              . Prices belong to the listed models; your item may differ.
             </p>
           </>
         )}
         {!searching && (!result || expired || error) && (
           <button className="button primary" onClick={onSearch}>
-            <Search size={16} />
+            <Search aria-hidden="true" />
             {result ? "Search again" : "Search this photo"}
           </button>
         )}

@@ -29,13 +29,13 @@ export function ModelChoiceDialog({
     >
       <div className="dialog-content">
         <div className="dialog-head">
-          <span className="pill subtle">IDENTIFY YOUR ITEM</span>
+          <span className="pill">Choose a model</span>
           <button
             className="icon-button"
             aria-label="Close model choices"
             onClick={onClose}
           >
-            <X size={21} />
+            <X aria-hidden="true" />
           </button>
         </div>
         <h2 id="model-dialog-title">Which one is yours?</h2>

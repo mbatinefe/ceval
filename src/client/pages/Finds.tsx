@@ -11,6 +11,7 @@ import {
   Camera,
   Trash2,
   LoaderCircle,
+  RotateCw,
 } from "lucide-react";
 import { formatPrice, type SavedFind } from "../../shared/demo";
 import { api, ApiError } from "../lib/api";
@@ -21,6 +22,7 @@ import {
   type Market,
   type Product,
 } from "../../shared/scan";
+import { Price } from "../components/Price";
 import { ProductDialog } from "../components/ProductDialog";
 import { ModelChoiceDialog } from "../components/ModelChoiceDialog";
 import type { ScanHistoryEntry } from "../../shared/history";
@@ -38,6 +40,7 @@ export function Finds() {
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<SavedFind | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const [confirmClear, setConfirmClear] = useState(false);
   const [choosing, setChoosing] = useState<ScanHistoryEntry | null>(null);
   const [selectedMarkets, setSelectedMarkets] = useState<
     Record<string, Market>
@@ -220,19 +223,21 @@ export function Finds() {
       setBusy(null);
     }
   }
+  const dateTime = (time: number) =>
+    new Date(time).toLocaleString(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
   return (
     <main className="content-page app-wrap">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">YOUR SCANS</span>
-          <h1>
-            Your finds<span className="accent">.</span>
-          </h1>
-          <p>Recent products and photos, remembered as you scan.</p>
+          <h1>Your finds</h1>
+          <p>
+            Products you’ve scanned and the prices Ceval found. The latest 100
+            are kept with their photos.
+          </p>
         </div>
-        <a className="button dark small" href="/app">
-          Back to scanning <ArrowUpRight size={16} />
-        </a>
       </div>
       {error && (
         <div className="history-error">
@@ -250,7 +255,7 @@ export function Finds() {
       )}
       {loading ? (
         <div className="empty-state">
-          <LoaderCircle className="spin" />
+          <LoaderCircle className="spin" aria-hidden="true" />
           <p>Gathering your finds…</p>
         </div>
       ) : history.length || finds.length || comparisons.length ? (
@@ -261,20 +266,8 @@ export function Finds() {
               aria-labelledby="history-heading"
             >
               <div className="history-heading">
-                <div>
-                  <h2 id="history-heading">Recent scans</h2>
-                  <p className="finds-summary">
-                    {history.length} recent finds · Up to 100 remembered
-                    automatically.
-                  </p>
-                </div>
-                <button
-                  className="button dark small"
-                  disabled={busy !== null}
-                  onClick={() => removeHistory()}
-                >
-                  <Trash2 size={15} /> Clear scan history
-                </button>
+                <h2 id="history-heading">Recent scans</h2>
+                <p className="finds-summary">{history.length} of 100</p>
               </div>
               <div className="finds-grid">
                 {history.map((entry) => {
@@ -294,12 +287,14 @@ export function Finds() {
                     comparison?.market;
                   const searching = busy === `search:${entry.id}`;
                   const hasCandidates = Boolean(product.candidates?.length);
+                  const canSearch = hasCandidates || !uncertain;
+                  const canRefresh = Boolean(comparison) && !hasCandidates;
                   const source =
                     entry.source === "sample"
-                      ? "SIMULATED SAMPLE"
+                      ? "Simulated sample"
                       : entry.source === "video"
-                        ? "YOUR VIDEO"
-                        : "CAMERA";
+                        ? "Your video"
+                        : "Camera";
                   return (
                     <article className="find-card history-card" key={entry.id}>
                       <div className="find-art history-photo">
@@ -311,25 +306,16 @@ export function Finds() {
                           />
                         ) : (
                           <div className="history-no-photo">
-                            <Camera size={28} />
+                            <Camera aria-hidden="true" />
                             <span>Photo unavailable</span>
                           </div>
                         )}
-                        <span className="pill">{source}</span>
                       </div>
                       <div className="find-card-body">
                         <small>{product.brand || "Unidentified brand"}</small>
                         <h2>{product.model || product.label}</h2>
                         {product.variant && (
                           <p className="history-variant">{product.variant}</p>
-                        )}
-                        {!comparison && (
-                          <time
-                            className="history-time"
-                            dateTime={new Date(entry.updatedAt).toISOString()}
-                          >
-                            Updated {new Date(entry.updatedAt).toLocaleString()}
-                          </time>
                         )}
                         {(!summary || searching) && (
                           <p className="history-result">
@@ -338,7 +324,7 @@ export function Finds() {
                               : uncertain
                                 ? hasCandidates
                                   ? "Choose your model to search prices."
-                                  : "Model unconfirmed · search by photo to find matches."
+                                  : "Model unconfirmed. Search by photo to find matches."
                                 : comparison
                                   ? comparison.offers.length
                                     ? `${comparison.offers.length} sourced listings`
@@ -350,13 +336,7 @@ export function Finds() {
                         )}
                         {summary && (
                           <div className="history-price">
-                            <strong>
-                              {formatPrice(
-                                summary.offer.priceMinor,
-                                summary.offer.currency,
-                              )}
-                            </strong>
-                            <span>
+                            <small className="price-label">
                               {summary.offer.kind === "asking"
                                 ? "Asking price"
                                 : summary.offer.kind === "sold"
@@ -365,78 +345,110 @@ export function Finds() {
                                       "cited_summary"
                                     ? "Search-reported retail price"
                                     : "Retail price"}
-                            </span>
+                            </small>
+                            <Price
+                              minor={summary.offer.priceMinor}
+                              currency={summary.offer.currency}
+                            />
                             {summary.qualification && (
-                              <small>{summary.qualification}</small>
+                              <span>{summary.qualification}</span>
                             )}
                           </div>
-                        )}
-                        {comparison && (
-                          <p className="history-time">
-                            Checked{" "}
-                            {new Date(comparison.checkedAt).toLocaleString()}
-                            {comparison.expiresAt <= Date.now()
-                              ? " · Saved price, may have changed"
-                              : ""}
-                          </p>
                         )}
                         {product.shelfPriceMinor !== null &&
                           product.shelfCurrency && (
                             <p className="history-shelf">
-                              Observed shelf label:{" "}
+                              Shelf label{" "}
                               {formatPrice(
                                 product.shelfPriceMinor,
                                 product.shelfCurrency,
                               )}
                             </p>
                           )}
-                        {!entry.market &&
-                          !comparison?.market &&
-                          (hasCandidates || !uncertain) && (
-                            <label className="history-market">
-                              Shopping market
-                              <select
-                                value={selectedMarkets[entry.id] ?? ""}
-                                onChange={(event) =>
-                                  setSelectedMarkets((values) => ({
-                                    ...values,
-                                    [entry.id]: event.target.value as Market,
-                                  }))
-                                }
-                                disabled={busy !== null}
-                              >
-                                <option value="" disabled>
-                                  Choose a market
-                                </option>
-                                {Object.entries(markets).map(
-                                  ([code, value]) => (
-                                    <option key={code} value={code}>
-                                      {value.name}
-                                    </option>
-                                  ),
-                                )}
-                              </select>
-                            </label>
+                        <p className="history-time">
+                          {source} ·{" "}
+                          {comparison ? (
+                            <time
+                              dateTime={new Date(
+                                comparison.checkedAt,
+                              ).toISOString()}
+                            >
+                              Checked {dateTime(comparison.checkedAt)}
+                            </time>
+                          ) : (
+                            <time
+                              dateTime={new Date(entry.updatedAt).toISOString()}
+                            >
+                              Updated {dateTime(entry.updatedAt)}
+                            </time>
                           )}
-                        {entry.thumbnailUrl && (
+                          {comparison && comparison.expiresAt <= Date.now()
+                            ? " · saved price, may have changed"
+                            : ""}
+                        </p>
+                        {!entry.market && !comparison?.market && canSearch && (
+                          <label className="history-market">
+                            Shopping market
+                            <select
+                              value={selectedMarkets[entry.id] ?? ""}
+                              onChange={(event) =>
+                                setSelectedMarkets((values) => ({
+                                  ...values,
+                                  [entry.id]: event.target.value as Market,
+                                }))
+                              }
+                              disabled={busy !== null}
+                            >
+                              <option value="" disabled>
+                                Choose a market
+                              </option>
+                              {Object.entries(markets).map(([code, value]) => (
+                                <option key={code} value={code}>
+                                  {value.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        )}
+                      </div>
+                      <button
+                        className="icon-button find-remove"
+                        aria-label={`Remove scan of ${product.model || product.label}`}
+                        disabled={busy !== null}
+                        onClick={() => removeHistory(entry.id)}
+                      >
+                        {busy === `history:${entry.id}` ? (
+                          <LoaderCircle className="spin" aria-hidden="true" />
+                        ) : (
+                          <Trash2 aria-hidden="true" />
+                        )}
+                      </button>
+                      <div className="find-actions">
+                        {comparison && (
                           <button
-                            className="button dark small history-search"
-                            disabled={busy !== null}
-                            onClick={() => showMatches(entry)}
+                            className="find-action primary-action"
+                            onClick={() =>
+                              setSelectedComparison({
+                                ...comparison,
+                                saved: comparisons.some(
+                                  (saved) => saved.id === comparison.id,
+                                ),
+                              })
+                            }
                           >
-                            {entry.visualSearch
-                              ? "View photo matches"
-                              : "Find image matches"}
-                            <ArrowUpRight size={15} />
+                            {comparison.offers.length
+                              ? comparison.mode === "buy"
+                                ? "View prices"
+                                : "View listings"
+                              : comparison.sources?.length
+                                ? "See product pages"
+                                : "Search options"}
+                            <ArrowUpRight aria-hidden="true" />
                           </button>
                         )}
-                        {(hasCandidates || !uncertain) && (
+                        {canSearch && !canRefresh && (
                           <button
-                            className={
-                              comparison
-                                ? "text-link history-search secondary-search"
-                                : "button dark small history-search"
-                            }
+                            className={`find-action${comparison ? "" : " primary-action"}`}
                             disabled={busy !== null || !market}
                             onClick={() =>
                               hasCandidates
@@ -446,70 +458,104 @@ export function Finds() {
                           >
                             {searching ? (
                               <>
-                                <LoaderCircle className="spin" size={14} />{" "}
+                                <LoaderCircle
+                                  className="spin"
+                                  aria-hidden="true"
+                                />
                                 Searching…
                               </>
                             ) : hasCandidates ? (
                               "Choose model"
-                            ) : comparison ? (
-                              "Refresh prices"
                             ) : (
                               "Search prices"
                             )}
                           </button>
                         )}
-                        <div className="find-actions">
-                          {comparison ? (
-                            <button
-                              onClick={() =>
-                                setSelectedComparison({
-                                  ...comparison,
-                                  saved: comparisons.some(
-                                    (saved) => saved.id === comparison.id,
-                                  ),
-                                })
-                              }
-                            >
-                              {comparison.offers.length
-                                ? "View prices"
-                                : comparison.sources?.length
-                                  ? "See product pages"
-                                  : "Search options"}{" "}
-                              <ArrowUpRight size={16} />
-                            </button>
-                          ) : (
-                            <a className="text-link" href="/app">
-                              Scan again <ArrowUpRight size={16} />
-                            </a>
-                          )}
+                        {entry.thumbnailUrl && (
+                          <button
+                            className={`find-action${comparison || canSearch ? "" : " primary-action"}`}
+                            disabled={busy !== null}
+                            onClick={() => showMatches(entry)}
+                          >
+                            {entry.visualSearch
+                              ? "Photo matches"
+                              : "Search by photo"}
+                          </button>
+                        )}
+                        {canSearch && canRefresh && (
                           <button
                             className="icon-button"
-                            aria-label={`Remove scan of ${product.model || product.label}`}
-                            disabled={busy !== null}
-                            onClick={() => removeHistory(entry.id)}
+                            aria-label="Refresh prices"
+                            title="Refresh prices"
+                            disabled={busy !== null || !market}
+                            onClick={() => searchHistory(entry)}
                           >
-                            {busy === `history:${entry.id}` ? (
-                              <LoaderCircle className="spin" size={17} />
+                            {searching ? (
+                              <LoaderCircle
+                                className="spin"
+                                aria-hidden="true"
+                              />
                             ) : (
-                              <Trash2 size={17} />
+                              <RotateCw aria-hidden="true" />
                             )}
                           </button>
-                        </div>
+                        )}
+                        {!comparison && !canSearch && !entry.thumbnailUrl && (
+                          <a className="text-link" href="/app">
+                            Scan again <ArrowUpRight aria-hidden="true" />
+                          </a>
+                        )}
                       </div>
                     </article>
                   );
                 })}
               </div>
+              {confirmClear ? (
+                <div className="confirm-delete">
+                  <p>
+                    Clear all {history.length} recent scans and their photos?
+                    This can’t be undone.
+                  </p>
+                  <div>
+                    <button
+                      className="button danger small"
+                      disabled={busy !== null}
+                      onClick={async () => {
+                        await removeHistory();
+                        setConfirmClear(false);
+                      }}
+                    >
+                      Clear scan history
+                    </button>
+                    <button
+                      className="text-button"
+                      disabled={busy !== null}
+                      onClick={() => setConfirmClear(false)}
+                    >
+                      Keep them
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  className="text-button"
+                  disabled={busy !== null}
+                  onClick={() => setConfirmClear(true)}
+                >
+                  <Trash2 aria-hidden="true" /> Clear scan history
+                </button>
+              )}
             </section>
           )}
           {(comparisons.length > 0 || finds.length > 0) && (
-            <h2 className="saved-finds-heading">Saved comparisons</h2>
-          )}
-          {(comparisons.length > 0 || finds.length > 0) && (
-            <p className="finds-summary">
-              {comparisons.length} saved comparisons
-              {finds.length ? ` · ${finds.length} earlier demo finds` : ""}
-            </p>
+            <>
+              <h2 className="saved-finds-heading">Saved comparisons</h2>
+              <p className="finds-summary">
+                {comparisons.length} saved{" "}
+                {comparisons.length === 1 ? "comparison" : "comparisons"}
+                {finds.length ? ` · ${finds.length} earlier demo finds` : ""}
+              </p>
+            </>
           )}
           {comparisons.length > 0 && (
             <div className="finds-grid">
@@ -517,8 +563,8 @@ export function Finds() {
                 <article className="comparison-find" key={comparison.id}>
                   <span className="eyebrow">
                     {comparison.mode === "buy"
-                      ? "ONLINE COMPARISON"
-                      : "RESALE LISTINGS"}
+                      ? "Online prices"
+                      : "Resale listings"}
                   </span>
                   <h2>
                     {comparison.product.brand} {comparison.product.model}
@@ -529,8 +575,11 @@ export function Finds() {
                     {new Date(comparison.checkedAt).toLocaleDateString()}
                   </p>
                   <div className="find-actions">
-                    <button onClick={() => setSelectedComparison(comparison)}>
-                      Review sources <ArrowUpRight size={16} />
+                    <button
+                      className="find-action primary-action"
+                      onClick={() => setSelectedComparison(comparison)}
+                    >
+                      Review sources <ArrowUpRight aria-hidden="true" />
                     </button>
                     <button
                       className="icon-button"
@@ -554,36 +603,43 @@ export function Finds() {
                         }
                       }}
                     >
-                      <Trash2 size={17} />
+                      <Trash2 aria-hidden="true" />
                     </button>
                   </div>
                 </article>
               ))}
             </div>
           )}
-          <div className="finds-grid">
-            {finds.map((find) => (
-              <article className="find-card" key={find.id}>
-                <div className={`find-art art-${find.product.id}`}>
-                  <img
-                    src="/demo/electronics-shelf.png"
-                    alt={`${find.product.brand} ${find.product.model} in the sample scene`}
-                  />
-                  <span className="pill">DEMO FIND</span>
-                </div>
-                <div className="find-card-body">
-                  <small>
-                    {find.product.brand} ·{" "}
-                    {find.mode === "buy" ? "Buy cheaper" : "Resale value"}
-                  </small>
-                  <h2>{find.product.model}</h2>
-                  <div className="find-price">
-                    <strong>{formatPrice(find.product.storePriceMinor)}</strong>
-                    <span>Example shelf price</span>
+          {finds.length > 0 && (
+            <div className="finds-grid">
+              {finds.map((find) => (
+                <article className="find-card" key={find.id}>
+                  <div className={`find-art art-${find.product.id}`}>
+                    <img
+                      src="/demo/electronics-shelf.png"
+                      alt={`${find.product.brand} ${find.product.model} in the sample scene`}
+                    />
+                    <span className="pill">Demo find</span>
+                  </div>
+                  <div className="find-card-body">
+                    <small>
+                      {find.product.brand} ·{" "}
+                      {find.mode === "buy" ? "Buy cheaper" : "Resale value"}
+                    </small>
+                    <h2>{find.product.model}</h2>
+                    <div className="find-price">
+                      <strong>
+                        {formatPrice(find.product.storePriceMinor)}
+                      </strong>
+                      <span>Example shelf price</span>
+                    </div>
                   </div>
                   <div className="find-actions">
-                    <button onClick={() => setSelected(find)}>
-                      Look closer <ArrowUpRight size={16} />
+                    <button
+                      className="find-action primary-action"
+                      onClick={() => setSelected(find)}
+                    >
+                      Look closer <ArrowUpRight aria-hidden="true" />
                     </button>
                     <button
                       className="icon-button"
@@ -592,31 +648,30 @@ export function Finds() {
                       aria-label={`Remove ${find.product.model}`}
                     >
                       {busy === find.id ? (
-                        <LoaderCircle className="spin" size={17} />
+                        <LoaderCircle className="spin" aria-hidden="true" />
                       ) : (
-                        <Trash2 size={17} />
+                        <Trash2 aria-hidden="true" />
                       )}
                     </button>
                   </div>
-                </div>
-              </article>
-            ))}
-          </div>
+                </article>
+              ))}
+            </div>
+          )}
         </>
       ) : (
         !error && (
           <div className="empty-state">
             <span className="empty-icon">
-              <Bookmark size={32} />
+              <Bookmark aria-hidden="true" />
             </span>
-            <h2>No finds yet.</h2>
+            <h2>No finds yet</h2>
             <p>
-              Products and their photos appear here as you scan.
-              <br />
-              It’ll be waiting right here when you come back.
+              Products and their photos appear here as you scan, and stay here
+              when you come back.
             </p>
             <a href="/app" className="button primary">
-              Open scanner <ArrowUpRight size={18} />
+              Open scanner <ArrowUpRight aria-hidden="true" />
             </a>
           </div>
         )
