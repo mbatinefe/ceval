@@ -20,6 +20,7 @@ export function ScanResultCard({
   onChoose,
   onReview,
   onRetry,
+  onVisual,
 }: {
   row: FoundProduct;
   compact?: boolean;
@@ -29,6 +30,7 @@ export function ScanResultCard({
   onChoose: () => void;
   onReview: (comparison: Comparison) => void;
   onRetry?: () => void;
+  onVisual?: () => void;
 }) {
   const summary = offerSummary(row.comparison);
   const needsModel = !row.comparison && Boolean(row.product.candidates?.length);
@@ -83,6 +85,17 @@ export function ScanResultCard({
             : ""}
         </p>
       )}
+      {row.visualSearching && (
+        <p className="searching-price">
+          <LoaderCircle size={14} className="spin" />
+          Finding matches from your photo…
+        </p>
+      )}
+      {row.visualSearch?.candidates.length ? (
+        <p className="result-note">
+          {row.visualSearch.candidates.length} photo matches · model unconfirmed
+        </p>
+      ) : null}
       {row.searching || row.selecting ? (
         <p className="searching-price">
           <LoaderCircle size={14} className="spin" />
@@ -98,7 +111,7 @@ export function ScanResultCard({
         </p>
       ) : needsModel ? (
         <p className="result-note">
-          Choose your model. We’ll search prices automatically.
+          Compare photo matches or choose a model to search prices.
         </p>
       ) : (
         !summary && (
@@ -108,7 +121,7 @@ export function ScanResultCard({
                 ? "Product pages found. Confirm the model and price with the seller."
                 : "No verified price yet. Check listings or show the model label."
               : unidentified
-                ? "Show the model label for a reliable match."
+                ? "Search by photo or show the model label."
                 : "Ready to compare."}
           </p>
         )
@@ -131,7 +144,17 @@ export function ScanResultCard({
         </p>
       )}
       <div className="find-actions">
-        {unidentified && !needsModel && !row.searching && (
+        {onVisual && row.thumbnail && (
+          <button className="find-action primary-action" onClick={onVisual}>
+            {row.visualSearching
+              ? "See image search"
+              : row.visualSearch
+                ? "View photo matches"
+                : "Find image matches"}
+            <ChevronRight size={15} />
+          </button>
+        )}
+        {unidentified && !needsModel && !row.searching && !onVisual && (
           <a
             className="find-action"
             href={`https://www.google.com/search?${new URLSearchParams({ q: [row.product.brand, row.product.label, row.product.variant].filter(Boolean).join(" ") })}`}

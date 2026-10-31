@@ -1,3 +1,9 @@
+import { VisualMatchesDialog } from "../components/VisualMatchesDialog";
+import {
+  visualSearchForMarket,
+  type VisualSearch,
+} from "../../shared/visual-search";
+import { scanRequest } from "../scanner/media";
 import { useEffect, useState } from "react";
 import {
   ArrowUpRight,
@@ -20,6 +26,8 @@ import { ModelChoiceDialog } from "../components/ModelChoiceDialog";
 import type { ScanHistoryEntry } from "../../shared/history";
 import { offerSummary } from "../scanner/presentation";
 export function Finds() {
+  const [visualEntry, setVisualEntry] = useState<ScanHistoryEntry | null>(null);
+  const [visualError, setVisualError] = useState("");
   const [history, setHistory] = useState<ScanHistoryEntry[]>([]);
   const [comparisons, setComparisons] = useState<Comparison[]>([]);
   const [selectedComparison, setSelectedComparison] =
@@ -89,7 +97,10 @@ export function Finds() {
   }
   async function searchHistory(entry: ScanHistoryEntry, candidateKey?: string) {
     const market =
-      selectedMarkets[entry.id] ?? entry.market ?? entry.comparison?.market;
+      selectedMarkets[entry.id] ??
+      entry.market ??
+      entry.comparison?.market ??
+      "US";
     if (!market) return;
     setBusy(`search:${entry.id}`);
     setError("");
@@ -137,6 +148,49 @@ export function Finds() {
     } finally {
       setBusy(null);
     }
+  }
+  async function searchImage(entry: ScanHistoryEntry) {
+    setBusy(`visual:${entry.id}`);
+    setVisualError("");
+    try {
+      const visualSearch = await scanRequest<VisualSearch>(
+        "/api/scan/visual-matches",
+        {
+          productId: entry.product.id,
+          market: selectedMarkets[entry.id] ?? entry.market ?? "US",
+        },
+        new AbortController().signal,
+      );
+      setHistory((rows) =>
+        rows.map((row) =>
+          row.id === entry.id && row.product.id === entry.product.id
+            ? { ...row, visualSearch }
+            : row,
+        ),
+      );
+      setVisualEntry((current) =>
+        current?.id === entry.id && current.product.id === entry.product.id
+          ? { ...current, visualSearch }
+          : current,
+      );
+    } catch (error) {
+      setVisualError(
+        error instanceof Error
+          ? error.message
+          : "Image search could not finish.",
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+  function showMatches(entry: ScanHistoryEntry) {
+    setVisualError("");
+    const result = visualSearchForMarket(
+      entry.visualSearch,
+      selectedMarkets[entry.id] ?? entry.market ?? "US",
+    );
+    setVisualEntry({ ...entry, visualSearch: result });
+    if (!result) void searchImage(entry);
   }
   async function removeHistory(id?: string) {
     setBusy(id ? `history:${id}` : "history:all");
@@ -284,7 +338,7 @@ export function Finds() {
                               : uncertain
                                 ? hasCandidates
                                   ? "Choose your model to search prices."
-                                  : "Model unconfirmed · show the label for a clearer match."
+                                  : "Model unconfirmed · search by photo to find matches."
                                 : comparison
                                   ? comparison.offers.length
                                     ? `${comparison.offers.length} sourced listings`
@@ -364,6 +418,18 @@ export function Finds() {
                               </select>
                             </label>
                           )}
+                        {entry.thumbnailUrl && (
+                          <button
+                            className="button dark small history-search"
+                            disabled={busy !== null}
+                            onClick={() => showMatches(entry)}
+                          >
+                            {entry.visualSearch
+                              ? "View photo matches"
+                              : "Find image matches"}
+                            <ArrowUpRight size={15} />
+                          </button>
+                        )}
                         {(hasCandidates || !uncertain) && (
                           <button
                             className={
@@ -559,6 +625,22 @@ export function Finds() {
         <ComparisonDialog
           comparison={selectedComparison}
           onClose={() => setSelectedComparison(null)}
+        />
+      )}
+      {visualEntry && (
+        <VisualMatchesDialog
+          product={visualEntry.product}
+          photo={visualEntry.thumbnailUrl}
+          result={visualEntry.visualSearch}
+          searching={busy === `visual:${visualEntry.id}`}
+          error={visualError}
+          mode={visualEntry.mode}
+          onSearch={() => void searchImage(visualEntry)}
+          onChoose={(key) => {
+            setVisualEntry(null);
+            void searchHistory(visualEntry, key);
+          }}
+          onClose={() => setVisualEntry(null)}
         />
       )}
       {choosing && (

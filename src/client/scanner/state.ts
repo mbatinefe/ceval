@@ -41,6 +41,10 @@ export function interruptFinds(rows: FoundProduct[]): FoundProduct[] {
         : {}),
     searching: false,
     selecting: false,
+    visualSearching: false,
+    ...(row.visualSearching
+      ? { visualError: "Image search paused. Try again when ready." }
+      : {}),
   }));
 }
 export function completionMessage(

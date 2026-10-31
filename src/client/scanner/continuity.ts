@@ -1,3 +1,4 @@
+import type { VisualSearch } from "../../shared/visual-search.ts";
 import type {
   Box,
   Comparison,
@@ -17,6 +18,9 @@ export type FoundProduct = {
   thumbnail?: string;
   product: Product;
   comparison?: Comparison;
+  visualSearch?: VisualSearch;
+  visualSearching?: boolean;
+  visualError?: string;
   error?: string;
   errorCode?: string;
   retryable?: boolean;
@@ -441,6 +445,13 @@ function keepSnapshot(row: FoundProduct, incoming: Product) {
     row.product.shelfCurrency !== incoming.shelfCurrency
   )
     return false;
+  // Physical continuity was established before this choice. Retain the photo's
+  // server snapshot while its search is pending, cached, or awaiting a retry.
+  if (
+    !exact(incoming) &&
+    (row.visualSearching || row.visualSearch || row.visualError)
+  )
+    return true;
   if (exact(row.product) && !exact(incoming)) return true;
   return (
     exact(row.product) &&

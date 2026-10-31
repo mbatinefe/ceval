@@ -1,3 +1,4 @@
+import { VisualMatchesDialog } from "../components/VisualMatchesDialog";
 import { useRef, useState } from "react";
 import {
   Camera,
@@ -29,15 +30,18 @@ import { isAllowanceError } from "../scanner/state";
 import { useScanner, type FoundProduct } from "../scanner/useScanner";
 import { clips } from "../../../public/demo/manifest.json";
 export function Scanner() {
+  const rowKey = (row: FoundProduct) => row.rowId || row.product.id;
+
   const [mode, setMode] = useState<Mode>("buy"),
     [market, setMarket] = useState<Market>("US"),
     [selected, setSelected] = useState<Comparison | null>(null);
   const upload = useRef<HTMLInputElement>(null),
     scan = useScanner(mode, market);
   const [focusedKey, setFocusedKey] = useState<string | null>(null);
+  const [visualKey, setVisualKey] = useState<string | null>(null);
+  const visual = scan.found.find((row) => rowKey(row) === visualKey);
   const [choiceKey, setChoiceKey] = useState<string | null>(null);
   const resumeAfterDetails = useRef(false);
-  const rowKey = (row: FoundProduct) => row.rowId || row.product.id;
   const focused =
     scan.found.find((row) => rowKey(row) === focusedKey) ||
     scan.found.find((row) =>
@@ -57,6 +61,7 @@ export function Scanner() {
   function closeDetails() {
     setSelected(null);
     setChoiceKey(null);
+    setVisualKey(null);
     if (resumeAfterDetails.current && scan.running)
       void scan.video.current?.play().catch(() => {
         scan.setError("Tap the video to resume playback.");
@@ -71,8 +76,16 @@ export function Scanner() {
     pauseForDetails();
     setChoiceKey(rowKey(row));
   }
+  function showMatches(row: FoundProduct) {
+    pauseForDetails();
+    setVisualKey(rowKey(row));
+    if (!row.visualSearch && !row.visualSearching)
+      scan.searchImage(row.product.id, row.rowId);
+  }
   const needsLabel = (row: FoundProduct) =>
     !row.comparison &&
+    !row.visualSearching &&
+    !row.visualSearch?.candidates.length &&
     !row.product.candidates?.length &&
     (!row.product.model ||
       (row.product.confidence < 0.85 &&
@@ -129,6 +142,7 @@ export function Scanner() {
           .querySelector(".current-find")
           ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
       }}
+      onVisual={() => showMatches(row)}
       onChoose={() => choose(row)}
       onReview={review}
       onRetry={
@@ -209,7 +223,8 @@ export function Scanner() {
       </div>
       {!scan.source && (
         <p className="source-consent">
-          Frames go to Meta. Small product photos are saved to your finds.
+          Frames go to Meta. Product crops go to SerpApi for image search and
+          are saved to your finds.
         </p>
       )}
       {(scan.cameraPending || scan.cameraProblem) && (
@@ -470,6 +485,7 @@ export function Scanner() {
                     ? "SELECTED FIND"
                     : "RECENT FIND"
               }
+              onVisual={() => showMatches(focused)}
               onChoose={() => choose(focused)}
               onReview={review}
               onRetry={
@@ -496,7 +512,8 @@ export function Scanner() {
             <p>
               Up to 150 MB · 10 minutes. Choosing a source starts scanning when
               it is ready. Your full video stays on this device; selected frames
-              go to Meta for analysis. Small cropped product photos are saved
+              go to Meta for analysis. Product crops go to SerpApi for Google
+              Lens image search. Small cropped product photos are saved
               privately to your account with your latest 100 finds. Delete them
               anytime in Your finds.
             </p>
@@ -601,6 +618,22 @@ export function Scanner() {
           ))}
         </div>
       </details>
+      {visual && (
+        <VisualMatchesDialog
+          product={visual.product}
+          photo={visual.thumbnail}
+          result={visual.visualSearch}
+          searching={visual.visualSearching}
+          error={visual.visualError}
+          mode={mode}
+          onSearch={() => scan.searchImage(visual.product.id, visual.rowId)}
+          onChoose={(key) => {
+            scan.selectModel(visual.product.id, key, visual.rowId);
+            closeDetails();
+          }}
+          onClose={closeDetails}
+        />
+      )}
       {choice && (
         <ModelChoiceDialog
           product={choice.product}

@@ -25,7 +25,7 @@ export async function productPhotos(frame: string, products: Product[]) {
       (b.height + 2 * margin) * image.naturalHeight,
     );
     if (width <= 0 || height <= 0) continue;
-    const scale = Math.min(1, 256 / Math.max(width, height));
+    const scale = Math.min(1, 512 / Math.max(width, height));
     const canvas = document.createElement("canvas");
     canvas.width = Math.max(1, Math.round(width * scale));
     canvas.height = Math.max(1, Math.round(height * scale));
@@ -42,7 +42,7 @@ export async function productPhotos(frame: string, products: Product[]) {
       canvas.width,
       canvas.height,
     );
-    for (const quality of [0.75, 0.5, 0.3]) {
+    for (const quality of [0.8, 0.6, 0.4, 0.25]) {
       const photo = canvas.toDataURL("image/jpeg", quality);
       if (
         photo.startsWith("data:image/jpeg;base64,") &&

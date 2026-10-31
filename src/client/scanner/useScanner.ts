@@ -1,3 +1,5 @@
+import type { VisualSearch } from "../../shared/visual-search";
+import { visualSearchNeeded, visualResultMatches } from "./visual-search";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   Comparison,
@@ -542,6 +544,86 @@ export function useScanner(mode: Mode, market: Market) {
         retryable: true,
       });
   }
+  function searchImage(productId: string, rowId?: string, manual = true) {
+    const row = findActionRow(resultsRef.current, productId, rowId);
+    if (!row || row.visualSearching || row.selecting || !row.thumbnail) return;
+    if (
+      !manual &&
+      !visualSearchNeeded(
+        row,
+        market,
+        Boolean(capabilities?.visualSearchAvailable),
+      )
+    )
+      return;
+    const epoch = generation.current;
+    const update = (patch: Partial<FoundProduct>) => {
+      if (epoch !== generation.current) return;
+      updateResults(
+        resultsRef.current.map((item) =>
+          item.rowId === row.rowId && item.product.id === productId
+            ? { ...item, ...patch }
+            : item,
+        ),
+      );
+    };
+    if (!capabilities?.visualSearchAvailable) {
+      update({
+        visualError:
+          "Image search is not connected yet. You can still scan labels and search known models.",
+      });
+      return;
+    }
+    update({ visualSearching: true, visualError: undefined });
+    const queued = work.compare(
+      `visual:${productId}:${market}`,
+      async (signal) => {
+        try {
+          if (!row.historyId || !sourceRef.current)
+            throw new Error("Save this find before searching its photo.");
+          await scanRequest(
+            "/api/scan/history",
+            {
+              id: row.historyId,
+              productId,
+              source: sourceRef.current,
+              mode,
+              thumbnail: row.thumbnail,
+            },
+            signal,
+          );
+          if (epoch !== generation.current || signal.aborted) return;
+          const result = await scanRequest<VisualSearch>(
+            "/api/scan/visual-matches",
+            { productId, market, image: row.thumbnail },
+            signal,
+          );
+          if (!visualResultMatches(row, result, market))
+            throw new Error(
+              "This result belongs to a different item. Scan again.",
+            );
+          update({
+            visualSearch: result,
+            visualSearching: false,
+            visualError: undefined,
+          });
+        } catch (error) {
+          update({
+            visualSearching: false,
+            visualError:
+              error instanceof Error
+                ? error.message
+                : "Image search could not finish. Try again.",
+          });
+        }
+      },
+    );
+    if (!queued)
+      update({
+        visualSearching: false,
+        visualError: "Image search queue is full. Try again shortly.",
+      });
+  }
   function retryComparison(productId: string, rowId?: string) {
     const row = findActionRow(resultsRef.current, productId, rowId);
     if (!row || row.searching || row.selecting) return;
@@ -668,7 +750,10 @@ export function useScanner(mode: Mode, market: Market) {
           const currentRow = resultsRef.current.find(
             (item) => item.rowId === row.rowId,
           );
-          if (currentRow) queueComparison(currentRow);
+          if (currentRow) {
+            queueComparison(currentRow);
+            searchImage(currentRow.product.id, currentRow.rowId, false);
+          }
         }
         if (epoch === generation.current && !finished.current)
           setMessage(
@@ -819,6 +904,9 @@ export function useScanner(mode: Mode, market: Market) {
               ? {
                   ...item,
                   product,
+                  visualSearch: undefined,
+                  visualSearching: false,
+                  visualError: undefined,
                   comparison: undefined,
                   selecting: false,
                   searching: false,
@@ -922,6 +1010,7 @@ export function useScanner(mode: Mode, market: Market) {
     start,
     selectModel,
     retryComparison,
+    searchImage,
     stopAnalysis: () => {
       stopAnalysis();
       setMessage("Scanning stopped. Your completed finds are kept.");

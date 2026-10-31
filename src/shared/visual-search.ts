@@ -25,3 +25,10 @@ export type VisualSearch = {
   ranking: "meta" | "unavailable" | "no_matches";
 };
 export const visualCandidateKey = (id: string) => `visual:${id}`;
+
+export function visualSearchForMarket(
+  result: VisualSearch | undefined,
+  market: Market,
+) {
+  return result?.market === market ? result : undefined;
+}
