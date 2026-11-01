@@ -1,250 +1,636 @@
-import { useEffect, useState } from "react";
-import { ArrowUpRight } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { Brand, BrandMark } from "../components/Brand";
 import { useThemeColor } from "../lib/theme-color";
 import "../styles/landing.css";
 
-function Price({
-  value,
-  className = "",
-}: {
-  value: string;
-  className?: string;
-}) {
-  const [whole, cents = "00"] = value.split(".");
+const STAGE = "#121211";
+const SHELF = "#f3f3f0";
+
+// How long the hero label holds each state, in milliseconds.
+const SHELF_HOLD = 1700;
+const LOCK_HOLD = 560;
+const ANSWER_HOLD = 3200;
+
+const prefersReducedMotion = () =>
+  typeof window !== "undefined" &&
+  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+type Answer = {
+  id: string;
+  tab: string;
+  question: string;
+  kicker: string;
+  value: { kind: "price" | "range" | "text"; text: string };
+  meta: string;
+  was?: string;
+  note: string;
+  body: string;
+};
+
+const product = {
+  aisle: "Aisle 14 · Audio",
+  name: "Wireless headphones",
+  meta: "Over-ear · Black",
+  code: "0 49738 21904",
+  shelf: "249.00",
+};
+
+const answers: Answer[] = [
+  {
+    id: "model",
+    tab: "What is it?",
+    question: "What is it, exactly?",
+    kicker: "Exact model",
+    value: { kind: "text", text: "Gen 2" },
+    meta: "Over-ear · Black",
+    note: "Matched by box and photo",
+    body: "Ceval reads the box, the label or the product itself to find the exact model and variant. When two models look alike, it shows photos and asks which one you have.",
+  },
+  {
+    id: "online",
+    tab: "Cheaper online?",
+    question: "Is it cheaper online?",
+    kicker: "Online from",
+    value: { kind: "price", text: "219.00" },
+    meta: "Same model · New",
+    was: "249.00",
+    note: "$30 less at 3 stores",
+    body: "Current offers for the same model at other stores, each with its condition and when it was checked. Item prices only, before shipping and tax.",
+  },
+  {
+    id: "used",
+    tab: "Worth used?",
+    question: "What’s it worth used?",
+    kicker: "Listed used",
+    value: { kind: "range", text: "140–175" },
+    meta: "Similar used listings",
+    note: "Asking prices, not sales",
+    body: "What similar used items are listed for on public marketplaces, for a flea-market find or something you want to sell. These are asking prices, not sales.",
+  },
+  {
+    id: "later",
+    tab: "Find it later?",
+    question: "Can I find it later?",
+    kicker: "In your finds",
+    value: { kind: "text", text: "Saved" },
+    meta: "Photo · Model · Prices",
+    note: "Delete it any time",
+    body: "Everything you scan is kept in Finds with its photo and prices, so you can compare later. Delete one or all of them at any time.",
+  },
+];
+
+function Value({ value }: { value: Answer["value"] }) {
+  if (value.kind === "text")
+    return <span className="lp-val lp-val-text">{value.text}</span>;
+  const [whole, cents] = value.text.split(".");
   return (
-    <span className={`lp-price ${className}`.trim()}>
-      <span className="lp-sr-only">${value}</span>
-      <span className="lp-price-cur" aria-hidden="true">
-        $
-      </span>
-      <span className="lp-price-whole" aria-hidden="true">
-        {whole}
-      </span>
-      <span className="lp-price-cents" aria-hidden="true">
-        {cents}
-      </span>
+    <span className={`lp-val lp-val-${value.kind}`}>
+      <span className="lp-val-cur">$</span>
+      {whole}
+      {cents ? <span className="lp-val-cents">{cents}</span> : null}
     </span>
   );
 }
 
-const barcode = [
+const bars = [
   2, 1, 1, 2, 3, 1, 1, 1, 2, 2, 1, 3, 1, 1, 2, 1, 1, 2, 2, 1, 3, 1, 1, 2, 1, 1,
   1, 3, 2, 1, 1, 2, 1, 1, 3, 1, 2, 1, 1, 2,
 ];
 
-function Barcode({ className = "lp-barcode" }: { className?: string }) {
+function Barcode() {
   let x = 0;
-  const bars = barcode.map((width, index) => {
-    const bar = index % 2 === 0 ? { x, width } : null;
+  const rects = bars.map((width, index) => {
+    const rect = index % 2 === 0 ? { x, width } : null;
     x += width;
-    return bar;
+    return rect;
   });
   return (
-    <svg
-      className={className}
-      viewBox={`0 0 ${x} 20`}
-      preserveAspectRatio="none"
-      aria-hidden="true"
-    >
-      {bars.map((bar, index) =>
-        bar ? (
-          <rect key={index} x={bar.x} y="0" width={bar.width} height="20" />
+    <svg viewBox={`0 0 ${x} 20`} preserveAspectRatio="none" aria-hidden="true">
+      {rects.map((rect, index) =>
+        rect ? (
+          <rect key={index} x={rect.x} y="0" width={rect.width} height="20" />
         ) : null,
       )}
     </svg>
   );
 }
 
-function Corners({ className }: { className: string }) {
+// The hero: an electronic shelf label. A viewfinder locks on, the e-ink
+// refreshes, and the label answers the four questions in turn.
+function HeroShelf() {
+  const [reduce] = useState(prefersReducedMotion);
+  const [step, setStep] = useState(reduce ? 1 : -1);
+  const [locked, setLocked] = useState(reduce);
+  const [auto, setAuto] = useState(!reduce);
+  const [inView, setInView] = useState(true);
+  const [flash, setFlash] = useState(0);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const labelRef = useRef<HTMLDivElement>(null);
+  const finderRef = useRef<HTMLSpanElement>(null);
+  const pending = useRef<number[]>([]);
+  const aim = useRef(() => {});
+
+  useEffect(() => {
+    const timers = pending.current;
+    return () => timers.forEach((id) => window.clearTimeout(id));
+  }, []);
+
+  // The screen flashes like e-ink, then shows the next state.
+  function swap(next: number) {
+    const apply = () => {
+      setStep(next);
+      if (next === -1) setLocked(false);
+    };
+    if (reduce) return apply();
+    setFlash((count) => count + 1);
+    pending.current.push(window.setTimeout(apply, 150));
+  }
+
+  function choose(index: number) {
+    setAuto(false);
+    setLocked(true);
+    if (index !== step) swap(index);
+  }
+
+  const playing = auto && inView;
+  useEffect(() => {
+    if (!playing) return;
+    const wait = step === -1 ? (locked ? LOCK_HOLD : SHELF_HOLD) : ANSWER_HOLD;
+    const id = window.setTimeout(() => {
+      if (step === -1 && !locked) return setLocked(true);
+      swap(step === answers.length - 1 ? -1 : step + 1);
+    }, wait);
+    return () => window.clearTimeout(id);
+  }, [playing, step, locked]);
+
+  // Pause while the label is off screen or the tab is hidden.
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    let visible = true;
+    const update = () => setInView(visible && !document.hidden);
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        visible = entry.isIntersecting;
+        update();
+      },
+      { threshold: 0.25 },
+    );
+    observer.observe(stage);
+    document.addEventListener("visibilitychange", update);
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("visibilitychange", update);
+    };
+  }, []);
+
+  useEffect(() => {
+    aim.current = () => {
+      if (auto && step === -1 && !locked) setLocked(true);
+    };
+  });
+
+  // With a mouse, the pointer becomes a viewfinder over the shelf.
+  useEffect(() => {
+    const stage = stageRef.current;
+    const label = labelRef.current;
+    const finder = finderRef.current;
+    if (!stage || !label || !finder || reduce) return;
+    if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches)
+      return;
+    let x = 0,
+      y = 0,
+      tx = 0,
+      ty = 0,
+      frame = 0,
+      shown = false;
+    const tick = () => {
+      x += (tx - x) * 0.3;
+      y += (ty - y) * 0.3;
+      finder.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+      frame =
+        Math.abs(tx - x) + Math.abs(ty - y) > 0.4
+          ? requestAnimationFrame(tick)
+          : 0;
+    };
+    const move = (event: PointerEvent) => {
+      if (event.pointerType !== "mouse") return;
+      tx = event.clientX - 22;
+      ty = event.clientY - 22;
+      if (!shown) {
+        x = tx;
+        y = ty;
+        shown = true;
+      }
+      const box = label.getBoundingClientRect();
+      const over =
+        event.clientX >= box.left &&
+        event.clientX <= box.right &&
+        event.clientY >= box.top &&
+        event.clientY <= box.bottom;
+      stage.dataset.finder = over ? "label" : "on";
+      if (over) aim.current();
+      if (!frame) frame = requestAnimationFrame(tick);
+    };
+    const leave = () => {
+      stage.dataset.finder = "off";
+      shown = false;
+    };
+    stage.addEventListener("pointermove", move);
+    stage.addEventListener("pointerleave", leave);
+    return () => {
+      stage.removeEventListener("pointermove", move);
+      stage.removeEventListener("pointerleave", leave);
+      cancelAnimationFrame(frame);
+    };
+  }, [reduce]);
+
+  const answer = step >= 0 ? answers[step] : null;
   return (
-    <span className={className} aria-hidden="true">
-      <i />
-      <i />
-      <i />
-      <i />
-    </span>
+    <>
+      <div className="lp-stage" ref={stageRef} data-finder="off">
+        <span className="lp-stage-rail" aria-hidden="true" />
+        <div
+          className={`lp-esl${answer ? " is-ceval" : ""}${locked ? " is-locked" : ""}`}
+          ref={labelRef}
+          aria-hidden="true"
+          onClick={() => choose(step >= answers.length - 1 ? 0 : step + 1)}
+        >
+          <div className="lp-esl-screen lp-eink">
+            <div
+              className={`lp-esl-face lp-esl-${answer?.value.kind ?? "price"}`}
+            >
+              <span className="lp-esl-q">
+                {answer ? answer.question : product.aisle}
+              </span>
+              <span className="lp-esl-brand">
+                <BrandMark /> ceval
+              </span>
+              <span className="lp-esl-name">
+                <strong>{product.name}</strong>
+                {answer?.was ? (
+                  <em className="lp-esl-was">
+                    Shelf <s key={step}>${answer.was}</s>
+                  </em>
+                ) : (
+                  <em>{answer ? answer.meta : product.meta}</em>
+                )}
+              </span>
+              <span className="lp-esl-value">
+                <small>{answer ? answer.kicker : "Shelf price"}</small>
+                <Value
+                  value={
+                    answer
+                      ? answer.value
+                      : { kind: "price", text: product.shelf }
+                  }
+                />
+              </span>
+              <span className="lp-esl-code">
+                <Barcode />
+                <small>{product.code}</small>
+              </span>
+              <span className="lp-esl-note">
+                {answer ? answer.note : "Point Ceval at the label"}
+              </span>
+            </div>
+            {flash > 0 ? <span className="lp-esl-flash" key={flash} /> : null}
+          </div>
+          <span className="lp-esl-led" />
+          <span className="lp-esl-lock">
+            <i />
+            <i />
+            <i />
+            <i />
+          </span>
+        </div>
+        <span className="lp-finder" ref={finderRef} aria-hidden="true">
+          <i />
+          <i />
+          <i />
+          <i />
+        </span>
+      </div>
+      <div
+        className="lp-tabs"
+        role="group"
+        aria-label="Questions Ceval answers"
+      >
+        {answers.map((item, index) => (
+          <button
+            type="button"
+            key={item.id}
+            className={`lp-tab${index < step ? " is-done" : ""}`}
+            aria-pressed={index === step}
+            data-playing={playing && index === step}
+            onClick={() => choose(index)}
+          >
+            <span className="lp-tab-bar">
+              <i key={index === step ? `on-${step}` : "off"} />
+            </span>
+            {item.tab}
+          </button>
+        ))}
+      </div>
+      <p className="lp-sr-only">
+        Example: wireless headphones with a shelf price of $249. Ceval
+        identifies the exact model, finds the same model online from $219, shows
+        similar used listings asking $140 to $175, and saves the scan to your
+        finds.
+      </p>
+    </>
   );
 }
 
-// An electronic shelf label that Ceval reads, then updates with its own price.
-function ShelfLabel() {
+function MiniLabel({ answer }: { answer: Answer }) {
   return (
-    <div className="lp-esl" aria-hidden="true">
-      <Corners className="lp-esl-corners" />
-      <div className="lp-esl-body">
-        <div className="lp-esl-screen">
-          <div className="lp-esl-face lp-esl-before">
-            <div className="lp-esl-head">
-              <strong>Wireless headphones</strong>
-              <span>Over-ear · Black</span>
-            </div>
-            <div className="lp-esl-foot">
-              <span className="lp-esl-code">
-                <Barcode />
-                <small>0 49738 21904</small>
-              </span>
-              <Price value="249.00" />
-            </div>
-          </div>
-          <div className="lp-esl-face lp-esl-after">
-            <div className="lp-esl-head">
-              <strong>Wireless headphones</strong>
-              <span className="lp-esl-mark">
-                <BrandMark /> ceval
-              </span>
-            </div>
-            <p className="lp-esl-sub">Same model · 3 offers online</p>
-            <div className="lp-esl-foot">
-              <span className="lp-esl-was">
-                <small>Shelf</small>
-                <s>$249.00</s>
-              </span>
-              <span className="lp-esl-now">
-                <small>Online from</small>
-                <Price value="219.00" />
-              </span>
-            </div>
-          </div>
-          <span className="lp-esl-flash" />
-        </div>
-        <span className="lp-esl-led" />
+    <div className="lp-mini" aria-hidden="true">
+      <div className="lp-mini-screen lp-eink">
+        <span className="lp-mini-kicker">{answer.kicker}</span>
+        <BrandMark className="lp-mini-mark" />
+        <span className={`lp-mini-value lp-mini-${answer.value.kind}`}>
+          <Value value={answer.value} />
+        </span>
+        <span className="lp-mini-meta">
+          {answer.was ? (
+            <>
+              Shelf <s>${answer.was}</s>
+            </>
+          ) : (
+            answer.meta
+          )}
+        </span>
       </div>
     </div>
   );
 }
 
-const shelfPhoto = {
-  src: "/campaign/v4/hero-shelf-960.jpg",
-  srcSet:
-    "/campaign/v4/hero-shelf-640.jpg 640w, /campaign/v4/hero-shelf-960.jpg 960w",
+type BoardRow = {
+  item: string;
+  short: string;
+  shelf: string;
+  online: string;
+  used: string;
+  mark: "online" | "used" | "";
 };
 
-// The Ceval scanner as it looks on a phone, drawn at app size and scaled.
-function HeroPhone() {
+const boardRows: BoardRow[] = [
+  {
+    item: "Headphones",
+    short: "Headphones",
+    shelf: "249",
+    online: "219",
+    used: "140-175",
+    mark: "online",
+  },
+  {
+    item: "Coffee grinder",
+    short: "Grinder",
+    shelf: "189",
+    online: "154",
+    used: "90-120",
+    mark: "online",
+  },
+  {
+    item: "Desk lamp",
+    short: "Desk lamp",
+    shelf: "79",
+    online: "79",
+    used: "30-45",
+    mark: "",
+  },
+  {
+    item: "Film camera",
+    short: "Camera",
+    shelf: "45",
+    online: "",
+    used: "95-140",
+    mark: "used",
+  },
+  {
+    item: "Stand mixer",
+    short: "Mixer",
+    shelf: "449",
+    online: "379",
+    used: "220-300",
+    mark: "online",
+  },
+  {
+    item: "Robot vacuum",
+    short: "Vacuum",
+    shelf: "399",
+    online: "329",
+    used: "150-210",
+    mark: "online",
+  },
+  {
+    item: "Kettle",
+    short: "Kettle",
+    shelf: "59",
+    online: "44",
+    used: "20-30",
+    mark: "online",
+  },
+  {
+    item: "Speaker",
+    short: "Speaker",
+    shelf: "129",
+    online: "99",
+    used: "60-80",
+    mark: "online",
+  },
+];
+
+const VISIBLE_ROWS = 4;
+const BOARD_QUERY = "(max-width: 819px)";
+const glyphs = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789$-";
+
+function boardText(row: BoardRow, narrow: boolean) {
+  const widths = narrow ? [10, 3, 3, 7] : [14, 5, 5, 8];
+  const money = (value: string) =>
+    value ? (narrow ? value : `$${value}`) : "-";
+  const values = [
+    (narrow ? row.short : row.item).toUpperCase().padEnd(widths[0]),
+    money(row.shelf).padStart(widths[1]),
+    money(row.online).padStart(widths[2]),
+    money(row.used).padStart(widths[3]),
+  ];
+  return values.map((value, index) => value.slice(0, widths[index]));
+}
+
+// A split-flap board. One row at a time flips to the next product.
+function PriceBoard() {
+  const [narrow, setNarrow] = useState(
+    () => window.matchMedia(BOARD_QUERY).matches,
+  );
+  const boardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const media = window.matchMedia(BOARD_QUERY);
+    const update = () => setNarrow(media.matches);
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
+    const board = boardRef.current;
+    if (!board || prefersReducedMotion()) return;
+    const rows = [...board.querySelectorAll<HTMLElement>("[data-row]")];
+    const timers = new Set<number>();
+    const later = (fn: () => void, ms: number) => {
+      const id = window.setTimeout(() => {
+        timers.delete(id);
+        fn();
+      }, ms);
+      timers.add(id);
+    };
+    const flip = (cell: HTMLElement, target: string, delay: number) => {
+      let spins = 3 + Math.floor(Math.random() * 4);
+      const turn = () => {
+        cell.textContent =
+          spins-- > 0
+            ? glyphs[Math.floor(Math.random() * glyphs.length)]
+            : target;
+        cell.animate(
+          [{ transform: "scaleY(0.12)" }, { transform: "scaleY(1)" }],
+          { duration: 70, easing: "ease-out" },
+        );
+        if (spins >= 0) later(turn, 66);
+      };
+      later(turn, delay);
+    };
+    const show = (rowElement: HTMLElement, row: BoardRow) => {
+      rowElement.dataset.mark = row.mark;
+      const groups = rowElement.querySelectorAll<HTMLElement>("[data-group]");
+      boardText(row, narrow).forEach((text, group) => {
+        groups[group]
+          ?.querySelectorAll<HTMLElement>(".lp-flap")
+          .forEach((cell, index) => {
+            const target = text[index] ?? " ";
+            if (cell.textContent !== target)
+              flip(cell, target, index * 26 + group * 110);
+          });
+      });
+    };
+    let visible = false;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        visible = entry.isIntersecting;
+      },
+      { threshold: 0.3 },
+    );
+    observer.observe(board);
+    let next = VISIBLE_ROWS;
+    let row = 0;
+    const interval = window.setInterval(() => {
+      if (!visible || document.hidden) return;
+      show(rows[row], boardRows[next % boardRows.length]);
+      next += 1;
+      row = (row + 1) % rows.length;
+    }, 2600);
+    return () => {
+      window.clearInterval(interval);
+      observer.disconnect();
+      timers.forEach((id) => window.clearTimeout(id));
+    };
+  }, [narrow]);
+
   return (
-    <figure className="lp-device-wrap">
+    <>
       <div
-        className="lp-device"
-        role="img"
-        aria-label="Ceval on a phone. The camera locks onto a shelf label that reads $249.00, and Ceval shows the same headphones online for $219.00."
+        className="lp-board"
+        ref={boardRef}
+        key={String(narrow)}
+        aria-hidden="true"
       >
-        <div className="lp-device-screen">
-          <div className="lp-ui" aria-hidden="true">
-            <div className="lp-ui-status">
-              <span>9:41</span>
-              <i className="lp-ui-island" />
-              <span className="lp-ui-icons">
-                <svg viewBox="0 0 18 12">
-                  <rect x="0" y="8" width="3" height="4" rx="1" />
-                  <rect x="5" y="5.5" width="3" height="6.5" rx="1" />
-                  <rect x="10" y="3" width="3" height="9" rx="1" />
-                  <rect x="15" y="0" width="3" height="12" rx="1" />
-                </svg>
-                <svg viewBox="0 0 16 12">
-                  <path d="M8 2.2c2.4 0 4.6.9 6.2 2.4l1.3-1.4A10.9 10.9 0 0 0 8 .3 10.9 10.9 0 0 0 .5 3.2l1.3 1.4A8.9 8.9 0 0 1 8 2.2Zm0 3.8c1.4 0 2.6.5 3.6 1.4l1.3-1.4A7.2 7.2 0 0 0 8 4.1a7.2 7.2 0 0 0-4.9 1.9l1.3 1.4C5.4 6.5 6.6 6 8 6Zm0 3.7c.5 0 1 .2 1.3.5L8 11.7l-1.3-1.5c.3-.3.8-.5 1.3-.5Z" />
-                </svg>
-                <span className="lp-ui-battery">
-                  <i />
-                </span>
-              </span>
-            </div>
-            <div className="lp-ui-header">
-              <span className="lp-ui-brand">
-                <BrandMark />
-                ceval
-              </span>
-              <span className="lp-ui-nav">
-                <b>Scan</b>
-                <span>Finds</span>
-                <span>Account</span>
-              </span>
-            </div>
-            <div className="lp-ui-controls">
-              <span className="lp-ui-modes">
-                <b>Buy cheaper</b>
-                <span>Resale value</span>
-              </span>
-              <span className="lp-ui-market">
-                US<small>USD</small>
-              </span>
-            </div>
-            <div className="lp-ui-stage">
-              <img
-                src={shelfPhoto.src}
-                srcSet={shelfPhoto.srcSet}
-                sizes="320px"
-                width="1024"
-                height="1536"
-                fetchPriority="high"
-                decoding="async"
-                alt=""
-              />
-              <span className="lp-ui-live">
-                <i />
-                Live camera
-              </span>
-              <span className="lp-ui-tag">
-                <strong>Wireless headphones</strong>
-                <span>
-                  <Barcode className="lp-ui-barcode" />
-                  <b>$249.00</b>
-                </span>
-              </span>
-              <Corners className="lp-ui-lock" />
-              <span className="lp-ui-pin">
-                <i>1</i>
-                <span>
-                  <small>Online</small>
-                  <Price value="219.00" />
-                </span>
-              </span>
-            </div>
-            <div className="lp-ui-scanning">
-              <span>
-                <i />
-                Scanning. Keep the model label in view.
-              </span>
-              <b>Pause scan</b>
-            </div>
-            <div className="lp-ui-card">
-              <div className="lp-ui-card-head">
-                <img
-                  src="/campaign/v4/hero-shelf-640.jpg"
-                  width="1024"
-                  height="1536"
-                  decoding="async"
-                  alt=""
-                />
-                <span>
-                  <small>In view · Headphones</small>
-                  <b>Over-ear wireless, black</b>
-                </span>
-              </div>
-              <div className="lp-ui-prices">
-                <span>
-                  <small>Shelf label</small>
-                  <s>$249.00</s>
-                </span>
-                <span className="is-found">
-                  <small>Online price</small>
-                  <Price value="219.00" />
-                </span>
-              </div>
-              <p className="lp-ui-evidence">
-                <b>Online retailer</b> · New
-                <strong>$30.00 below the shelf label</strong>
-              </p>
-              <div className="lp-ui-actions">
-                <b>View prices ↗</b>
-                <span>Photo matches ›</span>
-              </div>
-            </div>
-          </div>
+        <div className="lp-board-head">
+          <span>Item</span>
+          <span>Shelf</span>
+          <span>Online</span>
+          <span>Used</span>
         </div>
+        {boardRows.slice(0, VISIBLE_ROWS).map((row) => (
+          <div
+            className="lp-board-row"
+            data-row
+            data-mark={row.mark}
+            key={row.item}
+          >
+            {boardText(row, narrow).map((text, group) => (
+              <span className="lp-board-group" data-group={group} key={group}>
+                {[...text].map((char, index) => (
+                  <span className="lp-flap" key={index}>
+                    {char}
+                  </span>
+                ))}
+              </span>
+            ))}
+          </div>
+        ))}
       </div>
-      <figcaption>The Ceval scanner. Example prices.</figcaption>
-    </figure>
+      <div className="lp-sr-only">
+        <table>
+          <caption>Example prices in US dollars</caption>
+          <thead>
+            <tr>
+              <th scope="col">Item</th>
+              <th scope="col">Shelf</th>
+              <th scope="col">Online, same model</th>
+              <th scope="col">Used, asking</th>
+            </tr>
+          </thead>
+          <tbody>
+            {boardRows.map((row) => (
+              <tr key={row.item}>
+                <th scope="row">{row.item}</th>
+                <td>${row.shelf}</td>
+                <td>{row.online ? `$${row.online}` : "No new offers"}</td>
+                <td>${row.used.replace("-", " to $")}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+// Camera glasses, drawn: the Ceval mark in one lens, an answer in the other.
+function Glasses() {
+  return (
+    <svg className="lp-glasses" viewBox="0 0 420 170" aria-hidden="true">
+      <path
+        className="lp-glasses-line"
+        d="M10 50h26M384 50h26M183 62c10-13 44-13 54 0"
+      />
+      <rect
+        className="lp-glasses-line"
+        x="36"
+        y="26"
+        width="147"
+        height="112"
+        rx="40"
+      />
+      <rect
+        className="lp-glasses-line"
+        x="237"
+        y="26"
+        width="147"
+        height="112"
+        rx="40"
+      />
+      <circle className="lp-glasses-cam" cx="56" cy="44" r="5.5" />
+      <g transform="translate(77.5 50)">
+        <path fill="#131313" d="M2 28V2h26v9H11v17zM62 36v26H36v-9h17V36z" />
+        <rect x="21" y="21" width="22" height="22" fill="#c4161c" />
+      </g>
+      <text className="lp-glasses-hud" x="310.5" y="70" textAnchor="middle">
+        ONLINE FROM
+      </text>
+      <text className="lp-glasses-price" x="310.5" y="112" textAnchor="middle">
+        $219
+      </text>
+    </svg>
   );
 }
 
@@ -284,43 +670,55 @@ const questions: [string, string][] = [
 ];
 
 export function Landing() {
-  const [scrolled, setScrolled] = useState(false);
+  const heroRef = useRef<HTMLElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+  const [header, setHeader] = useState({ dark: true, scrolled: false });
+
+  // The header turns dark over the dark top and bottom of the page.
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 8);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    let frame = 0;
+    const measure = () => {
+      frame = 0;
+      const line = 64;
+      const hero = heroRef.current?.getBoundingClientRect();
+      const end = endRef.current?.getBoundingClientRect();
+      const dark =
+        (hero ? hero.bottom > line : false) || (end ? end.top < line : false);
+      const scrolled = window.scrollY > 8;
+      setHeader((current) =>
+        current.dark === dark && current.scrolled === scrolled
+          ? current
+          : { dark, scrolled },
+      );
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(measure);
+    };
+    measure();
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    return () => {
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+      cancelAnimationFrame(frame);
+    };
   }, []);
-  useThemeColor("#ffffff");
-  // Feature illustrations play once they scroll into view.
-  useEffect(() => {
-    const items = document.querySelectorAll<HTMLElement>("[data-reveal]");
-    if (!("IntersectionObserver" in window)) {
-      items.forEach((item) => (item.dataset.in = "true"));
-      return;
-    }
-    const observer = new IntersectionObserver(
-      (entries) =>
-        entries.forEach((entry) => {
-          if (!entry.isIntersecting) return;
-          (entry.target as HTMLElement).dataset.in = "true";
-          observer.unobserve(entry.target);
-        }),
-      { threshold: 0.4 },
-    );
-    items.forEach((item) => observer.observe(item));
-    return () => observer.disconnect();
-  }, []);
+  useThemeColor(header.dark ? STAGE : SHELF);
+
   return (
-    <div className="lp">
+    <div className="lp lp-home">
       <a className="lp-skip" href="#lp-main">
         Skip to content
       </a>
-      <header className="lp-top" data-scrolled={scrolled}>
+      <header
+        className="lp-top"
+        data-theme={header.dark ? "dark" : "light"}
+        data-scrolled={header.scrolled}
+      >
         <div className="lp-wrap lp-top-inner">
           <Brand />
           <nav aria-label="Main navigation">
-            <a className="lp-top-link lp-top-optional" href="#features">
+            <a className="lp-top-link lp-top-optional" href="#how">
               How it works
             </a>
             <a className="lp-top-link lp-top-optional" href="#fine-print">
@@ -329,236 +727,91 @@ export function Landing() {
             <a className="lp-top-link" href="/signin">
               Sign in
             </a>
-            <a className="lp-btn lp-btn-ink lp-btn-sm" href="/app">
+            <a className="lp-btn lp-btn-sm lp-top-cta" href="/app">
               Open Ceval
             </a>
           </nav>
         </div>
       </header>
       <main id="lp-main">
-        <section className="lp-hero" aria-labelledby="lp-title">
-          <div className="lp-wrap lp-hero-grid">
-            <div className="lp-hero-copy">
-              <h1 id="lp-title">Is this a good price?</h1>
-              <p className="lp-hero-lede">
-                Point your phone at a product and its price tag. Ceval finds the
-                same model online and secondhand, and shows where every price
-                came from.
-              </p>
-              <div className="lp-hero-actions">
-                <a className="lp-btn lp-btn-ink" href="/app">
-                  Open Ceval
-                </a>
-                <a className="lp-btn lp-btn-quiet" href="#features">
-                  See how it works
-                </a>
-              </div>
-              <p className="lp-hero-note">
-                Works in your phone’s browser. No app to install.
-              </p>
-            </div>
-            <HeroPhone />
-          </div>
-        </section>
-
         <section
-          className="lp-section lp-features"
-          id="features"
-          aria-labelledby="features-title"
+          className="lp-hero lp-dark"
+          ref={heroRef}
+          aria-labelledby="lp-title"
         >
+          <h1 id="lp-title">Know what it’s worth.</h1>
+          <HeroShelf />
+          <p className="lp-hero-lede">
+            Point your phone at a product. Ceval names the exact model, finds it
+            at other stores and secondhand, and links every price to its source.
+          </p>
+          <div className="lp-hero-actions">
+            <a className="lp-btn lp-btn-light" href="/app">
+              Open Ceval
+            </a>
+            <span>Works in your phone’s browser</span>
+          </div>
+          <p className="lp-hero-note">Example product and prices</p>
+        </section>
+
+        <section className="lp-ans" id="how" aria-labelledby="how-title">
           <div className="lp-wrap">
-            <div className="lp-section-head">
-              <h2 id="features-title">What a scan tells you</h2>
+            <div className="lp-head">
+              <h2 id="how-title">One scan, four answers.</h2>
               <p>
-                Ceval reads the product and its price tag, then checks the same
-                model online and secondhand. The examples below use illustrative
-                prices.
+                On a store shelf, at a flea market or at home before you sell.
+                Ceval works out what you’re looking at before it checks a single
+                price.
               </p>
             </div>
-            <div className="lp-bento">
-              <article className="lp-card lp-card-buy" data-reveal>
-                <div className="lp-card-copy">
-                  <p className="lp-card-kicker">Buy cheaper</p>
-                  <h3>Is it cheaper somewhere else?</h3>
-                  <p>
-                    Ceval checks current offers for the same model and shows how
-                    much less it costs online. Item prices only, before shipping
-                    and tax.
-                  </p>
-                </div>
-                <div className="lp-rail">
-                  <span className="lp-rail-bar" />
-                  <ShelfLabel />
-                </div>
-              </article>
-
-              <article className="lp-card lp-card-resale" data-reveal>
-                <div className="lp-card-copy">
-                  <p className="lp-card-kicker">Resale value</p>
-                  <h3>What’s it worth secondhand?</h3>
-                  <p>
-                    See what similar used items are listed for on public
-                    marketplaces. These are asking prices, not sales.
-                  </p>
-                </div>
-                <div className="lp-panel lp-range" aria-hidden="true">
-                  <div className="lp-range-item">
-                    <img
-                      src="/campaign/v3/resale-camera-640.jpg"
-                      width="640"
-                      height="427"
-                      loading="lazy"
-                      decoding="async"
-                      alt=""
-                    />
-                    <span>
-                      <b>35mm film camera</b>
-                      <small>Used · 3 listings</small>
-                    </span>
+            <div className="lp-bays">
+              {answers.map((answer) => (
+                <article className="lp-bay" key={answer.id}>
+                  <div className="lp-bay-shelf">
+                    <span className="lp-bay-rail" aria-hidden="true" />
+                    <MiniLabel answer={answer} />
                   </div>
-                  <div className="lp-range-scale">
-                    <span className="lp-range-tag">
-                      <small>Market tag</small>$45
-                    </span>
-                    <span className="lp-range-listed">
-                      <small>Listed for</small>$95–140
-                    </span>
-                    <span className="lp-range-track">
-                      <i className="lp-range-band" />
-                      <i className="lp-range-dot" />
-                    </span>
-                  </div>
-                </div>
-              </article>
-
-              <article className="lp-card lp-card-sources" data-reveal>
-                <div className="lp-card-copy">
-                  <p className="lp-card-kicker">Sources</p>
-                  <h3>Every price links to its page.</h3>
-                  <p>
-                    Each offer shows the store, the condition and when it was
-                    checked. If a price can’t be verified, Ceval says so.
-                  </p>
-                </div>
-                <div className="lp-panel lp-sources" aria-hidden="true">
-                  {[
-                    ["Online retailer", "$219.00", "New · Exact match", true],
-                    [
-                      "Electronics store",
-                      "$229.00",
-                      "New · Exact match",
-                      false,
-                    ],
-                    ["Marketplace", "$155.00", "Used · Asking price", false],
-                  ].map(([store, price, detail, lower]) => (
-                    <div className="lp-source" key={String(store)}>
-                      <span className="lp-source-row">
-                        <b>
-                          {store}
-                          <ArrowUpRight />
-                        </b>
-                        <i />
-                        <strong className={lower ? "is-lower" : undefined}>
-                          {price}
-                        </strong>
-                      </span>
-                      <small>{detail}</small>
-                    </div>
-                  ))}
-                  <p className="lp-sources-time">Checked 14:02</p>
-                </div>
-              </article>
-
-              <article className="lp-card lp-card-models" data-reveal>
-                <div className="lp-card-copy">
-                  <p className="lp-card-kicker">Model check</p>
-                  <h3>When models look alike, you choose.</h3>
-                  <p>
-                    Ceval compares product photos and asks before it searches,
-                    so you don’t get prices for the wrong model.
-                  </p>
-                </div>
-                <div className="lp-panel lp-models" aria-hidden="true">
-                  <p className="lp-models-title">Which one is yours?</p>
-                  {[
-                    ["Over-ear, slim headband", "Looks close", true],
-                    ["Over-ear, slider headband", "Similar design", false],
-                  ].map(([name, match, likely]) => (
-                    <div
-                      className={`lp-model${likely ? " is-chosen" : ""}`}
-                      key={String(name)}
-                    >
-                      <img
-                        src="/campaign/v4/hero-shelf-640.jpg"
-                        width="1024"
-                        height="1536"
-                        loading="lazy"
-                        decoding="async"
-                        alt=""
-                      />
-                      <span>
-                        <b>{name}</b>
-                        <small className={likely ? "is-likely" : undefined}>
-                          {match}
-                        </small>
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </article>
-
-              <article className="lp-card lp-card-browser">
-                <div className="lp-card-copy">
-                  <p className="lp-card-kicker">No app to install</p>
-                  <h3>Open it in your phone’s browser.</h3>
-                  <p>Works in Safari and Chrome. Sign in with an email code.</p>
-                </div>
-                <div className="lp-panel lp-qr">
-                  <img
-                    src="/campaign/v3/open-app-qr.svg"
-                    width="112"
-                    height="112"
-                    loading="lazy"
-                    alt="QR code that opens Ceval"
-                  />
-                  <p>Scan with your phone’s camera to open Ceval.</p>
-                </div>
-                <a className="lp-btn lp-btn-ink lp-card-open" href="/app">
-                  Open Ceval
-                </a>
-              </article>
+                  <h3>{answer.question}</h3>
+                  <p>{answer.body}</p>
+                </article>
+              ))}
             </div>
           </div>
         </section>
 
-        <section className="lp-next" aria-labelledby="next-title">
-          <picture className="lp-next-photo">
-            <source
-              media="(max-width: 700px)"
-              srcSet="/campaign/v2/city-wearer-portrait-640.jpg 640w, /campaign/v2/city-wearer-portrait-960.jpg 960w"
-              sizes="100vw"
-            />
-            <img
-              src="/campaign/v2/city-wearer-1600.jpg"
-              srcSet="/campaign/v2/city-wearer-960.jpg 960w, /campaign/v2/city-wearer-1600.jpg 1600w"
-              sizes="100vw"
-              loading="lazy"
-              decoding="async"
-              alt="A woman wearing camera glasses looks into a shop window at dusk. Concept image."
-            />
-          </picture>
-          <div className="lp-wrap lp-next-copy">
-            <p className="lp-next-status">Concept · Not available yet</p>
-            <h2 id="next-title">Next: camera glasses</h2>
-            <p>
-              We’re exploring Ceval on camera glasses, so you can check a price
-              without reaching for your phone.
+        <section className="lp-bsec" aria-labelledby="board-title">
+          <div className="lp-wrap">
+            <div className="lp-head lp-head-center">
+              <h2 id="board-title">Shelf, online and used, side by side.</h2>
+              <p>
+                Every price links to the page it came from, with the store and
+                when it was checked. If Ceval can’t verify a price, it says so.
+              </p>
+            </div>
+            <PriceBoard />
+            <p className="lp-board-note">
+              <b>Online:</b> current offers for the same model. <b>Used:</b>{" "}
+              what sellers are asking, not sales. Example prices in US dollars.
             </p>
           </div>
         </section>
 
+        <section className="lp-next" aria-labelledby="next-title">
+          <div className="lp-wrap lp-next-grid">
+            <Glasses />
+            <div className="lp-next-copy">
+              <p className="lp-next-status">Concept · Not available yet</p>
+              <h2 id="next-title">Next: camera glasses.</h2>
+              <p>
+                We’re exploring Ceval on camera glasses, so you can check what
+                something is worth without taking out your phone.
+              </p>
+            </div>
+          </div>
+        </section>
+
         <section
-          className="lp-section lp-faq"
+          className="lp-faq"
           id="fine-print"
           aria-labelledby="fine-print-title"
         >
@@ -574,36 +827,45 @@ export function Landing() {
             </dl>
           </div>
         </section>
-
-        <section className="lp-closing" aria-labelledby="closing-title">
-          <div className="lp-wrap">
-            <div className="lp-closing-card">
-              <span className="lp-closing-mark" aria-hidden="true">
-                <BrandMark />
-              </span>
-              <h2 id="closing-title">Try it on the next price tag you see.</h2>
+      </main>
+      <div className="lp-end lp-dark" ref={endRef}>
+        <section className="lp-wrap lp-end-inner" aria-labelledby="end-title">
+          <div className="lp-end-copy">
+            <h2 id="end-title">Try it on the next price tag you see.</h2>
+            <div className="lp-end-actions">
               <a className="lp-btn lp-btn-light" href="/app">
                 Open Ceval
               </a>
+              <span>Sign in with an email code.</span>
             </div>
           </div>
+          <figure className="lp-end-qr">
+            <img
+              src="/campaign/open-app-qr.svg"
+              width="132"
+              height="132"
+              loading="lazy"
+              alt="QR code that opens Ceval"
+            />
+            <figcaption>On a computer? Scan this with your phone.</figcaption>
+          </figure>
         </section>
-      </main>
-      <footer className="lp-footer">
-        <div className="lp-wrap lp-footer-inner">
-          <Brand />
-          <nav aria-label="Footer navigation">
-            <a href="#features">How it works</a>
-            <a href="#fine-print">Fine print</a>
-            <a href="/signin">Sign in</a>
-            <a href="/app">Open Ceval</a>
-          </nav>
-          <p>
-            Photographs and illustrations on this page are generated. Prices
-            shown are examples, not live offers.
-          </p>
-        </div>
-      </footer>
+        <footer className="lp-footer">
+          <div className="lp-wrap lp-footer-inner">
+            <Brand />
+            <nav aria-label="Footer navigation">
+              <a href="#how">How it works</a>
+              <a href="#fine-print">Fine print</a>
+              <a href="/signin">Sign in</a>
+              <a href="/app">Open Ceval</a>
+            </nav>
+            <p>
+              The products and prices on this page are examples, not live
+              offers.
+            </p>
+          </div>
+        </footer>
+      </div>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 
-// Public pages are white; the app keeps the default shelf color from index.html.
+// Public pages set their own color; the app keeps the shelf color from index.html.
 export function useThemeColor(color: string) {
   useEffect(() => {
     const meta = document.querySelector<HTMLMetaElement>(
