@@ -51,8 +51,8 @@ export function applyVisualRanking(
         ].slice(0, 3)
       : [];
     const reason = features.length
-      ? `Similar ${features.join(", ")}. Check the model label and specifications.`
-      : "Similar visible design. Check the model label and specifications.";
+      ? `Similar ${features.join(", ")}. Check the label, size and details.`
+      : "Similar visible design. Check the label, size and details.";
     const grounded =
       brand &&
       model &&

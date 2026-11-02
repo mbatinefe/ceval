@@ -26,9 +26,10 @@ import {
 } from "../../shared/scan";
 import { ComparisonDialog } from "../components/ComparisonDialog";
 import { ModelChoiceDialog } from "../components/ModelChoiceDialog";
+import { visualSearchForMarket } from "../../shared/visual-search";
 import { Price } from "../components/Price";
 import { ScanResultCard } from "../components/ScanResultCard";
-import { offerSummary } from "../scanner/presentation";
+import { findSummary } from "../scanner/presentation";
 import { isAllowanceError } from "../scanner/state";
 import { useScanner, type FoundProduct } from "../scanner/useScanner";
 import { clips } from "../../../public/demo/manifest.json";
@@ -71,7 +72,7 @@ export function Scanner() {
       scan.pins.some((pin) => pin.rowId === rowKey(row)),
     ) ||
     scan.found[0];
-  const focusedPrice = offerSummary(focused?.comparison);
+  const focusedPrice = findSummary(focused, mode, market);
   const choice = scan.found.find((row) => rowKey(row) === choiceKey);
   const allowanceNotice = scan.found.find((row) =>
     isAllowanceError(row.errorCode),
@@ -106,7 +107,10 @@ export function Scanner() {
     pauseForDetails();
     setTrayOpen(false);
     setVisualKey(rowKey(row));
-    if (!row.visualSearch && !row.visualSearching)
+    if (
+      !visualSearchForMarket(row.visualSearch, market, mode) &&
+      !row.visualSearching
+    )
       scan.searchImage(row.product.id, row.rowId);
   }
   const needsLabel = (row: FoundProduct) =>
@@ -162,6 +166,8 @@ export function Scanner() {
     <ScanResultCard
       key={rowKey(row)}
       row={row}
+      mode={mode}
+      market={market}
       active={focused && rowKey(row) === rowKey(focused)}
       onFocus={() => {
         setFocusedKey(rowKey(row));
@@ -433,7 +439,7 @@ export function Scanner() {
                 <h2>Point at a product and its price tag.</h2>
                 <p>
                   {mode === "buy"
-                    ? "Ceval reads the label, then checks what the same model costs online."
+                    ? "Show the product or its label. Compare online prices and similar items."
                     : "Ceval reads the item, then finds what similar ones are listed for secondhand."}
                 </p>
                 <button
@@ -647,6 +653,8 @@ export function Scanner() {
                   <div id="floating-find-details" hidden={!cardOpen}>
                     <ScanResultCard
                       row={focused}
+                      mode={mode}
+                      market={market}
                       compact
                       context={
                         scan.pins.some((pin) => pin.rowId === rowKey(focused))
@@ -764,7 +772,7 @@ export function Scanner() {
         <VisualMatchesDialog
           product={visual.product}
           photo={visual.thumbnail}
-          result={visual.visualSearch}
+          result={visualSearchForMarket(visual.visualSearch, market, mode)}
           searching={visual.visualSearching}
           error={visual.visualError}
           mode={mode}

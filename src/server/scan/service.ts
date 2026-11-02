@@ -161,7 +161,7 @@ export async function recognize(
   }
   const frameKey = await digest(
     JSON.stringify([
-      "visual-snapshots-v4",
+      "visual-snapshots-v5",
       market,
       frame,
       references.map((reference) => [
@@ -243,6 +243,26 @@ export async function selectModel(
       .bind(userId, productId, market)
       .first<{ data: string }>();
     visual = found ? (JSON.parse(found.data) as VisualSearch) : null;
+    if (visual && visual.expiresAt <= Date.now()) visual = null;
+    if (
+      !visual?.candidates.some((item) => `visual:${item.id}` === candidateKey)
+    ) {
+      const cached = await env.DB.prepare(
+        "SELECT result FROM scan_jobs WHERE user_id=? AND product_id=? AND kind='visual' AND status='done' AND expires_at>? AND result IS NOT NULL AND json_extract(result,'$.provider')='meta' AND json_extract(result,'$.version')=2 AND json_extract(result,'$.market')=? ORDER BY created_at DESC LIMIT 4",
+      )
+        .bind(userId, productId, Date.now(), market)
+        .all<{ result: string }>();
+      visual =
+        cached.results
+          .map((item) => JSON.parse(item.result) as VisualSearch)
+          .find(
+            (result) =>
+              result.expiresAt > Date.now() &&
+              result.candidates.some(
+                (item) => `visual:${item.id}` === candidateKey,
+              ),
+          ) ?? null;
+    }
   }
   if (
     row.updated_at < Date.now() - 86400000 &&
@@ -336,7 +356,7 @@ export async function compare(
     "compare",
     await digest(
       JSON.stringify([
-        "public-offers-v6",
+        "public-offers-v7",
         productId,
         mode,
         market,

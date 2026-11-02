@@ -26,7 +26,7 @@ import { Price } from "../components/Price";
 import { ProductDialog } from "../components/ProductDialog";
 import { ModelChoiceDialog } from "../components/ModelChoiceDialog";
 import type { ScanHistoryEntry } from "../../shared/history";
-import { offerSummary } from "../scanner/presentation";
+import { findSummary } from "../scanner/presentation";
 export function Finds() {
   const [visualEntry, setVisualEntry] = useState<ScanHistoryEntry | null>(null);
   const [visualError, setVisualError] = useState("");
@@ -160,6 +160,7 @@ export function Finds() {
         "/api/scan/visual-matches",
         {
           productId: entry.product.id,
+          mode: entry.mode,
           market: selectedMarkets[entry.id] ?? entry.market ?? "US",
         },
         new AbortController().signal,
@@ -191,6 +192,7 @@ export function Finds() {
     const result = visualSearchForMarket(
       entry.visualSearch,
       selectedMarkets[entry.id] ?? entry.market ?? "US",
+      entry.mode,
     );
     setVisualEntry({ ...entry, visualSearch: result });
     if (!result) void searchImage(entry);
@@ -278,9 +280,18 @@ export function Finds() {
                     (product.confidence < 0.85 &&
                       product.identification !== "user_selected");
                   const comparison = entry.comparison;
-                  const summary = offerSummary(comparison, {
-                    includeExpired: true,
-                  });
+                  const summary = findSummary(
+                    entry,
+                    entry.mode,
+                    selectedMarkets[entry.id] ??
+                      entry.market ??
+                      comparison?.market ??
+                      "US",
+                    {
+                      includeExpired: true,
+                    },
+                  );
+                  const priceEvidence = summary ?? comparison;
                   const market =
                     selectedMarkets[entry.id] ??
                     entry.market ??
@@ -320,11 +331,11 @@ export function Finds() {
                         {(!summary || searching) && (
                           <p className="history-result">
                             {searching
-                              ? "Confirming model and searching prices…"
+                              ? "Confirming product and searching prices…"
                               : uncertain
                                 ? hasCandidates
-                                  ? "Choose your model to search prices."
-                                  : "Model unconfirmed. Search by photo to find matches."
+                                  ? "Choose the matching product to search prices."
+                                  : "Identity unconfirmed. Check the label or explore similar items."
                                 : comparison
                                   ? comparison.offers.length
                                     ? `${comparison.offers.length} sourced listings`
@@ -337,14 +348,7 @@ export function Finds() {
                         {summary && (
                           <div className="history-price">
                             <small className="price-label">
-                              {summary.offer.kind === "asking"
-                                ? "Asking price"
-                                : summary.offer.kind === "sold"
-                                  ? "Reported completed sale"
-                                  : summary.offer.evidenceType ===
-                                      "cited_summary"
-                                    ? "Search-reported retail price"
-                                    : "Retail price"}
+                              {summary.label}
                             </small>
                             <Price
                               minor={summary.offer.priceMinor}
@@ -367,13 +371,13 @@ export function Finds() {
                           )}
                         <p className="history-time">
                           {source} ·{" "}
-                          {comparison ? (
+                          {priceEvidence ? (
                             <time
                               dateTime={new Date(
-                                comparison.checkedAt,
+                                priceEvidence.checkedAt,
                               ).toISOString()}
                             >
-                              Checked {dateTime(comparison.checkedAt)}
+                              Checked {dateTime(priceEvidence.checkedAt)}
                             </time>
                           ) : (
                             <time
@@ -382,7 +386,8 @@ export function Finds() {
                               Updated {dateTime(entry.updatedAt)}
                             </time>
                           )}
-                          {comparison && comparison.expiresAt <= Date.now()
+                          {priceEvidence &&
+                          priceEvidence.expiresAt <= Date.now()
                             ? " · saved price, may have changed"
                             : ""}
                         </p>
@@ -465,7 +470,7 @@ export function Finds() {
                                 Searching…
                               </>
                             ) : hasCandidates ? (
-                              "Choose model"
+                              "Choose product"
                             ) : (
                               "Search prices"
                             )}

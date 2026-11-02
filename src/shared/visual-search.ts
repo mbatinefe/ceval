@@ -1,4 +1,4 @@
-import type { Market, ModelCandidate } from "./scan.ts";
+import type { Market, Mode, ModelCandidate } from "./scan.ts";
 export type VisualCandidate = {
   id: string;
   title: string;
@@ -22,6 +22,7 @@ export type VisualSearch = {
   version: 2;
   productId: string;
   market: Market;
+  mode?: Mode;
   candidates: VisualCandidate[];
   checkedAt: number;
   expiresAt: number;
@@ -32,8 +33,11 @@ export const visualCandidateKey = (id: string) => `visual:${id}`;
 export function visualSearchForMarket(
   result: VisualSearch | undefined,
   market: Market,
+  mode: Mode = "buy",
 ) {
-  return result?.market === market ? result : undefined;
+  return result?.market === market && (result.mode ?? "buy") === mode
+    ? result
+    : undefined;
 }
 
 export function visualListingCondition(candidate: VisualCandidate): string {

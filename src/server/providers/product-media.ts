@@ -1,10 +1,11 @@
-import type { Market, ProductSource } from "../../shared/scan.ts";
+import type { Market, Mode, ProductSource } from "../../shared/scan.ts";
 import type { VisualCandidate } from "../../shared/visual-search.ts";
 import { text } from "../scan/validation.ts";
 import {
   merchantHosts,
   readProductPage,
   merchantPageUrl,
+  parsePageOffers,
 } from "./product-pages.ts";
 import { sourceUrl } from "./product-sources.ts";
 
@@ -96,6 +97,10 @@ export function officialProductHost(url: string): boolean {
     "sony.com",
     "electronics.sony.com",
     "jbl.com",
+    "twiningsusa.com",
+    "hanes.com",
+    "ikea.com",
+    "levi.com",
   ].includes(host);
 }
 export function searchCandidates(
@@ -172,6 +177,8 @@ export function candidateFromPage(
   candidate: VisualCandidate,
   html: string,
   pageUrl: string,
+  market?: Market,
+  mode: Mode = "buy",
 ): VisualCandidate {
   const products: Record<string, unknown>[] = [];
   let visited = 0;
@@ -286,8 +293,43 @@ export function candidateFromPage(
       )
         ? "Apple"
         : "");
+  const offer =
+    product && name && market && product["@type"] === "Product"
+      ? parsePageOffers(
+          html,
+          pageUrl,
+          {
+            id: candidate.id,
+            brand,
+            model: name,
+            variant: "",
+            label: name,
+            confidence: 0,
+            box: { x: 0, y: 0, width: 1, height: 1 },
+            shelfPriceMinor: null,
+            shelfCurrency: null,
+          },
+          market,
+          mode,
+        )[0]
+      : undefined;
+  const { price: _oldPrice, ...withoutPrice } = candidate;
   return {
-    ...candidate,
+    ...withoutPrice,
+    ...(offer
+      ? {
+          price: {
+            priceMinor: offer.priceMinor,
+            currency: offer.currency,
+            evidenceType: "product_page" as const,
+            kind:
+              offer.kind === "retail"
+                ? ("retail" as const)
+                : ("asking" as const),
+            condition: offer.condition,
+          },
+        }
+      : {}),
     ...(name
       ? {
           title:
@@ -359,7 +401,7 @@ export async function retrieveCandidatePhotos(
   candidates: VisualCandidate[],
   market: Market,
   signal?: AbortSignal,
-  discovery?: { sources: ProductSource[]; category: string },
+  discovery?: { sources: ProductSource[]; category: string; mode?: Mode },
 ): Promise<VisualCandidate[]> {
   const timeout = AbortSignal.timeout(14000),
     bounded = signal ? AbortSignal.any([signal, timeout]) : timeout;
@@ -418,7 +460,13 @@ export async function retrieveCandidatePhotos(
           pages.get(result[index].url) ||
           (await readProductPage(result[index].url, market, bounded));
         if (page)
-          result[index] = candidateFromPage(result[index], page.html, page.url);
+          result[index] = candidateFromPage(
+            result[index],
+            page.html,
+            page.url,
+            market,
+            discovery?.mode,
+          );
       } catch {
         /* Keep source links if individual product pages are unavailable. */
       }

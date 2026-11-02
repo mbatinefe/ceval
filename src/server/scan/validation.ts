@@ -8,7 +8,7 @@ import {
   type ModelCandidate,
 } from "../../shared/scan.ts";
 import {
-  isMultipack,
+  packageSizeConflicts,
   packageSizeConfirmed,
 } from "../../shared/package-size.ts";
 import { ScanError } from "./errors.ts";
@@ -307,7 +307,13 @@ export function validateOffers(
     )
       continue;
     const evidence = `${source.title} ${source.snippet}`;
-    if (isMultipack(evidence)) continue;
+    if (
+      packageSizeConflicts(
+        evidence,
+        [product.model, product.variant, product.label].join(" "),
+      )
+    )
+      continue;
     if (
       /\b(per month|monthly|installment|financing|sold out|out of stock|unavailable|expired|members? only|with coupon|after rebate|starting at|replacement|accessories|accessory|compatible with|ear pads|earpads|bundle|auction|bids?|for parts|not working|from\s*[$£₺])\b/i.test(
         evidence,
@@ -321,7 +327,7 @@ export function validateOffers(
       continue;
     if (
       !containsModel(evidence, product.model) ||
-      !containsIdentity(evidence, product.brand)
+      (Boolean(product.brand) && !containsIdentity(evidence, product.brand))
     )
       continue;
     if (!containsPrice(evidence, Number(o.priceMinor), market)) continue;

@@ -36,6 +36,7 @@ export function switchComparisonMode(
     error: row.errorCode === "shelf_changed" ? row.error : undefined,
     errorCode: row.errorCode === "shelf_changed" ? row.errorCode : undefined,
     retryable: false,
+    visualError: undefined,
   }));
 }
 export function interruptFinds(rows: FoundProduct[]): FoundProduct[] {

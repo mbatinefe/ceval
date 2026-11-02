@@ -584,6 +584,7 @@ export function useScanner(mode: Mode, market: Market) {
       });
   }
   function searchImage(productId: string, rowId?: string, manual = true) {
+    const { mode, market } = comparisonContext.current;
     const row = findActionRow(resultsRef.current, productId, rowId);
     if (!row || row.visualSearching || row.selecting || !row.thumbnail) return;
     if (
@@ -592,6 +593,7 @@ export function useScanner(mode: Mode, market: Market) {
         row,
         market,
         Boolean(capabilities?.visualSearchAvailable),
+        mode,
       )
     )
       return;
@@ -615,7 +617,7 @@ export function useScanner(mode: Mode, market: Market) {
     }
     update({ visualSearching: true, visualError: undefined });
     const queued = work.compare(
-      `visual:${productId}:${market}`,
+      `visual:${productId}:${market}:${mode}`,
       async (signal) => {
         try {
           if (!row.historyId || !sourceRef.current)
@@ -634,10 +636,10 @@ export function useScanner(mode: Mode, market: Market) {
           if (epoch !== generation.current || signal.aborted) return;
           const result = await scanRequest<VisualSearch>(
             "/api/scan/visual-matches",
-            { productId, market, image: row.thumbnail },
+            { productId, market, mode, image: row.thumbnail },
             signal,
           );
-          if (!visualResultMatches(row, result, market))
+          if (!visualResultMatches(row, result, market, mode))
             throw new Error(
               "This result belongs to a different item. Scan again.",
             );
@@ -654,6 +656,13 @@ export function useScanner(mode: Mode, market: Market) {
                 ? error.message
                 : "Image search could not finish. Try again.",
           });
+        }
+        if (
+          epoch === generation.current &&
+          comparisonContext.current.mode !== mode
+        ) {
+          update({ visualError: undefined });
+          searchImage(productId, row.rowId, false);
         }
       },
     );
@@ -917,7 +926,7 @@ export function useScanner(mode: Mode, market: Market) {
     work.resume();
     runningRef.current = true;
     setRunning(true);
-    setMessage("Scanning started. Keep the model label in view.");
+    setMessage("Scanning started. Keep the product label or tag in view.");
   }
   const attemptStartRef = useRef(attemptStart);
   attemptStartRef.current = attemptStart;

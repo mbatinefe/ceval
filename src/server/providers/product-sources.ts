@@ -42,6 +42,7 @@ export function sourceUrl(value: string, market?: Market): string | null {
 }
 
 export function manufacturerHost(brand: string): string | null {
+  if (brand.trim().toLowerCase() === "twinings") return "twiningsusa.com";
   const host = `${brand.trim().toLowerCase()}.com`;
   const reviewed = new Set([
     "arzopa.com",
@@ -52,6 +53,8 @@ export function manufacturerHost(brand: string): string | null {
     "logitech.com",
     "sony.com",
     "jbl.com",
+    "hanes.com",
+    "ikea.com",
   ]);
   return reviewed.has(host) ? host : null;
 }
@@ -106,7 +109,7 @@ function relatedMacBook(title: string, identity: string[]): boolean {
   );
 }
 
-function productPage(url: string, title: string): boolean {
+function productPage(url: string, title: string, product: Product): boolean {
   const parsed = new URL(url);
   let path: string;
   try {
@@ -123,8 +126,17 @@ function productPage(url: string, title: string): boolean {
   )
     return false;
   if (
-    /\b(review|reviews|comparison|versus|news|unboxing|guide|manual|technical specifications|specifications|specs|techspecs|teardown|repair|replacement|accessories|accessory|case|cover|sleeve|earpads|ear pads|screen protector|charger|adapter|cable|battery|bundle|for parts|not working)\b/i.test(
+    /\b(review|reviews|comparison|versus|news|unboxing|guide|manual|technical specifications|specifications|specs|techspecs|teardown|repair|bundle|for parts|not working)\b/i.test(
       title,
+    )
+  )
+    return false;
+  const accessoryWords =
+    /\b(replacement|accessories|accessory|case|cover|sleeve|earpads|ear pads|screen protector|charger|adapter|cable|battery)\b/gi;
+  const observed = [product.model, product.label].join(" ").toLowerCase();
+  if (
+    [...title.matchAll(accessoryWords)].some(
+      (m) => !observed.includes(m[0].toLowerCase()),
     )
   )
     return false;
@@ -163,7 +175,7 @@ export function productSources(
       !url ||
       (!containsIdentity(title, product.brand) &&
         !manufacturerBrand(url, product.brand)) ||
-      !productPage(url, title)
+      !productPage(url, title, product)
     )
       continue;
     if (

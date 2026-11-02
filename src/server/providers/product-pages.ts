@@ -42,6 +42,17 @@ export const merchantHosts = new Set([
   "efendina.com",
   "beautycarebag.com",
   "lujainbeauty.com",
+  "twiningsusa.com",
+  "www.twiningsusa.com",
+  "www.hanes.com",
+  "www.ikea.com",
+  "www.kroger.com",
+  "www.levi.com",
+  "www.nordstrom.com",
+  "www.walgreens.com",
+  "www.cvs.com",
+  "www.homedepot.com",
+  "www.lowes.com",
 ]);
 const MAX_BYTES = 2_000_000;
 type Json = Record<string, unknown>;
@@ -84,7 +95,8 @@ function productOffers(
   const brandValue = item.brand ?? inheritedBrand;
   const brand = str(brandValue) || str(obj(brandValue).name);
   if (
-    !containsIdentity(`${brand} ${name}`, product.brand) ||
+    (Boolean(product.brand) &&
+      !containsIdentity(`${brand} ${name}`, product.brand)) ||
     !matchesModel(name, product.model) ||
     !compatibleVariant(item, name, product.variant)
   )

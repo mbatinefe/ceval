@@ -564,3 +564,32 @@ test("blocked stores stop after one recovery search and preserve source links", 
   assert.equal(result.candidates[0].assessment, "unreviewed");
   assert.deepEqual(counts(), { uploads: 0, searches: 2, rankings: 0 });
 });
+
+test("buy and resale photo searches have separate cached results", async () => {
+  const counts = mockProviders();
+  await request("/api/scan/history", payload());
+  const ask = async (mode: string) => {
+    const response = await request("/api/scan/visual-matches", {
+      productId: product.id,
+      market: "US",
+      mode,
+    });
+    assert.equal(response.status, 200);
+    const result = await response.json();
+    assert.equal(result.mode, mode);
+    return result;
+  };
+  const buy = await ask("buy");
+  const resale = await ask("resale");
+  assert.notEqual(buy.checkedAt, resale.checkedAt);
+  const cachedBuy = await ask("buy");
+  assert.deepEqual(cachedBuy, buy);
+  assert.deepEqual(await ask("resale"), resale);
+  assert.equal(counts().searches, 2);
+  const selection = await request("/api/scan/select-model", {
+    productId: product.id,
+    market: "US",
+    candidateKey: `visual:${buy.candidates[0].id}`,
+  });
+  assert.equal(selection.status, 200);
+});

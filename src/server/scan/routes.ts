@@ -30,6 +30,7 @@ scanRoutes.post("/scan/visual-matches", async (c) => {
     marketOf(body.market),
     body.image,
     c.req.raw.signal,
+    modeOf(body.mode ?? "buy"),
   );
   c.executionCtx.waitUntil(
     task.then(

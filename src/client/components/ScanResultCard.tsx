@@ -5,16 +5,18 @@ import {
   RotateCw,
 } from "lucide-react";
 import type { FoundProduct } from "../scanner/useScanner";
-import type { Comparison } from "../../shared/scan";
+import type { Comparison, Market, Mode } from "../../shared/scan";
 import { formatPrice } from "../../shared/demo";
 import { marketplaceSearch } from "../../shared/marketplace";
-import { offerSummary } from "../scanner/presentation";
+import { findSummary } from "../scanner/presentation";
 import { isAllowanceError } from "../scanner/state";
 import { Price } from "./Price";
 import facebookLogo from "../assets/facebook.png";
 
 export function ScanResultCard({
   row,
+  mode,
+  market,
   compact = false,
   context = "RECENT FIND",
   active = false,
@@ -25,6 +27,8 @@ export function ScanResultCard({
   onVisual,
 }: {
   row: FoundProduct;
+  mode: Mode;
+  market: Market;
   compact?: boolean;
   context?: string;
   active?: boolean;
@@ -34,7 +38,7 @@ export function ScanResultCard({
   onRetry?: () => void;
   onVisual?: () => void;
 }) {
-  const summary = offerSummary(row.comparison);
+  const summary = findSummary(row, mode, market);
   const needsModel = !row.comparison && Boolean(row.product.candidates?.length);
   const title = row.product.model || row.product.label;
   const unidentified =
@@ -51,13 +55,13 @@ export function ScanResultCard({
     ? new URL(summary.offer.url).hostname.replace(/^www\./, "")
     : null;
   const state = row.selecting
-    ? "Confirming model…"
+    ? "Confirming product…"
     : row.searching
       ? "Checking prices…"
       : row.visualSearching
         ? "Matching your photo…"
         : needsModel || unidentified
-          ? "Confirm the model"
+          ? "Check label or tag"
           : "No verified price found";
   return (
     <article
@@ -90,9 +94,9 @@ export function ScanResultCard({
             {[
               row.product.variant,
               row.product.identification === "user_selected"
-                ? "Model chosen by you"
+                ? "Product chosen by you"
                 : unidentified
-                  ? "Model unconfirmed"
+                  ? "Identity unconfirmed"
                   : "",
             ]
               .filter(Boolean)
@@ -143,7 +147,7 @@ export function ScanResultCard({
               {row.comparison?.sources?.length
                 ? "Product pages found; prices could not be verified."
                 : needsModel || unidentified
-                  ? "Compare the matches to get the right price."
+                  ? "Show the label or tag, or explore similar items."
                   : "Try another search or check Marketplace."}
             </span>
           )}
@@ -193,7 +197,7 @@ export function ScanResultCard({
         )}
         {needsModel && !row.selecting && (
           <button className="find-action primary-action" onClick={onChoose}>
-            Choose model
+            Choose product
             <ChevronRight aria-hidden="true" />
           </button>
         )}
@@ -205,7 +209,7 @@ export function ScanResultCard({
             {row.visualSearching
               ? "Photo search…"
               : row.visualSearch
-                ? "Photo matches"
+                ? "Similar items"
                 : "Search by photo"}
             <ChevronRight aria-hidden="true" />
           </button>
@@ -217,7 +221,7 @@ export function ScanResultCard({
           </button>
         )}
       </div>
-      {(row.product.brand || row.product.model) && (
+      {(row.product.brand || row.product.model || row.product.label) && (
         <a
           className="marketplace-action"
           href={marketplaceSearch(row.product)}

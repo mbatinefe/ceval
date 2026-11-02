@@ -1,3 +1,4 @@
+import { packageSizeConflicts } from "../../shared/package-size.ts";
 import { containsIdentity, containsModel } from "../scan/validation.ts";
 
 const normalize = (value: string) =>
@@ -32,7 +33,7 @@ export function matchesModel(value: string, model: string): boolean {
   if (/^(?:pro|ultra|plus|lite|mini|ii|iii|iv)\b/.test(tail)) return false;
   if (
     /^\d+(?:\.\d+)?(?:st|nd|rd|th)?\b/.test(tail) &&
-    !/^\d+(?:\.\d+)?\s*(?:[- ]?inch|["″]|hz\b|gb\b|tb\b|usd\b|gbp\b|try\b|capsules?\b|tablets?\b|softgels?\b|gummies\b|count\b|ct\b|pieces?\b|pcs\b|ml\b|liters?\b|g\b|kg\b|oz\b)/.test(
+    !/^\d+(?:\.\d+)?\s*(?:[- ]?inch|["″]|hz\b|gb\b|tb\b|usd\b|gbp\b|try\b|tea bags?\b|fl\.?\s*oz\b|packs?\b|capsules?\b|tablets?\b|softgels?\b|gummies\b|count\b|ct\b|pieces?\b|pcs\b|ml\b|liters?\b|g\b|kg\b|oz\b)/.test(
       tail,
     )
   )
@@ -60,6 +61,51 @@ export function variantConflicts(value: string, variant: string): boolean {
   if (
     expectedCapacities.length &&
     capacities(actual).some((c) => !expectedCapacities.includes(c))
+  )
+    return true;
+  if (packageSizeConflicts(actual, expected)) return true;
+  const size = (text: string) => {
+    const normalized = normalize(text);
+    const explicit =
+      /\bsize\s*[:=-]?\s*(xxxs|xxs|xs|s|m|l|xl|xxl|xxxl|[2-4]xl|small|medium|large|\d+(?:\.\d+)?)\b/.exec(
+        normalized,
+      )?.[1];
+    const named =
+      /\b(xxxs|xxs|xs|xl|xxl|xxxl|[2-4]xl|small|medium|large)\b/.exec(
+        normalized,
+      )?.[1];
+    const letter = /(?:^|[\s,;])(S|M|L)(?=$|[\s,;])/
+      .exec(text)?.[1]
+      ?.toLowerCase();
+    const value = explicit || named || letter;
+    return value
+      ? ((
+          {
+            small: "s",
+            medium: "m",
+            large: "l",
+            "2xl": "xxl",
+            "3xl": "xxxl",
+            "4xl": "xxxxl",
+          } as Record<string, string>
+        )[value] ?? value)
+      : undefined;
+  };
+  if (size(value) && size(variant) && size(value) !== size(variant))
+    return true;
+  const flavors =
+    /\b(?:vanilla|strawberry|chocolate|lemon|mint|peach|raspberry|blueberry|coconut)\b/g;
+  const wanted = new Set(expected.match(flavors) ?? []);
+  if (wanted.size && (actual.match(flavors) ?? []).some((f) => !wanted.has(f)))
+    return true;
+  if (
+    /\b(?:regular|caffeinated)\b/.test(expected) &&
+    /\b(?:decaf|decaffeinated)\b/.test(actual)
+  )
+    return true;
+  if (
+    /\b(?:decaf|decaffeinated)\b/.test(expected) &&
+    /\bcaffeinated\b/.test(actual)
   )
     return true;
   return false;

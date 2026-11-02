@@ -129,8 +129,8 @@ export function VisualMatchesDialog({
           </div>
         </div>
         <p className="visual-explainer">
-          Check the model label before choosing. Similar designs can have
-          different specifications.
+          Compare the label, size, quantity and details. Similar-looking items
+          can be different products.
         </p>
         {mode === "resale" && (
           <p className="result-note">
@@ -144,7 +144,7 @@ export function VisualMatchesDialog({
               <div>
                 <strong>
                   {elapsed < 15
-                    ? "Finding models and comparing photos…"
+                    ? "Finding products and comparing photos…"
                     : "Still checking product photos…"}
                 </strong>
                 <span>
@@ -165,7 +165,7 @@ export function VisualMatchesDialog({
             <p className="visual-empty">
               {other.length
                 ? "Found related listings, but their photos could not be compared."
-                : "No useful matches yet. Try a closer view or a readable model label."}
+                : "No useful matches yet. Try a closer view or a readable label or tag."}
             </p>
           ) : null}
         </div>
@@ -175,9 +175,9 @@ export function VisualMatchesDialog({
               <p className="visual-status">
                 <strong>
                   {compared.length}{" "}
-                  {compared.length === 1 ? "visual match" : "model options"}
+                  {compared.length === 1 ? "visual match" : "similar items"}
                 </strong>
-                <span>Photos compared by Meta · Exact model unconfirmed</span>
+                <span>Photos compared by Meta · Identity unconfirmed</span>
               </p>
             )}
             <div className="visual-candidates">
@@ -240,7 +240,7 @@ export function VisualMatchesDialog({
                             onChoose(visualCandidateKey(candidate.id))
                           }
                         >
-                          Use this model
+                          Choose this product
                         </button>
                       )}
                       <a
@@ -318,7 +318,7 @@ export function VisualMatchesDialog({
                 dateStyle: "medium",
                 timeStyle: "short",
               })}
-              . Prices belong to the listed models; your item may differ.
+              . Prices belong to the listed products; your item may differ.
             </p>
           </>
         )}

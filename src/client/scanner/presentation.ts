@@ -1,4 +1,10 @@
-import { markets, type Comparison, type Offer } from "../../shared/scan.ts";
+import {
+  markets,
+  type Comparison,
+  type Offer,
+  type Mode,
+  type Market,
+} from "../../shared/scan.ts";
 
 export type OfferSummary = {
   offer: Offer;
@@ -6,6 +12,8 @@ export type OfferSummary = {
   shortLabel: string;
   qualification: string;
   savingsMinor: number | null;
+  checkedAt: number;
+  expiresAt: number;
 };
 
 export function offerSummary(
@@ -56,6 +64,8 @@ export function offerSummary(
       : null;
   return {
     offer,
+    checkedAt: comparison.checkedAt,
+    expiresAt: comparison.expiresAt,
     shortLabel:
       offer.kind === "sold"
         ? "Reported sale"
@@ -87,5 +97,65 @@ export function offerSummary(
               ? "Lowest new price found"
               : "Online price",
     savingsMinor: difference !== null && difference > 0 ? difference : null,
+  };
+}
+
+/** A photographed alternative has its own price, never savings on the scanned item. */
+export function findSummary(
+  row:
+    | {
+        comparison?: Comparison;
+        visualSearch?: import("../../shared/visual-search.ts").VisualSearch;
+      }
+    | undefined,
+  mode: Mode,
+  market: Market,
+  options: { includeExpired?: boolean } = {},
+): OfferSummary | null {
+  if (!row) return null;
+  const comparison = row.comparison;
+  const direct =
+    comparison?.mode === mode && comparison.market === market
+      ? offerSummary(comparison, options)
+      : null;
+  if (direct) return direct;
+  const result = row.visualSearch;
+  if (
+    !result ||
+    result.market !== market ||
+    (result.mode ?? "buy") !== mode ||
+    (!options.includeExpired && result.expiresAt <= Date.now())
+  )
+    return null;
+  const candidate = result.candidates
+    .filter(
+      (c) =>
+        c.assessment !== "unreviewed" &&
+        c.price &&
+        c.price.currency === markets[market].currency &&
+        c.price.priceMinor > 0 &&
+        (mode === "buy" || c.price.kind === "asking"),
+    )
+    .sort((a, b) => a.price!.priceMinor - b.price!.priceMinor)[0];
+  if (!candidate?.price) return null;
+  return {
+    offer: {
+      title: candidate.title,
+      url: candidate.url,
+      ...candidate.price,
+      evidenceType:
+        candidate.price.evidenceType === "product_page"
+          ? "product_page"
+          : "cited_summary",
+      match: "possible",
+      evidence: candidate.reason,
+    },
+    label:
+      mode === "resale" ? "Similar item asking price" : "Similar item price",
+    shortLabel: mode === "resale" ? "Similar · Asking" : "Similar",
+    qualification: "Your item’s identity is not confirmed",
+    savingsMinor: null,
+    checkedAt: result.checkedAt,
+    expiresAt: result.expiresAt,
   };
 }

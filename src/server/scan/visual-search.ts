@@ -1,4 +1,4 @@
-import type { Market, Product } from "../../shared/scan.ts";
+import type { Market, Mode, Product } from "../../shared/scan.ts";
 import type {
   VisualSearch,
   VisualCandidate,
@@ -20,13 +20,15 @@ export async function storedVisualSearch(
   userId: string,
   productId: string,
   market: Market,
+  mode: Mode = "buy",
 ) {
   const row = await env.DB.prepare(
     "SELECT data FROM scan_visual_matches WHERE user_id=? AND product_id=? AND market=? AND json_extract(data,'$.provider')='meta' AND json_extract(data,'$.version')=2",
   )
     .bind(userId, productId, market)
     .first<{ data: string }>();
-  return row ? (JSON.parse(row.data) as VisualSearch) : null;
+  const result = row ? (JSON.parse(row.data) as VisualSearch) : null;
+  return result && (result.mode ?? "buy") === mode ? result : null;
 }
 async function reserveVisualSearch(env: Env, userId: string) {
   try {
@@ -46,13 +48,19 @@ async function verifyCandidatePrices(
   candidates: VisualCandidate[],
   observed: Product,
   market: Market,
+  mode: Mode,
   signal?: AbortSignal,
 ) {
   const timeout = AbortSignal.timeout(8000),
     bounded = signal ? AbortSignal.any([signal, timeout]) : timeout;
   await Promise.all(
     candidates.slice(0, 3).map(async (candidate) => {
-      if (!candidate.identity || bounded.aborted) return;
+      if (
+        !candidate.identity ||
+        candidate.price?.evidenceType === "product_page" ||
+        bounded.aborted
+      )
+        return;
       const product: Product = {
         ...observed,
         ...candidate.identity,
@@ -64,7 +72,7 @@ async function verifyCandidatePrices(
         [{ title: candidate.title, url: candidate.url }],
         product,
         market,
-        "buy",
+        mode,
         bounded,
         () => {
           delete candidate.price;
@@ -89,6 +97,7 @@ export async function discoverVisualMatches(
   market: Market,
   image: unknown,
   signal?: AbortSignal,
+  mode: Mode = "buy",
 ): Promise<VisualSearch> {
   const row = await env.DB.prepare(
     "SELECT data FROM scan_products WHERE id=? AND user_id=?",
@@ -107,7 +116,7 @@ export async function discoverVisualMatches(
       "This find is no longer in your history. Scan it again to search by image.",
       422,
     );
-  const cached = await storedVisualSearch(env, userId, productId, market);
+  const cached = await storedVisualSearch(env, userId, productId, market, mode);
   if (cached && cached.expiresAt > Date.now()) return cached;
   if (!capabilities(env).analysisAvailable)
     throw new ScanError(
@@ -124,7 +133,7 @@ export async function discoverVisualMatches(
     );
   const frame = validateFrame(photo),
     product = JSON.parse(row.data) as Product;
-  const key = await digest(`visual-meta-v3:${productId}:${market}`),
+  const key = await digest(`visual-meta-v4:${productId}:${market}:${mode}`),
     now = Date.now(),
     id = crypto.randomUUID();
   await env.DB.prepare(
@@ -132,13 +141,25 @@ export async function discoverVisualMatches(
   )
     .bind(userId, now)
     .run();
+  const prior = await env.DB.prepare(
+    "SELECT result FROM scan_jobs WHERE user_id=? AND kind='visual' AND request_key=? AND status='done' AND expires_at>? AND result IS NOT NULL",
+  )
+    .bind(userId, key, now)
+    .first<{ result: string }>();
+  if (prior) return JSON.parse(prior.result) as VisualSearch;
   const claim = await env.DB.prepare(
     "INSERT INTO scan_jobs (id,user_id,kind,request_key,status,expires_at,created_at,product_id) VALUES (?,?,'visual',?,'pending',?,?,?) ON CONFLICT(user_id,kind,request_key) DO NOTHING RETURNING id",
   )
     .bind(id, userId, key, now + 180000, now, productId)
     .first();
   if (!claim) {
-    const completed = await storedVisualSearch(env, userId, productId, market);
+    const completed = await storedVisualSearch(
+      env,
+      userId,
+      productId,
+      market,
+      mode,
+    );
     if (completed && completed.expiresAt > Date.now()) return completed;
     throw new ScanError(
       "visual_pending",
@@ -168,6 +189,7 @@ export async function discoverVisualMatches(
           signal,
           (micros) => settleScan(env, reservation, micros),
           previous,
+          mode,
         );
       } finally {
         await finishScanReservation(env, reservation);
@@ -252,12 +274,13 @@ export async function discoverVisualMatches(
     }
     candidates = candidates.slice(0, 5);
     if (!signal?.aborted)
-      await verifyCandidatePrices(candidates, product, market, signal);
+      await verifyCandidatePrices(candidates, product, market, mode, signal);
     const result: VisualSearch = {
       provider: "meta",
       version: 2,
       productId,
       market,
+      mode,
       candidates,
       ranking,
       checkedAt: Date.now(),
@@ -284,9 +307,9 @@ export async function discoverVisualMatches(
         404,
       );
     await env.DB.prepare(
-      "UPDATE scan_jobs SET status='done',expires_at=? WHERE id=?",
+      "UPDATE scan_jobs SET status='done',expires_at=?,result=? WHERE id=?",
     )
-      .bind(result.expiresAt, id)
+      .bind(result.expiresAt, JSON.stringify(result), id)
       .run();
     return result;
   } catch (error) {
