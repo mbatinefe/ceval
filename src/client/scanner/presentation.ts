@@ -156,7 +156,10 @@ export function findSummary(
     label:
       mode === "resale" ? "Similar item asking price" : "Similar item price",
     shortLabel: mode === "resale" ? "Similar · Asking" : "Similar",
-    qualification: "Your item’s identity is not confirmed",
+    qualification:
+      candidate.price.evidenceType === "search_result"
+        ? "Search-reported price · Your item’s identity is not confirmed"
+        : "Your item’s identity is not confirmed",
     savingsMinor: null,
     checkedAt: result.checkedAt,
     expiresAt: result.expiresAt,

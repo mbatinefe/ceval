@@ -45,9 +45,18 @@ function normalize(value: string) {
 function brand(value: string) {
   return normalize(value).replace(/^logitech g$/, "logitech");
 }
+function normalizedVariant(value: string) {
+  const spaced = value.replace(/(\d+)\s*tea\s*bags?\b/gi, "$1 tea bags");
+  // Tea cartons repeat the product type beside the count; that is not a new pack.
+  return normalize(
+    /\d+ tea bags/i.test(spaced)
+      ? spaced.replace(/\bpure black tea\b/gi, "")
+      : spaced,
+  );
+}
 function variantsCompatible(a: string, b: string) {
-  const left = normalize(a).split(" ").filter(Boolean),
-    right = normalize(b).split(" ").filter(Boolean);
+  const left = normalizedVariant(a).split(" ").filter(Boolean),
+    right = normalizedVariant(b).split(" ").filter(Boolean);
   if (!left.length || !right.length) return true;
   const descriptors = new Set([
     "wired",
@@ -340,7 +349,7 @@ function matchScore(
     exact(old) &&
     exact(incoming) &&
     sameModel(old, incoming) &&
-    (normalize(old.variant) === normalize(incoming.variant) ||
+    (normalizedVariant(old.variant) === normalizedVariant(incoming.variant) ||
       (uniqueModel && !!old.variant && !!incoming.variant))
   )
     return 100;
@@ -470,10 +479,12 @@ function keepSnapshot(row: FoundProduct, incoming: Product) {
       (sameSonyNumber(row.product, incoming) &&
         modelName(row.product).startsWith("a"))) &&
     variantsCompatible(row.product.variant, incoming.variant) &&
-    normalize(incoming.variant)
+    normalizedVariant(incoming.variant)
       .split(" ")
       .filter(Boolean)
-      .every((word) => normalize(row.product.variant).split(" ").includes(word))
+      .every((word) =>
+        normalizedVariant(row.product.variant).split(" ").includes(word),
+      )
   );
 }
 type SightingContext = {

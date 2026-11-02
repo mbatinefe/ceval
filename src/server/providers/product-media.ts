@@ -56,6 +56,11 @@ export function candidateImageUrl(value: unknown): string | null {
       url.searchParams.set("quality", "75");
       url.searchParams.set("io", "width:640,height:640,transform:fit");
     }
+    if (
+      url.hostname === "www.ikea.com" &&
+      url.pathname.includes("/images/products/")
+    )
+      url.searchParams.set("f", "s");
     return url.href;
   } catch {
     return null;
@@ -316,6 +321,13 @@ export function candidateFromPage(
   const { price: _oldPrice, ...withoutPrice } = candidate;
   return {
     ...withoutPrice,
+    ...(!products.length &&
+    ogProduct &&
+    candidatePageUrl(candidate.url, market ?? "US") ===
+      candidatePageUrl(pageUrl, market ?? "US") &&
+    _oldPrice?.evidenceType === "search_result"
+      ? { price: _oldPrice }
+      : {}),
     ...(offer
       ? {
           price: {

@@ -1181,3 +1181,42 @@ test("visual references cannot merge conflicting exact models, brands, variants 
   assert.equal(together.rows.length, 2);
   assert.equal(new Set(together.sightings.map((r) => r.rowId)).size, 2);
 });
+
+test("pack wording changes and return visits retain one priced grocery find", () => {
+  const tea = product({
+    brand: "Twinings",
+    model: "English Breakfast",
+    variant: "20 Tea Bags",
+    label: "Red Twinings English Breakfast tea box 20 tea bags",
+  });
+  let rows = see([], [tea]).rows;
+  rows[0].comparison = comparison(tea);
+  rows[0].searching = true;
+  for (const [variant, at] of [
+    ["20 tea bags Pure Black Tea", 7000],
+    ["20 teabags", 125000],
+  ] as const) {
+    rows = see(
+      rows,
+      [{ ...tea, id: "revisit-" + at, brand: "TWININGS", variant }],
+      at,
+    ).rows;
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].product.id, tea.id);
+    assert.equal(rows[0].comparison?.id, "comparison");
+    assert.equal(rows[0].searching, true);
+  }
+  assert.equal(
+    see(rows, [{ ...tea, id: "larger", variant: "80 tea bags" }], 130000).rows
+      .length,
+    2,
+  );
+  assert.equal(
+    see(
+      rows,
+      [{ ...tea, id: "decaf", variant: "20 tea bags decaffeinated" }],
+      130000,
+    ).rows.length,
+    2,
+  );
+});

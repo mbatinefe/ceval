@@ -40,7 +40,8 @@ export function citedOffers(
         !url ||
         !source ||
         source.snippet.trim() ||
-        !containsIdentity(source.title, product.brand) ||
+        (Boolean(product.brand) &&
+          !containsIdentity(source.title, product.brand)) ||
         !containsModel(source.title, product.model)
       )
         continue;
