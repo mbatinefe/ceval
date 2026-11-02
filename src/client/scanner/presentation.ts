@@ -25,11 +25,20 @@ export function offerSummary(
         : offer.kind === "sold" || offer.kind === "asking"),
   );
   offers.sort((a, b) => {
+    if (a.match !== b.match) return a.match === "exact" ? -1 : 1;
     if (comparison.mode === "buy" && a.kind !== b.kind)
       return a.kind === "retail" ? -1 : 1;
     if (comparison.mode === "resale" && a.kind !== b.kind)
       return a.kind === "sold" ? -1 : 1;
-    if (a.match !== b.match) return a.match === "exact" ? -1 : 1;
+    if (comparison.mode === "buy" && a.kind === "retail") {
+      if ((a.condition === "new") !== (b.condition === "new"))
+        return a.condition === "new" ? -1 : 1;
+      if (
+        (a.evidenceType === "product_page") !==
+        (b.evidenceType === "product_page")
+      )
+        return a.evidenceType === "product_page" ? -1 : 1;
+    }
     return a.priceMinor - b.priceMinor;
   });
   const offer = offers[0];
@@ -72,7 +81,11 @@ export function offerSummary(
           ? "Asking price"
           : offer.evidenceType === "cited_summary"
             ? "Search-reported price"
-            : "Online price",
+            : offer.match === "exact" &&
+                offer.condition === "new" &&
+                offer.evidenceType === "product_page"
+              ? "Lowest new price found"
+              : "Online price",
     savingsMinor: difference !== null && difference > 0 ? difference : null,
   };
 }

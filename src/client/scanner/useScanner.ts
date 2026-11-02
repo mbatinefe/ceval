@@ -71,6 +71,7 @@ export function useScanner(mode: Mode, market: Market) {
   );
   const [prepared, setPrepared] = useState(false);
   const finished = useRef<"video" | "error" | "stopped" | null>(null);
+  const positionRevision = useRef(0);
   const runningRef = useRef(false),
     lastAnalyzed = useRef<GrayFrame | null>(null),
     previous = useRef<GrayFrame | null>(null);
@@ -286,22 +287,19 @@ export function useScanner(mode: Mode, market: Market) {
   useEffect(() => {
     function hidden() {
       if (document.hidden) {
-        stopAnalysis();
-        video.current?.pause();
+        finishAnalysis("stopped");
         if (sourceRef.current === "camera") {
-          closeSource();
-          setMessage("Camera stopped while Ceval was in the background.");
-        } else {
-          setCameraPending(false);
-          setMessage(
-            "Scanning stopped while Ceval was in the background. Tap Start scanning to continue.",
-          );
+          const media = stream.current;
+          stream.current = null;
+          media?.getTracks().forEach((track) => track.stop());
+          setPrepared(false);
+          setReady(false);
         }
       }
     }
     document.addEventListener("visibilitychange", hidden);
     return () => document.removeEventListener("visibilitychange", hidden);
-  }, [closeSource, stopAnalysis]);
+  }, [finishAnalysis]);
   async function playCameraPreview() {
     const element = video.current;
     if (!element || sourceRef.current !== "camera" || document.hidden) return;
@@ -314,11 +312,16 @@ export function useScanner(mode: Mode, market: Market) {
       );
     else if (!runningRef.current) setMessage("Camera preview is playing.");
   }
-  async function camera() {
-    closeSource();
+  async function camera(keepFinds = false) {
+    if (!keepFinds) {
+      closeSource();
+      updateResults([]);
+    }
     setError("");
-    updateResults([]);
+    setCameraProblem(null);
     setCameraPending(true);
+    setPrepared(false);
+    setReady(false);
     setMessage("Waiting for camera permission…");
     const epoch = generation.current;
     try {
@@ -345,7 +348,9 @@ export function useScanner(mode: Mode, market: Market) {
       if (video.current) video.current.srcObject = media;
       media.getVideoTracks()[0]?.addEventListener("ended", () => {
         if (stream.current === media) {
-          closeSource();
+          stream.current = null;
+          finishAnalysis("stopped");
+          setPrepared(false);
           setCameraProblem(
             cameraFailure(new DOMException("Camera ended", "NotReadableError")),
           );
@@ -356,7 +361,11 @@ export function useScanner(mode: Mode, market: Market) {
       void playCameraPreview();
     } catch (err) {
       if (epoch !== generation.current) return;
-      closeSource();
+      if (!keepFinds) closeSource();
+      else {
+        setCameraPending(false);
+        finishAnalysis("stopped");
+      }
       setCameraProblem(cameraFailure(err));
       setMessage("Camera unavailable. Retry camera or choose a video.");
     }
@@ -417,20 +426,15 @@ export function useScanner(mode: Mode, market: Market) {
     setReady(readiness === "ready");
   }
   const invalidatePosition = useCallback(() => {
-    generation.current++;
-    finished.current = null;
-    if (runningRef.current) work.start();
-    else work.cancel();
+    positionRevision.current++;
     detectionTrail.clear();
-    pendingSelections.current.clear();
-    setBusy(false);
     tracked.current = [];
     setPins([]);
     previous.current = null;
     lastAnalyzed.current = null;
     lastAnalysis.current = 0;
-    updateResults(interruptFinds(resultsRef.current));
-  }, [updateResults, work, detectionTrail]);
+  }, [detectionTrail]);
+
   function comparisonFailure(err: unknown) {
     const failure = {
       error: err instanceof Error ? err.message : "Price search failed.",
@@ -681,6 +685,7 @@ export function useScanner(mode: Mode, market: Market) {
 
     setMessage("Identifying visible products…");
     const epoch = generation.current;
+    const position = positionRevision.current;
     detectionTrail.begin(thumbnail);
     await work.recognize(async (signal) => {
       try {
@@ -716,11 +721,15 @@ export function useScanner(mode: Mode, market: Market) {
           thumbnail,
           reconciled.sightings.map((row) => row.rowId || row.product.id),
         );
-        detectionTrail.append(grayFrame(element));
-        const projected = await detectionTrail.projectMany(
-          reconciled.sightings.map(({ product }) => product.box),
-          signal,
-        );
+        if (position === positionRevision.current)
+          detectionTrail.append(grayFrame(element));
+        const projected =
+          position === positionRevision.current
+            ? await detectionTrail.projectMany(
+                reconciled.sightings.map(({ product }) => product.box),
+                signal,
+              )
+            : null;
         if (epoch !== generation.current || signal.aborted) return;
         tracked.current = reconciled.sightings.flatMap((row, index) => {
           const box = projected?.boxes[index];
@@ -858,6 +867,10 @@ export function useScanner(mode: Mode, market: Market) {
     if (startupState === "waiting" && prepared) void attemptStartRef.current();
   }, [startupState, prepared, capabilities]);
   function start() {
+    if (sourceRef.current === "camera" && !stream.current) {
+      if (!cameraPending) void camera(true);
+      return;
+    }
     if (
       !prepared ||
       !capabilities?.analysisAvailable ||
@@ -989,6 +1002,7 @@ export function useScanner(mode: Mode, market: Market) {
     cameraProblem,
     startupState,
     prepared,
+    canResume: prepared || (source === "camera" && !cameraPending),
     running,
     busy,
     finishing,

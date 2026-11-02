@@ -123,3 +123,38 @@ test("buy falls back to public asking prices without presenting resale proceeds 
   assert.equal(result.savingsMinor, null);
   assert.equal(offerSummary(comparison([{ ...asking, kind: "sold" }])), null);
 });
+
+test("the headline prefers a verified exact new price over used offers and search snippets", () => {
+  const verified = {
+    ...retail,
+    priceMinor: 22000,
+    evidenceType: "product_page" as const,
+  };
+  const lowerVerified = { ...verified, priceMinor: 21000 };
+  const summary = offerSummary(
+    comparison([
+      { ...retail, priceMinor: 10000, condition: "used" },
+      { ...retail, priceMinor: 15000, evidenceType: "cited_summary" },
+      { ...verified, priceMinor: 9000, match: "possible" },
+      verified,
+      lowerVerified,
+    ]),
+  )!;
+  assert.equal(summary.offer, lowerVerified);
+  assert.equal(summary.label, "Lowest new price found");
+  assert.equal(summary.savingsMinor, 8900);
+});
+
+test("an exact used listing outranks a different model's retail price", () => {
+  const exact = {
+    ...retail,
+    priceMinor: 9000,
+    condition: "used" as const,
+    kind: "asking" as const,
+  };
+  const summary = offerSummary(
+    comparison([{ ...retail, priceMinor: 1000, match: "possible" }, exact]),
+  )!;
+  assert.equal(summary.offer, exact);
+  assert.equal(summary.label, "Asking price");
+});

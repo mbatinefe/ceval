@@ -1,5 +1,5 @@
 import { VisualMatchesDialog } from "../components/VisualMatchesDialog";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Camera,
   CameraOff,
@@ -14,6 +14,8 @@ import {
   ArrowUpRight,
   X,
   RotateCw,
+  ChevronUp,
+  Layers,
 } from "lucide-react";
 import {
   markets,
@@ -37,6 +39,19 @@ export function Scanner() {
     [selected, setSelected] = useState<Comparison | null>(null);
   const upload = useRef<HTMLInputElement>(null),
     scan = useScanner(mode, market);
+  const [trayOpen, setTrayOpen] = useState(false);
+  const [cardOpen, setCardOpen] = useState(true);
+  const findsDialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    if (trayOpen) findsDialog.current?.showModal();
+    else findsDialog.current?.close();
+  }, [trayOpen]);
+  useEffect(() => {
+    if (!scan.source) {
+      setTrayOpen(false);
+      setCardOpen(true);
+    }
+  }, [scan.source]);
   const [focusedKey, setFocusedKey] = useState<string | null>(null);
   const [visualKey, setVisualKey] = useState<string | null>(null);
   const visual = scan.found.find((row) => rowKey(row) === visualKey);
@@ -53,7 +68,7 @@ export function Scanner() {
     isAllowanceError(row.errorCode),
   )?.error;
   function pauseForDetails() {
-    resumeAfterDetails.current = Boolean(
+    resumeAfterDetails.current ||= Boolean(
       scan.video.current && !scan.video.current.paused,
     );
     scan.video.current?.pause();
@@ -70,14 +85,17 @@ export function Scanner() {
   }
   function review(comparison: Comparison) {
     pauseForDetails();
+    setTrayOpen(false);
     setSelected(comparison);
   }
   function choose(row: FoundProduct) {
     pauseForDetails();
+    setTrayOpen(false);
     setChoiceKey(rowKey(row));
   }
   function showMatches(row: FoundProduct) {
     pauseForDetails();
+    setTrayOpen(false);
     setVisualKey(rowKey(row));
     if (!row.visualSearch && !row.visualSearching)
       scan.searchImage(row.product.id, row.rowId);
@@ -138,9 +156,9 @@ export function Scanner() {
       active={focused && rowKey(row) === rowKey(focused)}
       onFocus={() => {
         setFocusedKey(rowKey(row));
-        document
-          .querySelector(".current-find")
-          ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        setCardOpen(true);
+        setTrayOpen(false);
+        closeDetails();
       }}
       onVisual={() => showMatches(row)}
       onChoose={() => choose(row)}
@@ -152,8 +170,88 @@ export function Scanner() {
       }
     />
   );
+  const resultsPanel = (
+    <aside className="scan-results">
+      <div className="results-heading">
+        <h2>This scan</h2>
+        <span>{scan.found.length}</span>
+      </div>
+      {scan.historyState.failed > 0 ? (
+        <p className="history-sync-note" role="status">
+          Some finds haven’t saved.{" "}
+          <button onClick={scan.retryHistory}>Retry saving</button>
+        </p>
+      ) : (
+        scan.found.length > 0 && (
+          <p className="history-sync-note" role="status">
+            {scan.historyState.pending
+              ? "Saving your finds…"
+              : "Photos and finds are saved automatically."}
+          </p>
+        )
+      )}
+      {scan.historyLoadError && (
+        <p className="history-sync-note">
+          Previous finds couldn’t load. <a href="/app/finds">Try Your finds</a>
+        </p>
+      )}
+      {allowanceNotice && (
+        <p className="results-notice" role="status">
+          {allowanceNotice}
+        </p>
+      )}
+      {scan.found.length === 0 ? (
+        <div className="results-empty">
+          <Tag aria-hidden="true" />
+          <h2>
+            {scan.source
+              ? "Looking for your first find"
+              : "Your finds appear here"}
+          </h2>
+          <p>
+            Point at a product and hold steady. Ceval identifies it and searches
+            prices automatically.
+          </p>
+        </div>
+      ) : (
+        <>
+          {identifiable.map(renderFind)}
+          {unclear.length > 0 && (
+            <details className="unclear-finds">
+              <summary>
+                {unclear.length}{" "}
+                {unclear.length === 1 ? "item needs" : "items need"} a clearer
+                label
+              </summary>
+              {unclear.map(renderFind)}
+            </details>
+          )}
+        </>
+      )}
+      {scan.source && scan.found.length > 0 && (
+        <button
+          className="text-link"
+          onClick={() => {
+            setTrayOpen(false);
+            closeDetails();
+            scan.rescan();
+          }}
+          disabled={scan.busy}
+        >
+          <RotateCw aria-hidden="true" />
+          Check this view again
+        </button>
+      )}
+      <a href="/app/finds" className="shelf-link">
+        All finds and history
+        <ArrowUpRight aria-hidden="true" />
+      </a>
+    </aside>
+  );
   return (
-    <main className={`live-scanner app-wrap${scan.source ? " has-feed" : ""}`}>
+    <main
+      className={`live-scanner app-wrap${scan.source ? " has-feed immersive-scanner" : ""}`}
+    >
       <h1 className="sr-only">Scan</h1>
       <div className="scanner-controls">
         <div className="mode-switch" role="group" aria-label="Comparison mode">
@@ -254,7 +352,9 @@ export function Scanner() {
               className="video-surface"
               style={{
                 aspectRatio: scan.aspect,
-                width: `min(100%, calc(var(--view-height) * ${scan.aspect}))`,
+                width: scan.source
+                  ? `min(100vw, calc(100dvh * ${scan.aspect}))`
+                  : `min(100%, calc(var(--view-height) * ${scan.aspect}))`,
               }}
             >
               <video
@@ -262,7 +362,7 @@ export function Scanner() {
                 className="user-video"
                 muted
                 playsInline
-                controls={scan.source !== "camera"}
+                controls={false}
                 preload="auto"
                 onLoadedMetadata={scan.loaded}
                 onLoadedData={scan.loaded}
@@ -287,7 +387,6 @@ export function Scanner() {
                   const row = scan.found.find(
                     (item) => rowKey(item) === product.rowId,
                   );
-                  const summary = offerSummary(row?.comparison);
                   const x = product.box.x + product.box.width / 2;
                   const y = product.box.y + product.box.height / 2;
                   return (
@@ -300,37 +399,17 @@ export function Scanner() {
                       }}
                       aria-label={`Inspect ${product.model || product.label}`}
                       onClick={() => {
-                        if (row) setFocusedKey(rowKey(row));
+                        if (row) {
+                          setFocusedKey(rowKey(row));
+                          setCardOpen(true);
+                        }
                       }}
                     >
-                      <i>{index + 1}</i>
-                      <span
-                        style={{
-                          maxWidth: `calc(var(--view-height) * ${scan.aspect} - 12px)`,
-                        }}
-                      >
-                        <strong>
-                          {summary ? (
-                            <Price
-                              minor={summary.offer.priceMinor}
-                              currency={summary.offer.currency}
-                            />
-                          ) : (
-                            product.model || "Identify item"
-                          )}
-                        </strong>
-                        <small>
-                          {summary
-                            ? [summary.shortLabel, summary.qualification]
-                                .filter(Boolean)
-                                .join(" · ")
-                            : row?.searching
-                              ? "Checking prices"
-                              : product.candidates?.length
-                                ? "Choose model"
-                                : "Tap to inspect"}
-                        </small>
-                      </span>
+                      <i>
+                        {scan.found.findIndex(
+                          (item) => rowKey(item) === product.rowId,
+                        ) + 1 || index + 1}
+                      </i>
                     </button>
                   );
                 })}
@@ -409,6 +488,17 @@ export function Scanner() {
           )}
           {scan.source && (
             <div className="scan-actions">
+              <button
+                className="scan-tray-button"
+                onClick={() => {
+                  pauseForDetails();
+                  setTrayOpen(true);
+                }}
+                aria-label={`Show all ${scan.found.length} finds`}
+              >
+                <Layers aria-hidden="true" />
+                <span>{scan.found.length} finds</span>
+              </button>
               <div className="scan-status" role="status">
                 {scan.busy ||
                 scan.startupState === "starting" ||
@@ -438,20 +528,25 @@ export function Scanner() {
                 <button
                   className="button primary small"
                   disabled={
-                    !scan.prepared || !scan.capabilities?.analysisAvailable
+                    !scan.canResume || !scan.capabilities?.analysisAvailable
                   }
                   onClick={() => void scan.start()}
                 >
                   <Play aria-hidden="true" />
                   {scan.startupState === "blocked"
                     ? "Tap to start scanning"
-                    : "Start scanning"}
+                    : scan.found.length
+                      ? "Resume scan"
+                      : "Start scanning"}
                 </button>
               )}
             </div>
           )}
           {scan.finishing && (
-            <button className="text-link" onClick={scan.cancelSearches}>
+            <button
+              className="text-link cancel-searches"
+              onClick={scan.cancelSearches}
+            >
               Cancel remaining searches
             </button>
           )}
@@ -464,27 +559,106 @@ export function Scanner() {
               <RotateCw aria-hidden="true" /> Check this view again
             </button>
           )}
-          {focused && (
-            <ScanResultCard
-              row={focused}
-              compact
-              context={
-                scan.pins.some((pin) => pin.rowId === rowKey(focused))
-                  ? "IN VIEW"
-                  : rowKey(focused) === focusedKey
-                    ? "SELECTED FIND"
-                    : "RECENT FIND"
-              }
-              onVisual={() => showMatches(focused)}
-              onChoose={() => choose(focused)}
-              onReview={review}
-              onRetry={
-                focused.retryable
-                  ? () =>
-                      scan.retryComparison(focused.product.id, focused.rowId)
-                  : undefined
-              }
-            />
+          {scan.source && scan.found.length > 0 && (
+            <div className="floating-finds">
+              <div className="finds-rail" aria-label="Items found in this scan">
+                {scan.found.map((row, index) => {
+                  const summary = offerSummary(row.comparison);
+                  return (
+                    <button
+                      key={rowKey(row)}
+                      aria-label={`Show ${row.product.model || row.product.label}`}
+                      aria-pressed={focused && rowKey(row) === rowKey(focused)}
+                      onClick={() => {
+                        setFocusedKey(rowKey(row));
+                        setCardOpen(true);
+                      }}
+                    >
+                      {row.thumbnail ? (
+                        <img src={row.thumbnail} alt="" />
+                      ) : (
+                        <Tag aria-hidden="true" />
+                      )}
+                      <span className="rail-number">{index + 1}</span>
+                      <span className="rail-price">
+                        {summary ? (
+                          <Price
+                            minor={summary.offer.priceMinor}
+                            currency={summary.offer.currency}
+                          />
+                        ) : row.searching ||
+                          row.visualSearching ||
+                          row.selecting ? (
+                          <LoaderCircle
+                            className="spin"
+                            aria-label="Searching"
+                          />
+                        ) : (
+                          "—"
+                        )}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              {focused && (
+                <section
+                  className={`floating-card${cardOpen ? " is-expanded" : ""}`}
+                  aria-label="Selected find"
+                >
+                  <button
+                    className="floating-card-toggle"
+                    aria-expanded={cardOpen}
+                    aria-controls="floating-find-details"
+                    onClick={() => setCardOpen(!cardOpen)}
+                  >
+                    <span>
+                      {cardOpen
+                        ? "Selected find"
+                        : focused.product.model || focused.product.label}
+                    </span>
+                    {!cardOpen && offerSummary(focused.comparison) && (
+                      <Price
+                        minor={
+                          offerSummary(focused.comparison)!.offer.priceMinor
+                        }
+                        currency={
+                          offerSummary(focused.comparison)!.offer.currency
+                        }
+                      />
+                    )}
+                    {cardOpen ? (
+                      <ChevronDown aria-hidden="true" />
+                    ) : (
+                      <ChevronUp aria-hidden="true" />
+                    )}
+                  </button>
+                  <div id="floating-find-details" hidden={!cardOpen}>
+                    <ScanResultCard
+                      row={focused}
+                      compact
+                      context={
+                        scan.pins.some((pin) => pin.rowId === rowKey(focused))
+                          ? "IN VIEW"
+                          : "FOUND"
+                      }
+                      onVisual={() => showMatches(focused)}
+                      onChoose={() => choose(focused)}
+                      onReview={review}
+                      onRetry={
+                        focused.retryable
+                          ? () =>
+                              scan.retryComparison(
+                                focused.product.id,
+                                focused.rowId,
+                              )
+                          : undefined
+                      }
+                    />
+                  </div>
+                </section>
+              )}
+            </div>
           )}
           {scan.error && (
             <p role="alert" className="form-error scanner-error">
@@ -508,69 +682,7 @@ export function Scanner() {
             </p>
           </details>
         </section>
-        <aside className="scan-results">
-          <div className="results-heading">
-            <h2>This scan</h2>
-            <span>{scan.found.length}</span>
-          </div>
-          {scan.historyState.failed > 0 ? (
-            <p className="history-sync-note" role="status">
-              Some finds haven’t saved.{" "}
-              <button onClick={scan.retryHistory}>Retry saving</button>
-            </p>
-          ) : (
-            scan.found.length > 0 && (
-              <p className="history-sync-note" role="status">
-                {scan.historyState.pending
-                  ? "Saving your finds…"
-                  : "Photos and finds are saved automatically."}
-              </p>
-            )
-          )}
-          {scan.historyLoadError && (
-            <p className="history-sync-note">
-              Previous finds couldn’t load.{" "}
-              <a href="/app/finds">Try Your finds</a>
-            </p>
-          )}
-          {allowanceNotice && (
-            <p className="results-notice" role="status">
-              {allowanceNotice}
-            </p>
-          )}
-          {scan.found.length === 0 ? (
-            <div className="results-empty">
-              <Tag aria-hidden="true" />
-              <h2>
-                {scan.source
-                  ? "Looking for your first find"
-                  : "Your finds appear here"}
-              </h2>
-              <p>
-                Point at a product and hold steady. Ceval identifies it and
-                searches prices automatically.
-              </p>
-            </div>
-          ) : (
-            <>
-              {identifiable.map(renderFind)}
-              {unclear.length > 0 && (
-                <details className="unclear-finds">
-                  <summary>
-                    {unclear.length}{" "}
-                    {unclear.length === 1 ? "item needs" : "items need"} a
-                    clearer label
-                  </summary>
-                  {unclear.map(renderFind)}
-                </details>
-              )}
-            </>
-          )}
-          <a href="/app/finds" className="shelf-link">
-            All finds and history
-            <ArrowUpRight aria-hidden="true" />
-          </a>
-        </aside>
+        {!scan.source && resultsPanel}
       </div>
       {recentFinds}
       <details className="sample-library">
@@ -607,6 +719,36 @@ export function Scanner() {
           ))}
         </div>
       </details>
+      <dialog
+        ref={findsDialog}
+        className="product-dialog scan-finds-dialog"
+        aria-label="All finds from this scan"
+        onCancel={() => {
+          setTrayOpen(false);
+          closeDetails();
+        }}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) {
+            setTrayOpen(false);
+            closeDetails();
+          }
+        }}
+      >
+        <div className="finds-dialog-header">
+          <span>Your scan</span>
+          <button
+            className="icon-button"
+            aria-label="Close all finds"
+            onClick={() => {
+              setTrayOpen(false);
+              closeDetails();
+            }}
+          >
+            <X aria-hidden="true" />
+          </button>
+        </div>
+        {scan.source && resultsPanel}
+      </dialog>
       {visual && (
         <VisualMatchesDialog
           product={visual.product}

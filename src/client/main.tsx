@@ -10,6 +10,7 @@ import { Account } from "./pages/Account";
 import { api, ApiError } from "./lib/api";
 import type { Profile } from "../shared/demo";
 import "./styles/app.css";
+import "./styles/scanner.css";
 
 function Workspace() {
   const [profile, setProfile] = useState<Profile | null>(null);

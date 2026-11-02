@@ -1,0 +1,542 @@
+/* Prices remain readable over a live feed, with one selected find at a time. */
+.find-price-state {
+  display: grid;
+  gap: 4px;
+  margin-top: 14px;
+  padding: 16px 0;
+  border-block: 1px solid var(--hair);
+}
+.find-price-state strong {
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+.find-price-state > span {
+  color: var(--graphite);
+  font-size: 13px;
+}
+.find-price-state.is-checking {
+  grid-template-columns: 18px 1fr;
+  align-items: center;
+}
+.find-price-state svg {
+  width: 17px;
+  height: 17px;
+  color: var(--red);
+}
+.find-variant:empty {
+  display: none;
+}
+.marketplace-action {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--graphite);
+}
+.marketplace-action img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+.marketplace-action svg {
+  width: 15px;
+  height: 15px;
+  margin-left: auto;
+}
+.marketplace-action:hover {
+  color: var(--ink);
+}
+.scan-tray-button {
+  display: none;
+}
+.immersive-scanner.app-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  width: 100%;
+  max-width: none;
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+  background: #121411;
+  overflow: hidden;
+}
+.immersive-scanner .scanner-grid,
+.immersive-scanner .media-panel {
+  display: block;
+  height: 100%;
+  margin: 0;
+}
+.immersive-scanner .live-stage {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  max-height: none;
+  border-radius: 0;
+}
+.immersive-scanner .live-stage::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgb(0 0 0 / 0.45),
+    transparent 24%,
+    transparent 70%,
+    rgb(0 0 0 / 0.6)
+  );
+}
+.immersive-scanner .video-surface {
+  flex-shrink: 0;
+}
+.immersive-scanner .live-pins {
+  z-index: 3;
+}
+.immersive-scanner .live-pin > i {
+  width: 32px;
+  height: 32px;
+}
+.immersive-scanner .live-pin.is-active > i {
+  box-shadow:
+    0 0 0 5px rgb(255 255 255 / 0.25),
+    0 2px 12px rgb(0 0 0 / 0.4);
+}
+.immersive-scanner .input-label {
+  inset: max(16px, env(safe-area-inset-top)) 20px auto;
+  z-index: 4;
+}
+.immersive-scanner .input-label > span {
+  background: rgb(15 17 14 / 0.7);
+  color: #fff;
+}
+.immersive-scanner .input-label > button {
+  width: 44px;
+  height: 44px;
+  background: rgb(15 17 14 / 0.7);
+  color: #fff;
+}
+.immersive-scanner .scanner-controls {
+  position: absolute;
+  z-index: 5;
+  top: max(16px, env(safe-area-inset-top));
+  left: 210px;
+  margin: 0;
+  gap: 8px;
+}
+.immersive-scanner .mode-switch,
+.immersive-scanner .market-select {
+  background: var(--frame);
+  box-shadow: 0 2px 20px rgb(0 0 0 / 0.12);
+}
+.immersive-scanner .mode-switch {
+  padding: 3px;
+  border-radius: 12px;
+}
+.immersive-scanner .mode-switch button {
+  min-height: 38px;
+  font-size: 13px;
+}
+.immersive-scanner .market-select {
+  min-width: 85px;
+  height: 44px;
+  border-radius: 12px;
+}
+.immersive-scanner .scan-actions {
+  position: absolute;
+  z-index: 5;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  gap: 16px;
+  margin: 0;
+  padding: 16px 24px max(16px, env(safe-area-inset-bottom));
+  border: 0;
+  color: white;
+  background: linear-gradient(transparent, rgb(0 0 0 / 0.72));
+}
+.immersive-scanner .scan-status {
+  color: rgb(255 255 255 / 0.9);
+  flex: 1;
+  font-size: 13px;
+}
+.immersive-scanner .scan-status > svg {
+  color: #fff;
+  flex-shrink: 0;
+}
+.immersive-scanner .scan-actions > .button {
+  flex-shrink: 0;
+  min-height: 46px;
+  min-width: 132px;
+  background: #fff;
+  color: var(--ink);
+  border: none;
+}
+.immersive-scanner .scan-actions > .button:has(.lucide-square) {
+  background: var(--red);
+  color: #fff;
+}
+.immersive-scanner .scan-tray-button {
+  display: inline-flex;
+  gap: 9px;
+  align-items: center;
+  padding: 0 16px;
+  min-height: 46px;
+  border: 1px solid rgb(255 255 255 / 0.25);
+  border-radius: 12px;
+  color: #fff;
+  background: rgb(15 17 14 / 0.7);
+}
+.scan-tray-button svg {
+  width: 18px;
+  height: 18px;
+}
+.floating-finds {
+  position: absolute;
+  z-index: 4;
+  bottom: calc(94px + env(safe-area-inset-bottom));
+  right: 24px;
+  width: 366px;
+  max-width: calc(100% - 32px);
+}
+.finds-rail {
+  display: flex;
+  gap: 8px;
+  padding: 5px 2px 10px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #aaa transparent;
+}
+.finds-rail > button {
+  position: relative;
+  flex: 0 0 58px;
+  height: 62px;
+  padding: 2px;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  background: var(--frame);
+  box-shadow: 0 2px 12px rgb(0 0 0 / 0.2);
+}
+.finds-rail > button[aria-pressed="true"] {
+  border-color: var(--red);
+}
+.finds-rail img {
+  display: block;
+  width: 100%;
+  height: 37px;
+  object-fit: contain;
+  border-radius: 6px;
+}
+.rail-number {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  padding: 0 3px;
+  background: var(--frame);
+  font-family: var(--mono);
+  font-size: 9px;
+}
+.rail-price {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 17px;
+  font-size: 12px;
+}
+.rail-price .price {
+  font-size: 16px;
+}
+.rail-price svg {
+  width: 12px;
+  height: 12px;
+}
+.floating-card {
+  background: var(--frame);
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 8px 40px rgb(0 0 0 / 0.28);
+}
+.floating-card-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  width: 100%;
+  padding: 10px 16px;
+  text-align: left;
+}
+.floating-card-toggle > span:first-child {
+  flex: 1;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.floating-card.is-expanded .floating-card-toggle {
+  border-bottom: 1px solid var(--hair);
+  color: var(--graphite);
+}
+.floating-card-toggle > .price {
+  color: var(--red);
+  font-size: 24px;
+}
+.floating-card-toggle svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+#floating-find-details {
+  max-height: min(510px, calc(100dvh - 300px));
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+#floating-find-details[hidden] {
+  display: none;
+}
+.floating-card .current-find {
+  margin: 0;
+  padding: 16px;
+  border-radius: 0;
+  box-shadow: none;
+}
+.floating-card .find-head {
+  gap: 10px;
+}
+.floating-card .scan-product-photo {
+  width: 52px;
+  height: 52px;
+}
+.floating-card .find-title {
+  font-size: 19px;
+}
+.floating-card .find-brand {
+  font-size: 10px;
+}
+.floating-card .find-variant {
+  font-size: 12px;
+}
+.floating-card .find-prices {
+  grid-template-columns: 1.65fr 1fr;
+  margin-top: 12px;
+}
+.floating-card .find-prices .find-price .price {
+  font-size: 48px;
+}
+.floating-card .find-prices > div {
+  padding-block: 10px;
+  gap: 5px;
+}
+.floating-card .find-prices > div:only-child {
+  grid-column: 1 / -1;
+}
+.floating-card .find-shelf b {
+  font-size: 24px;
+}
+.floating-card .price-label {
+  font-size: 10px;
+  letter-spacing: 0.01em;
+}
+.floating-card .find-evidence {
+  font-size: 12px;
+  margin-top: 8px;
+}
+.floating-card .find-evidence > b {
+  font-size: 12px;
+}
+.floating-card .find-actions {
+  margin-top: 10px;
+  gap: 6px;
+}
+.floating-card .find-action {
+  font-size: 13px;
+  padding-inline: 10px;
+}
+.floating-card .searching-price,
+.floating-card .result-note {
+  font-size: 12px;
+  margin-top: 8px;
+}
+.immersive-scanner > .recent-finds,
+.immersive-scanner > .sample-library,
+.immersive-scanner .media-privacy,
+.immersive-scanner .rescan-view {
+  display: none;
+}
+.immersive-scanner .cancel-searches {
+  position: absolute;
+  z-index: 5;
+  bottom: calc(88px + env(safe-area-inset-bottom));
+  left: 24px;
+  color: #fff;
+  font-size: 12px;
+  background: rgb(15 17 14 / 0.75);
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+.immersive-scanner .scanner-error,
+.immersive-scanner .availability-note {
+  position: absolute;
+  top: 80px;
+  left: 24px;
+  z-index: 5;
+  max-width: min(460px, calc(100% - 48px));
+  background: var(--frame);
+  padding: 12px 16px;
+  border-radius: 12px;
+}
+.scan-finds-dialog {
+  width: min(600px, calc(100% - 32px));
+  padding: 0 24px 24px;
+  max-height: 85dvh;
+}
+.finds-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding-block: 12px;
+  background: var(--frame);
+  font-family: var(--mono);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+.scan-finds-dialog .scan-results {
+  padding: 0;
+  border: 0;
+}
+.scan-finds-dialog .scan-result.is-active::before {
+  display: none;
+}
+@media (max-width: 699px) {
+  .immersive-scanner .input-label {
+    left: 16px;
+    right: 16px;
+  }
+  .immersive-scanner .scanner-controls {
+    top: calc(70px + env(safe-area-inset-top));
+    left: 16px;
+    right: 16px;
+    justify-content: space-between;
+  }
+  .immersive-scanner .mode-switch button {
+    padding-inline: 10px;
+    font-size: 12px;
+  }
+  .immersive-scanner .mode-switch button svg {
+    width: 14px;
+  }
+  .immersive-scanner .market-select {
+    min-width: 72px;
+  }
+  .immersive-scanner .scan-actions {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 8px 16px max(12px, env(safe-area-inset-bottom));
+  }
+  .immersive-scanner .scan-status {
+    order: -1;
+    flex-basis: 100%;
+    justify-content: center;
+    text-align: center;
+    min-height: 18px;
+    font-size: 11px;
+    line-height: 1.3;
+  }
+  .immersive-scanner .scan-tray-button {
+    flex: 1;
+    justify-content: center;
+  }
+  .immersive-scanner .scan-actions > .button {
+    flex: 1;
+  }
+  .floating-finds {
+    right: 16px;
+    left: 16px;
+    bottom: calc(104px + env(safe-area-inset-bottom));
+    width: auto;
+  }
+  .floating-card .current-find {
+    padding: 12px 14px;
+  }
+  .floating-card .find-prices .find-price .price {
+    font-size: 42px;
+  }
+  .floating-card .find-title {
+    font-size: 17px;
+  }
+  .floating-card .find-prices {
+    margin-top: 10px;
+  }
+  .floating-card .find-evidence {
+    font-size: 11px;
+  }
+  #floating-find-details {
+    max-height: min(335px, calc(100dvh - 360px));
+  }
+  .finds-rail {
+    padding-bottom: 8px;
+  }
+  .finds-rail > button {
+    flex-basis: 52px;
+    height: 55px;
+  }
+  .finds-rail img {
+    height: 30px;
+  }
+  .immersive-scanner .cancel-searches {
+    left: 16px;
+    bottom: auto;
+    top: calc(120px + env(safe-area-inset-top));
+    font-size: 11px;
+  }
+  .immersive-scanner .scanner-error,
+  .immersive-scanner .availability-note {
+    top: 128px;
+    left: 16px;
+    max-width: calc(100% - 32px);
+    font-size: 12px;
+  }
+  .scan-finds-dialog {
+    width: 100%;
+    max-width: none;
+    margin: auto 0 0;
+    max-height: 86dvh;
+    border-radius: 20px 20px 0 0;
+    padding: 0 20px max(20px, env(safe-area-inset-bottom));
+  }
+}
+@media (max-height: 520px) and (orientation: landscape) {
+  .immersive-scanner .scanner-controls {
+    top: 12px;
+    left: 180px;
+    right: 70px;
+    justify-content: flex-start;
+  }
+  .floating-finds {
+    left: auto;
+    right: 16px;
+    width: 300px;
+    bottom: 76px;
+  }
+  .finds-rail {
+    display: none;
+  }
+  #floating-find-details {
+    max-height: calc(100dvh - 186px);
+  }
+  .immersive-scanner .scan-actions {
+    flex-wrap: nowrap;
+  }
+  .immersive-scanner .scan-status {
+    order: initial;
+    flex-basis: auto;
+  }
+}
