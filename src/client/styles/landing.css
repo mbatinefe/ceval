@@ -160,7 +160,8 @@
   white-space: nowrap;
   transition:
     background-color 0.2s ease,
-    border-color 0.2s ease;
+    border-color 0.2s ease,
+    color 0.2s ease;
 }
 .lp-btn-ink {
   background: var(--ink);
@@ -225,6 +226,13 @@
 }
 .lp-top-link:hover {
   color: var(--ink);
+}
+.lp-top .brand,
+.lp-top-link {
+  transition: color 0.2s ease;
+}
+.lp-top .brand path {
+  transition: fill 0.2s ease;
 }
 
 /* Landing page */
@@ -440,7 +448,8 @@
   font-weight: 760;
   line-height: 1;
   letter-spacing: -0.01em;
-  visibility: hidden;
+  opacity: 0;
+  transition: opacity 0.4s ease;
 }
 .lp-esl-brand svg {
   width: 3.8cqi;
@@ -481,7 +490,7 @@
   height: max(2px, 0.45cqi);
   background: var(--red);
   transform-origin: left;
-  animation: lp-strike 0.4s 0.3s cubic-bezier(0.5, 0, 0.2, 1) both;
+  animation: lp-strike 0.45s 0.55s cubic-bezier(0.5, 0, 0.2, 1) both;
 }
 .lp-esl-value {
   grid-area: value;
@@ -530,14 +539,31 @@
   color: var(--red);
 }
 .is-ceval .lp-esl-brand {
-  visibility: visible;
+  opacity: 1;
 }
-.lp-esl-flash {
-  position: absolute;
-  inset: 0;
-  z-index: 3;
-  pointer-events: none;
-  animation: lp-flash 0.46s steps(1, end) both;
+
+/* Like a shelf label's partial refresh, only the fields that change are
+   redrawn: the old value fades out, then the new ones settle in one by one.
+   Only opacity and position animate, which stays smooth on phones. */
+.lp-esl-q,
+.lp-esl-name em,
+.lp-esl-value,
+.lp-esl-note {
+  transition: opacity 0.2s ease;
+  animation: lp-settle 0.6s calc(var(--i, 0) * 70ms)
+    cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+}
+.lp-esl-name em {
+  --i: 1;
+}
+.lp-esl-value {
+  --i: 2;
+}
+.lp-esl-note {
+  --i: 3;
+}
+.lp-esl [data-out="true"] {
+  opacity: 0;
 }
 .lp-esl-led {
   position: absolute;
@@ -547,6 +573,9 @@
   height: max(5px, 1.1cqi);
   border-radius: 50%;
   background: #a4a8a0;
+  transition:
+    background-color 0.4s ease,
+    box-shadow 0.4s ease;
 }
 .is-ceval .lp-esl-led {
   background: var(--red-lit);
@@ -564,9 +593,11 @@
   --w: max(3px, 0.65cqi);
   --s: 6.5cqi;
   inset: -3.4cqi -2.4cqi;
+  transition: opacity 0.4s ease;
 }
 .is-locked .lp-esl-lock {
   opacity: 1;
+  transition: none;
   animation: lp-lock 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
 }
 .lp-finder {
@@ -692,6 +723,9 @@
   background: rgb(255 255 255 / 0.55);
   transform: scaleX(0);
   transform-origin: left;
+  transition:
+    transform 0.45s ease,
+    background-color 0.3s ease;
 }
 .lp-tab.is-done .lp-tab-bar i {
   transform: none;
@@ -701,7 +735,8 @@
   transform: none;
 }
 .lp-tab[aria-pressed="true"][data-playing="true"] .lp-tab-bar i {
-  animation: lp-fill 3.2s linear both;
+  transition: none;
+  animation: lp-fill var(--hold, 3.6s) linear both;
 }
 .lp-hero-lede {
   max-width: 32em;
@@ -933,13 +968,21 @@
   width: var(--cw);
   height: calc(var(--cw) * 1.48);
   border-radius: 3px;
-  background: linear-gradient(180deg, #2a2a27 0 50%, #222220 50% 100%);
+  background-color: #2a2a27;
+  background-image: linear-gradient(
+    180deg,
+    transparent 50%,
+    rgb(0 0 0 / 0.14) 50%
+  );
   box-shadow:
     inset 0 -1px 0 rgb(0 0 0 / 0.6),
     0 1px 0 rgb(255 255 255 / 0.03);
   font: 500 calc(var(--cw) * 0.9) / 1 var(--mono);
   color: #f2f1ea;
   white-space: pre;
+  transition:
+    background-color 0.5s ease,
+    color 0.5s ease;
 }
 .lp-flap::after {
   content: "";
@@ -952,7 +995,7 @@
 }
 [data-mark="online"] [data-group="2"] .lp-flap,
 [data-mark="used"] [data-group="3"] .lp-flap {
-  background: linear-gradient(180deg, #c8191f 0 50%, #b31419 50% 100%);
+  background-color: #c8191f;
   color: #fff;
 }
 .lp-board-note {
@@ -1154,21 +1197,10 @@
   color: rgb(255 255 255 / 0.45);
 }
 
-@keyframes lp-flash {
-  0% {
-    background: #141414;
-  }
-  28% {
-    background: #ecede6;
-  }
-  52% {
-    background: #141414;
-  }
-  76% {
-    background: #dcddd5;
-  }
-  100% {
-    background: transparent;
+@keyframes lp-settle {
+  from {
+    opacity: 0;
+    transform: translateY(1.2cqi);
   }
 }
 @keyframes lp-lock {

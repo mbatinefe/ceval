@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Brand, BrandMark } from "../components/Brand";
 import { useThemeColor } from "../lib/theme-color";
 import "../styles/landing.css";
@@ -7,9 +7,11 @@ const STAGE = "#121211";
 const SHELF = "#f3f3f0";
 
 // How long the hero label holds each state, in milliseconds.
-const SHELF_HOLD = 1700;
-const LOCK_HOLD = 560;
-const ANSWER_HOLD = 3200;
+const SHELF_HOLD = 2000;
+const LOCK_HOLD = 600;
+const ANSWER_HOLD = 3600;
+// Fields that change fade out for this long before the new values settle in.
+const FADE_OUT = 200;
 
 const prefersReducedMotion = () =>
   typeof window !== "undefined" &&
@@ -79,6 +81,34 @@ const answers: Answer[] = [
   },
 ];
 
+type Face = Pick<
+  Answer,
+  "question" | "kicker" | "value" | "meta" | "was" | "note"
+>;
+
+// Before Ceval reads the label, it shows what the store printed.
+const shelfFace: Face = {
+  question: product.aisle,
+  kicker: "Shelf price",
+  value: { kind: "price", text: product.shelf },
+  meta: product.meta,
+  note: "Point Ceval at the label",
+};
+
+const faceAt = (step: number): Face => (step >= 0 ? answers[step] : shelfFace);
+
+// What each changing field shows. A field is redrawn only when this changes,
+// so the product name, the barcode and any repeated line stay still.
+const fieldsOf = (face: Face) => ({
+  q: face.question,
+  meta: face.was ? `Shelf ${face.was}` : face.meta,
+  value: `${face.kicker} ${face.value.text}`,
+  note: face.note,
+});
+
+type Field = keyof ReturnType<typeof fieldsOf>;
+const FIELDS: Field[] = ["q", "meta", "value", "note"];
+
 function Value({ value }: { value: Answer["value"] }) {
   if (value.kind === "text")
     return <span className="lp-val lp-val-text">{value.text}</span>;
@@ -115,35 +145,37 @@ function Barcode() {
   );
 }
 
-// The hero: an electronic shelf label. A viewfinder locks on, the e-ink
-// refreshes, and the label answers the four questions in turn.
+// The hero: an electronic shelf label. A viewfinder locks on, and the label
+// answers the four questions in turn.
 function HeroShelf() {
   const [reduce] = useState(prefersReducedMotion);
   const [step, setStep] = useState(reduce ? 1 : -1);
   const [locked, setLocked] = useState(reduce);
   const [auto, setAuto] = useState(!reduce);
   const [inView, setInView] = useState(true);
-  const [flash, setFlash] = useState(0);
+  const [leaving, setLeaving] = useState<Field[]>([]);
   const stageRef = useRef<HTMLDivElement>(null);
   const labelRef = useRef<HTMLDivElement>(null);
   const finderRef = useRef<HTMLSpanElement>(null);
-  const pending = useRef<number[]>([]);
+  const swapTimer = useRef(0);
   const aim = useRef(() => {});
 
-  useEffect(() => {
-    const timers = pending.current;
-    return () => timers.forEach((id) => window.clearTimeout(id));
-  }, []);
+  useEffect(() => () => window.clearTimeout(swapTimer.current), []);
 
-  // The screen flashes like e-ink, then shows the next state.
+  // Like a shelf label's partial refresh, only the fields that change are
+  // redrawn: they fade out, then the new values settle in one by one.
   function swap(next: number) {
     const apply = () => {
+      setLeaving([]);
       setStep(next);
       if (next === -1) setLocked(false);
     };
+    window.clearTimeout(swapTimer.current);
     if (reduce) return apply();
-    setFlash((count) => count + 1);
-    pending.current.push(window.setTimeout(apply, 150));
+    const from = fieldsOf(faceAt(step));
+    const to = fieldsOf(faceAt(next));
+    setLeaving(FIELDS.filter((field) => from[field] !== to[field]));
+    swapTimer.current = window.setTimeout(apply, FADE_OUT);
   }
 
   function choose(index: number) {
@@ -245,56 +277,64 @@ function HeroShelf() {
     };
   }, [reduce]);
 
-  const answer = step >= 0 ? answers[step] : null;
+  const face = faceAt(step);
+  const fields = fieldsOf(face);
+  // A changed field gets a new key, so it is drawn fresh and settles in.
+  const out = (name: Field) => leaving.includes(name);
   return (
     <>
       <div className="lp-stage" ref={stageRef} data-finder="off">
         <span className="lp-stage-rail" aria-hidden="true" />
         <div
-          className={`lp-esl${answer ? " is-ceval" : ""}${locked ? " is-locked" : ""}`}
+          className={`lp-esl${step >= 0 ? " is-ceval" : ""}${locked ? " is-locked" : ""}`}
           ref={labelRef}
           aria-hidden="true"
           onClick={() => choose(step >= answers.length - 1 ? 0 : step + 1)}
         >
           <div className="lp-esl-screen lp-eink">
-            <div
-              className={`lp-esl-face lp-esl-${answer?.value.kind ?? "price"}`}
-            >
-              <span className="lp-esl-q">
-                {answer ? answer.question : product.aisle}
+            <div className={`lp-esl-face lp-esl-${face.value.kind}`}>
+              <span className="lp-esl-q" key={fields.q} data-out={out("q")}>
+                {face.question}
               </span>
               <span className="lp-esl-brand">
                 <BrandMark /> ceval
               </span>
               <span className="lp-esl-name">
                 <strong>{product.name}</strong>
-                {answer?.was ? (
-                  <em className="lp-esl-was">
-                    Shelf <s key={step}>${answer.was}</s>
+                {face.was ? (
+                  <em
+                    className="lp-esl-was"
+                    key={fields.meta}
+                    data-out={out("meta")}
+                  >
+                    Shelf <s>${face.was}</s>
                   </em>
                 ) : (
-                  <em>{answer ? answer.meta : product.meta}</em>
+                  <em key={fields.meta} data-out={out("meta")}>
+                    {face.meta}
+                  </em>
                 )}
               </span>
-              <span className="lp-esl-value">
-                <small>{answer ? answer.kicker : "Shelf price"}</small>
-                <Value
-                  value={
-                    answer
-                      ? answer.value
-                      : { kind: "price", text: product.shelf }
-                  }
-                />
+              <span
+                className="lp-esl-value"
+                key={fields.value}
+                data-out={out("value")}
+              >
+                <small>{face.kicker}</small>
+                <Value value={face.value} />
               </span>
               <span className="lp-esl-code">
                 <Barcode />
                 <small>{product.code}</small>
               </span>
-              <span className="lp-esl-note">
-                {answer ? answer.note : "Point Ceval at the label"}
+              <span
+                className="lp-esl-note"
+                key={fields.note}
+                data-out={out("note")}
+              >
+                {face.note}
               </span>
             </div>
-            {flash > 0 ? <span className="lp-esl-flash" key={flash} /> : null}
           </div>
           <span className="lp-esl-led" />
           <span className="lp-esl-lock">
@@ -315,6 +355,7 @@ function HeroShelf() {
         className="lp-tabs"
         role="group"
         aria-label="Questions Ceval answers"
+        style={{ "--hold": `${ANSWER_HOLD}ms` } as CSSProperties}
       >
         {answers.map((item, index) => (
           <button
@@ -326,7 +367,7 @@ function HeroShelf() {
             onClick={() => choose(index)}
           >
             <span className="lp-tab-bar">
-              <i key={index === step ? `on-${step}` : "off"} />
+              <i />
             </span>
             {item.tab}
           </button>
@@ -484,18 +525,19 @@ function PriceBoard() {
       }, ms);
       timers.add(id);
     };
+    // Each tile passes through one or two letters before it lands.
     const flip = (cell: HTMLElement, target: string, delay: number) => {
-      let spins = 3 + Math.floor(Math.random() * 4);
+      let spins = 1 + Math.floor(Math.random() * 2);
       const turn = () => {
         cell.textContent =
           spins-- > 0
             ? glyphs[Math.floor(Math.random() * glyphs.length)]
             : target;
         cell.animate(
-          [{ transform: "scaleY(0.12)" }, { transform: "scaleY(1)" }],
-          { duration: 70, easing: "ease-out" },
+          [{ transform: "scaleY(0.2)" }, { transform: "scaleY(1)" }],
+          { duration: 140, easing: "cubic-bezier(0.2, 0.7, 0.3, 1)" },
         );
-        if (spins >= 0) later(turn, 66);
+        if (spins >= 0) later(turn, 130);
       };
       later(turn, delay);
     };
@@ -508,7 +550,7 @@ function PriceBoard() {
           .forEach((cell, index) => {
             const target = text[index] ?? " ";
             if (cell.textContent !== target)
-              flip(cell, target, index * 26 + group * 110);
+              flip(cell, target, index * 34 + group * 120);
           });
       });
     };
@@ -527,7 +569,7 @@ function PriceBoard() {
       show(rows[row], boardRows[next % boardRows.length]);
       next += 1;
       row = (row + 1) % rows.length;
-    }, 2600);
+    }, 3400);
     return () => {
       window.clearInterval(interval);
       observer.disconnect();
