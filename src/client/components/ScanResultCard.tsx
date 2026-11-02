@@ -201,19 +201,21 @@ export function ScanResultCard({
             <ChevronRight aria-hidden="true" />
           </button>
         )}
-        {onVisual && row.thumbnail && (!compact || !summary) && (
-          <button
-            className={`find-action${!summary && !needsModel && !row.comparison ? " primary-action" : ""}`}
-            onClick={onVisual}
-          >
-            {row.visualSearching
-              ? "Photo search…"
-              : row.visualSearch
-                ? "Similar items"
-                : "Search by photo"}
-            <ChevronRight aria-hidden="true" />
-          </button>
-        )}
+        {onVisual &&
+          row.thumbnail &&
+          (!compact || !summary || summary.source === "visual") && (
+            <button
+              className={`find-action${!summary && !needsModel && !row.comparison ? " primary-action" : ""}`}
+              onClick={onVisual}
+            >
+              {row.visualSearching
+                ? "Photo search…"
+                : row.visualSearch
+                  ? "Similar items"
+                  : "Search by photo"}
+              <ChevronRight aria-hidden="true" />
+            </button>
+          )}
         {onRetry && !checking && (
           <button className="find-action" onClick={onRetry}>
             <RotateCw aria-hidden="true" />

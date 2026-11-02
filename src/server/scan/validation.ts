@@ -197,6 +197,13 @@ export function containsIdentity(evidence: string, identity: string): boolean {
   identity = identity.replace(/[™®©]/g, "");
   const tokens = identity.match(/[\p{L}\p{N}]+/gu);
   if (!tokens?.length) return false;
+  const literal = identity.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  if (
+    new RegExp(`(?<![\\p{L}\\p{N}])${literal}(?![\\p{L}\\p{N}])`, "iu").test(
+      evidence,
+    )
+  )
+    return true;
   return new RegExp(
     `(?<![\\p{L}\\p{N}])${tokens.join("[\\s-]*")}(?![\\p{L}\\p{N}])`,
     "iu",

@@ -173,6 +173,7 @@ export function useScanner(mode: Mode, market: Market) {
             resultsRef.current,
             finished.current,
             state.draining,
+            comparisonContext.current,
           ),
         );
     };
@@ -201,7 +202,12 @@ export function useScanner(mode: Mode, market: Market) {
         }
       if (finished.current)
         setMessage(
-          completionMessage(rows, finished.current, work.state.draining),
+          completionMessage(
+            rows,
+            finished.current,
+            work.state.draining,
+            comparisonContext.current,
+          ),
         );
     },
     [work, historyWriter],

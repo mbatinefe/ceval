@@ -263,7 +263,7 @@ export function candidateFromPage(
     products.length <= 1 &&
     (product || ogProduct || metas.get("og:type") === "product")
   )
-    rawImages.push(metas.get("og:image"));
+    rawImages.push(metas.get("og:image:secure_url"), metas.get("og:image"));
   const photos: string[] = [];
   for (const raw of rawImages.slice(0, 8)) {
     const value =

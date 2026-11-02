@@ -228,3 +228,48 @@ test("expired similar summaries retain their own timestamp and warning metadata"
   assert.equal(summary?.checkedAt, 1000);
   assert.equal(summary?.expiresAt, 2000);
 });
+
+test("real homeware names retain fractional dimensions and apparel apostrophes", () => {
+  for (const name of [
+    'LACK Side table - white 21 5/8x21 5/8 "',
+    "Men's Cotton T-Shirt 4-Pack Black 2XL",
+  ]) {
+    const result = candidateFromPage(
+      candidate,
+      page({ ...chair, name }),
+      candidate.url,
+      "US",
+      "buy",
+    );
+    assert.equal(result.price?.priceMinor, 4999, name);
+  }
+});
+test("official secure product image metadata works when the ordinary image is HTTP", () => {
+  const html =
+    '<meta property="og:title" content="English Breakfast"><meta property="og:image" content="http://twiningsusa.com/cdn/shop/files/tea.png"><meta property="og:image:secure_url" content="https://twiningsusa.com/cdn/shop/files/tea.png">';
+  const result = candidateFromPage(
+    candidate,
+    html,
+    "https://twiningsusa.com/products/english-breakfast",
+    "US",
+    "buy",
+  );
+  assert.match(result.thumbnail || "", /^https:\/\/twiningsusa.com\//);
+});
+
+test("stopping reports available similar prices without counting another mode", async () => {
+  const { completionMessage } =
+    await import("../../src/client/scanner/state.ts");
+  const row = { product, visualSearch: visual, time: 0 };
+  assert.match(
+    completionMessage([row], "stopped", false, { mode: "buy", market: "US" }),
+    /1 find with prices.*similar/i,
+  );
+  assert.match(
+    completionMessage([row], "stopped", false, {
+      mode: "resale",
+      market: "US",
+    }),
+    /No prices found/,
+  );
+});

@@ -8,6 +8,7 @@ import {
 
 export type OfferSummary = {
   offer: Offer;
+  source: "comparison" | "visual";
   label: string;
   shortLabel: string;
   qualification: string;
@@ -64,6 +65,7 @@ export function offerSummary(
       : null;
   return {
     offer,
+    source: "comparison",
     checkedAt: comparison.checkedAt,
     expiresAt: comparison.expiresAt,
     shortLabel:
@@ -139,6 +141,7 @@ export function findSummary(
     .sort((a, b) => a.price!.priceMinor - b.price!.priceMinor)[0];
   if (!candidate?.price) return null;
   return {
+    source: "visual",
     offer: {
       title: candidate.title,
       url: candidate.url,

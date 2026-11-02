@@ -1,6 +1,6 @@
 import type { Comparison, Market, Mode, Product } from "../../shared/scan.ts";
 import type { FoundProduct } from "./continuity.ts";
-import { offerSummary } from "./presentation.ts";
+import { findSummary } from "./presentation.ts";
 export function findActionRow(
   rows: FoundProduct[],
   productId: string,
@@ -67,6 +67,7 @@ export function completionMessage(
   rows: FoundProduct[],
   reason: "video" | "error" | "stopped",
   draining: boolean,
+  context?: { mode: Mode; market: Market },
 ) {
   if (draining)
     return reason === "stopped"
@@ -79,16 +80,25 @@ export function completionMessage(
         ? "Scan stopped."
         : "Scanning paused.";
   if (!rows.length) return `${prefix} No products identified yet.`;
-  const completed = rows.filter(
-    (row) =>
-      offerSummary(row.comparison) &&
-      !row.error &&
-      !row.searching &&
-      !row.selecting,
+  const summary = (row: FoundProduct) =>
+    findSummary(
+      row,
+      context?.mode ?? row.comparison?.mode ?? row.visualSearch?.mode ?? "buy",
+      context?.market ??
+        row.comparison?.market ??
+        row.visualSearch?.market ??
+        "US",
+    );
+  const completedRows = rows.filter(
+    (row) => summary(row) && !row.error && !row.searching && !row.selecting,
+  );
+  const completed = completedRows.length;
+  const similar = completedRows.filter(
+    (row) => summary(row)?.source === "visual",
   ).length;
   const needsAttention = rows.length - completed;
   const prices = completed
-    ? `${completed} find${completed === 1 ? "" : "s"} with prices.`
+    ? `${completed} find${completed === 1 ? "" : "s"} with prices${similar ? ` (${similar} from similar items)` : ""}.`
     : "No prices found yet.";
   return `${prefix} ${prices}${needsAttention ? ` ${needsAttention} find${needsAttention === 1 ? " needs" : "s need"} attention.` : ""}`;
 }
