@@ -17,7 +17,7 @@ AGENTS.md
 docs/private/
 
 # Dependencies, generated output, and local evidence.
-node_modules/
+node_modules
 dist/
 coverage/
 test-results/
