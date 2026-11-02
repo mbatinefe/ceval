@@ -178,7 +178,7 @@
   color: var(--ink);
   border: none;
 }
-.immersive-scanner .scan-actions > .button:has(.lucide-square) {
+.immersive-scanner .scan-actions > .button:not(:disabled) {
   background: var(--red);
   color: #fff;
 }

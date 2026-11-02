@@ -273,7 +273,7 @@ export function Scanner() {
             onClick={() => setMode("resale")}
           >
             <TrendingUp aria-hidden="true" />
-            Resale value
+            Resale prices
           </button>
         </div>
         <label className="market-select">

@@ -1381,3 +1381,70 @@ test("simultaneous frames identifying the same product return one usable ID", as
       200,
     );
 });
+
+test("recognition compares only recent owned reference photos and does not inherit their identity", async () => {
+  const initial = await (await recognize()).json();
+  const previousId = initial.products[0].id;
+  const saved = await request("/api/scan/history", {
+    id: crypto.randomUUID(),
+    productId: previousId,
+    source: "camera",
+    mode: "buy",
+    thumbnail: frame,
+  });
+  assert.equal(saved.status, 200);
+  provider = async () =>
+    response({
+      products: [
+        { ...product, model: "", confidence: 0.4, previousReferenceIndex: 0 },
+      ],
+    });
+  const run = (
+    user = "shopper",
+    ids = [previousId],
+    requestId = crypto.randomUUID(),
+  ) =>
+    request(
+      "/api/scan/recognize",
+      { frame, market: "US", previousProductIds: ids, requestId },
+      user,
+    );
+  const receipt = crypto.randomUUID();
+  const found = await (await run("shopper", [previousId], receipt)).json();
+  const input = (
+    calls.at(-1)!.input as { content: { type: string; image_url?: string }[] }[]
+  )[0].content;
+  assert.equal(input.filter((p) => p.type === "input_image").length, 2);
+  assert.equal(found.products[0].previousProductId, previousId);
+  assert.equal(found.products[0].model, "");
+  assert.equal(found.products[0].confidence, 0.4);
+  assert.notEqual(found.products[0].id, previousId);
+  assert.equal((await run("shopper", [], receipt)).status, 409);
+  const foreign = await (await run("other")).json();
+  assert.equal(foreign.products[0].previousProductId, undefined);
+  const foreignInput = (
+    calls.at(-1)!.input as { content: { type: string }[] }[]
+  )[0].content;
+  assert.equal(foreignInput.filter((p) => p.type === "input_image").length, 1);
+});
+
+test("recognition bounds reference inputs before contacting the provider", async () => {
+  for (const previousProductIds of [
+    ["not-an-id"],
+    Array.from({ length: 4 }, () => crypto.randomUUID()),
+    "invalid",
+  ]) {
+    assert.equal(
+      (
+        await request("/api/scan/recognize", {
+          frame,
+          market: "US",
+          requestId: crypto.randomUUID(),
+          previousProductIds,
+        })
+      ).status,
+      400,
+    );
+  }
+  assert.equal(calls.length, 0);
+});

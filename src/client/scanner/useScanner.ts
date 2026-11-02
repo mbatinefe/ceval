@@ -32,6 +32,7 @@ import {
   isAllowanceError,
   recognitionRetryAt,
   findActionRow,
+  switchComparisonMode,
 } from "./state";
 import { reconcileCurrentSightings, type FoundProduct } from "./continuity";
 import { ScanWork } from "./work";
@@ -55,6 +56,7 @@ export function useScanner(mode: Mode, market: Market) {
   const stream = useRef<MediaStream | null>(null),
     objectUrl = useRef<string | null>(null);
   const generation = useRef(0);
+  const comparisonContext = useRef({ mode, market });
   const [work] = useState(() => new ScanWork());
   const [sceneMemory] = useState(() => new SceneMemory());
   const historyWriter = useRef<HistoryWriter<ScanHistoryEntry> | null>(null);
@@ -194,7 +196,7 @@ export function useScanner(mode: Mode, market: Market) {
             comparisonId: row.comparison?.id,
             thumbnail: row.thumbnail,
             source: sourceRef.current,
-            mode,
+            mode: comparisonContext.current.mode,
           });
         }
       if (finished.current)
@@ -202,7 +204,7 @@ export function useScanner(mode: Mode, market: Market) {
           completionMessage(rows, finished.current, work.state.draining),
         );
     },
-    [work, historyWriter, mode],
+    [work, historyWriter],
   );
   const stopAnalysis = useCallback(() => {
     cameraRevision.current++;
@@ -282,10 +284,27 @@ export function useScanner(mode: Mode, market: Market) {
     };
   }, []);
   useEffect(() => {
-    updateResults([]);
-    stopAnalysis();
-    lastAnalysis.current = 0;
-  }, [mode, market, stopAnalysis, updateResults]);
+    const previousContext = comparisonContext.current;
+    comparisonContext.current = { mode, market };
+    if (previousContext.market !== market) {
+      updateResults([]);
+      stopAnalysis();
+      sceneMemory.clear();
+      lastAnalysis.current = 0;
+    } else if (previousContext.mode !== mode) {
+      const rows = switchComparisonMode(
+        resultsRef.current,
+        mode,
+        market,
+        cache.current,
+      );
+      updateResults(rows);
+      for (const row of rows) {
+        queueComparison(row);
+        searchImage(row.product.id, row.rowId, false);
+      }
+    }
+  }, [mode, market]);
   useEffect(() => {
     function hidden() {
       if (document.hidden) {
@@ -456,11 +475,17 @@ export function useScanner(mode: Mode, market: Market) {
     return failure;
   }
   function queueComparison(row: FoundProduct) {
+    const { mode, market } = comparisonContext.current;
     if (!comparisonNeeded(row)) return;
     const { product } = row;
     const key = comparisonKey(product, mode, market);
     const epoch = generation.current;
-    const updateMatching = (change: Partial<FoundProduct>) =>
+    const updateMatching = (change: Partial<FoundProduct>) => {
+      if (
+        comparisonContext.current.mode !== mode ||
+        comparisonContext.current.market !== market
+      )
+        return;
       updateResults(
         resultsRef.current.map((item) =>
           comparisonKey(item.product, mode, market) === key
@@ -478,6 +503,7 @@ export function useScanner(mode: Mode, market: Market) {
             : item,
         ),
       );
+    };
     const cached = cachedComparison(cache.current, product, mode, market);
     if (cached) {
       updateMatching({
@@ -600,7 +626,7 @@ export function useScanner(mode: Mode, market: Market) {
               id: row.historyId,
               productId,
               source: sourceRef.current,
-              mode,
+              mode: comparisonContext.current.mode,
               thumbnail: row.thumbnail,
             },
             signal,
@@ -701,7 +727,26 @@ export function useScanner(mode: Mode, market: Market) {
       try {
         const result = await scanRequest<{ products: Product[] }>(
           "/api/scan/recognize",
-          { frame, market, requestId: crypto.randomUUID() },
+          {
+            frame,
+            market,
+            requestId: crypto.randomUUID(),
+            previousProductIds: [
+              ...new Set(
+                resultsRef.current
+                  .filter(
+                    (row) =>
+                      row.thumbnail &&
+                      row.sighting &&
+                      now >= row.sighting.at &&
+                      now - row.sighting.at <= 30000,
+                  )
+                  .sort((a, b) => b.sighting!.at - a.sighting!.at)
+                  .slice(0, 3)
+                  .map((row) => row.product.id),
+              ),
+            ],
+          },
           signal,
         );
         if (epoch !== generation.current) return;
@@ -716,7 +761,7 @@ export function useScanner(mode: Mode, market: Market) {
             time,
             now,
             frame: thumbnail,
-            mode,
+            mode: comparisonContext.current.mode,
             market,
             cache: cache.current,
             photos,

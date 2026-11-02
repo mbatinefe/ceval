@@ -23,6 +23,21 @@ export function comparisonNeeded(row: FoundProduct) {
     (!row.comparison || row.comparison.expiresAt <= Date.now())
   );
 }
+export function switchComparisonMode(
+  rows: FoundProduct[],
+  mode: Mode,
+  market: Market,
+  cache: Map<string, Comparison>,
+): FoundProduct[] {
+  return rows.map((row) => ({
+    ...row,
+    comparison: cachedComparison(cache, row.product, mode, market),
+    searching: false,
+    error: row.errorCode === "shelf_changed" ? row.error : undefined,
+    errorCode: row.errorCode === "shelf_changed" ? row.errorCode : undefined,
+    retryable: false,
+  }));
+}
 export function interruptFinds(rows: FoundProduct[]): FoundProduct[] {
   return rows.map((row) => ({
     ...row,

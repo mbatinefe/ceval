@@ -82,7 +82,11 @@ export function validateFrame(value: unknown): string {
   }
   throw invalid();
 }
-export function parseProducts(value: unknown): Omit<Product, "id">[] {
+export function parseProducts(
+  value: unknown,
+  referenceIds: string[] = [],
+): Omit<Product, "id">[] {
+  const claimedReferences = new Set<number>();
   const input = record(value).products;
   if (!Array.isArray(input) || input.length > 3)
     throw new ScanError(
@@ -136,7 +140,17 @@ export function parseProducts(value: unknown): Omit<Product, "id">[] {
       typeof p.confidence === "number" && p.confidence >= 0 && p.confidence <= 1
         ? p.confidence
         : 0;
+    const index = p.previousReferenceIndex;
+    const previousProductId =
+      Number.isInteger(index) &&
+      Number(index) >= 0 &&
+      Number(index) < referenceIds.length &&
+      !claimedReferences.has(Number(index))
+        ? referenceIds[Number(index)]
+        : undefined;
+    if (previousProductId) claimedReferences.add(Number(index));
     return {
+      ...(previousProductId ? { previousProductId } : {}),
       brand: text(p.brand, 80),
       model: text(p.model, 100),
       variant: text(p.variant),
@@ -347,6 +361,14 @@ export function validateOffers(
         : /\b(brand new|new condition|sıfır)\b/i.test(evidence)
           ? "new"
           : "unknown";
+    if (
+      mode === "resale" &&
+      !sold &&
+      !marketplaceUrl(url) &&
+      condition !== "used" &&
+      condition !== "refurbished"
+    )
+      continue;
     const match =
       product.identification !== "user_selected" &&
       product.confidence >= 0.85 &&

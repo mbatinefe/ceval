@@ -26,6 +26,7 @@ export type Product = {
   shelfCurrency: string | null;
   candidates?: ModelCandidate[];
   identification?: "user_selected";
+  previousProductId?: string;
 };
 export type Offer = {
   title: string;

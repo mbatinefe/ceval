@@ -285,3 +285,57 @@ test("stopping reports that pending searches will finish and keeps its completed
     "Scan stopped. No products identified yet.",
   );
 });
+
+test("changing comparison mode retains finds and photos while discarding prices from the other mode", async () => {
+  const { switchComparisonMode } =
+    await import("../../src/client/scanner/state.ts");
+  const buy: Comparison = {
+    id: "buy-result",
+    product,
+    mode: "buy",
+    market: "US",
+    offers: [],
+    status: "no_evidence",
+    checkedAt: Date.now(),
+    expiresAt: Date.now() + 60000,
+  };
+  const rows = [
+    {
+      rowId: "row",
+      historyId: "history",
+      thumbnail: "photo",
+      product,
+      time: 4,
+      comparison: buy,
+      searching: true,
+      selecting: false,
+      error: "Old search failed",
+      errorCode: "interrupted",
+    },
+  ];
+  const cache = new Map([[comparisonKey(product, "buy", "US"), buy]]);
+  const resale = switchComparisonMode(rows, "resale", "US", cache);
+  assert.equal(resale.length, 1);
+  assert.equal(resale[0].product, product);
+  assert.equal(resale[0].historyId, "history");
+  assert.equal(resale[0].thumbnail, "photo");
+  assert.equal(resale[0].comparison, undefined);
+  assert.equal(comparisonNeeded(resale[0]), true);
+  const returned = switchComparisonMode(resale, "buy", "US", cache);
+  assert.equal(returned[0].comparison, buy);
+  assert.equal(comparisonNeeded(returned[0]), false);
+});
+
+test("mode changes preserve pending photo matches and model confirmation", async () => {
+  const { switchComparisonMode } =
+    await import("../../src/client/scanner/state.ts");
+  const result = switchComparisonMode(
+    [{ product, time: 4, visualSearching: true, selecting: true }],
+    "resale",
+    "US",
+    new Map(),
+  );
+  assert.equal(result[0].visualSearching, true);
+  assert.equal(result[0].selecting, true);
+  assert.equal(comparisonNeeded(result[0]), false);
+});

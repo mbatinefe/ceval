@@ -50,7 +50,25 @@ scanRoutes.post("/scan/recognize", async (c) => {
     !/^[a-f0-9-]{36}$/.test(body.requestId)
   )
     throw new ScanError("invalid_request", "Invalid scan request.", 400);
-  const fingerprint = await digest(`${market}:${frame}`);
+  if (
+    body.previousProductIds !== undefined &&
+    (!Array.isArray(body.previousProductIds) ||
+      body.previousProductIds.length > 3 ||
+      body.previousProductIds.some(
+        (id) => typeof id !== "string" || !/^[a-f0-9-]{36}$/.test(id),
+      ))
+  )
+    throw new ScanError(
+      "invalid_request",
+      "Invalid recent product references.",
+      400,
+    );
+  const previousProductIds = [
+    ...new Set((body.previousProductIds || []) as string[]),
+  ];
+  const fingerprint = await digest(
+    JSON.stringify([market, frame, previousProductIds]),
+  );
   await c.env.DB.prepare("DELETE FROM scan_requests WHERE created_at < ?")
     .bind(Date.now() - 86400000)
     .run();
@@ -70,7 +88,14 @@ scanRoutes.post("/scan/recognize", async (c) => {
       "This request was already used for a different frame.",
       409,
     );
-  const task = recognize(c.env, userId, frame, market, c.req.raw.signal);
+  const task = recognize(
+    c.env,
+    userId,
+    frame,
+    market,
+    c.req.raw.signal,
+    previousProductIds,
+  );
   c.executionCtx.waitUntil(
     task.then(
       () => undefined,

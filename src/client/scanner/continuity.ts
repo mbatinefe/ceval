@@ -347,6 +347,16 @@ function matchScore(
   const sighting = row.sighting;
   if (!sighting) return 0;
   if (
+    incoming.previousProductId &&
+    [old.id, sighting.product.id].includes(incoming.previousProductId) &&
+    now >= sighting.at &&
+    now - sighting.at <= 30000 &&
+    (!brand(old.brand) ||
+      !brand(incoming.brand) ||
+      brand(old.brand) === brand(incoming.brand))
+  )
+    return 90;
+  if (
     variantMissing &&
     sighting.frame &&
     frameDifference(sighting.frame, frame) < 10

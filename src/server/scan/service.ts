@@ -8,7 +8,11 @@ import type {
   ProductSource,
 } from "../../shared/scan.ts";
 import { modelCandidateKey } from "../../shared/scan.ts";
-import { recognizeFrame, searchOffers } from "../providers/meta.ts";
+import {
+  recognizeFrame,
+  searchOffers,
+  type RecognitionReference,
+} from "../providers/meta.ts";
 import { finishScanReservation, reserveScan, settleScan } from "./budget.ts";
 import type { UsageReporter } from "../providers/usage.ts";
 import { ScanError } from "./errors.ts";
@@ -139,11 +143,42 @@ export async function recognize(
   frame: string,
   market: Market,
   signal?: AbortSignal,
+  previousProductIds: string[] = [],
 ) {
   requireProvider(env);
-  const frameKey = await digest(`visual-snapshots-v3:${market}:${frame}`);
+  const references: RecognitionReference[] = [];
+  for (const productId of previousProductIds.slice(0, 3)) {
+    const row = await env.DB.prepare(
+      "SELECT product_data,thumbnail FROM scan_history WHERE user_id=? AND product_id=? AND market=? AND thumbnail IS NOT NULL AND updated_at>? ORDER BY updated_at DESC LIMIT 1",
+    )
+      .bind(userId, productId, market, Date.now() - 120000)
+      .first<{ product_data: string; thumbnail: string }>();
+    if (row)
+      references.push({
+        product: JSON.parse(row.product_data) as Product,
+        thumbnail: row.thumbnail,
+      });
+  }
+  const frameKey = await digest(
+    JSON.stringify([
+      "visual-snapshots-v4",
+      market,
+      frame,
+      references.map((reference) => [
+        reference.product.id,
+        reference.thumbnail,
+      ]),
+    ]),
+  );
   return job(env, userId, "recognize", frameKey, 180000, async (onUsage) => {
-    const result = await recognizeFrame(env, frame, market, signal, onUsage);
+    const result = await recognizeFrame(
+      env,
+      frame,
+      market,
+      signal,
+      onUsage,
+      references,
+    );
     const products: Product[] = [];
     for (const [index, p] of result.entries()) {
       const uncertain =
@@ -301,7 +336,7 @@ export async function compare(
     "compare",
     await digest(
       JSON.stringify([
-        "public-offers-v5",
+        "public-offers-v6",
         productId,
         mode,
         market,

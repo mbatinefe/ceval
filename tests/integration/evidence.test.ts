@@ -261,3 +261,28 @@ test("unparenthesized MacBook specifications match reordered listing titles with
       model,
     );
 });
+
+test("resale rejects new and unspecified retail reference prices even if labeled asking", () => {
+  for (const condition of ["Brand new", "Available"]) {
+    assert.deepEqual(
+      check(
+        "Sony WH-1000XM5 Black",
+        `${condition} headphones USD $199.99`,
+        19999,
+        "resale",
+        "asking",
+      ),
+      [],
+    );
+  }
+  assert.equal(
+    check(
+      "Sony WH-1000XM5 Black",
+      "Refurbished headphones USD $199.99",
+      19999,
+      "resale",
+      "asking",
+    )[0]?.kind,
+    "asking",
+  );
+});

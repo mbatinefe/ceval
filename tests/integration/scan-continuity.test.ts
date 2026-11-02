@@ -1115,3 +1115,69 @@ test("changed uncertain objects cannot inherit a user choice from a similar back
   });
   assert.equal(see(first.rows, [incoming], 120000, changed).rows.length, 2);
 });
+
+test("recent visual reference joins changing model hypotheses without confirming a model", () => {
+  const mouse = product({
+    brand: "Logitech G",
+    model: "",
+    variant: "",
+    confidence: 0.35,
+    label: "Dark gaming mouse",
+    candidates: [candidate("Logitech G", "G403 HERO")],
+  });
+  const first = see([], [mouse]);
+  first.rows[0].visualSearching = true;
+  const incoming = {
+    ...mouse,
+    id: "clearer-view",
+    previousProductId: mouse.id,
+    variant: "Black",
+    confidence: 0.5,
+    label: "Wired gaming mouse",
+    candidates: [candidate("Logitech G", "G502 HERO")],
+  };
+  const next = see(first.rows, [incoming], 8000);
+  assert.equal(next.rows.length, 1);
+  assert.equal(next.rows[0].historyId, first.rows[0].historyId);
+  assert.equal(next.rows[0].visualSearching, true);
+  assert.equal(next.rows[0].product.model, "");
+  assert.equal(next.rows[0].comparison, undefined);
+});
+
+test("visual references cannot merge conflicting exact models, brands, variants or stale sightings", () => {
+  const original = product();
+  const first = see([], [original]);
+  for (const changed of [
+    { model: "MX Master 3" },
+    { brand: "Other brand" },
+    { variant: "White" },
+  ]) {
+    const incoming = {
+      ...original,
+      id: "different",
+      previousProductId: original.id,
+      ...changed,
+    };
+    assert.equal(see(first.rows, [incoming], 8000).rows.length, 2);
+  }
+  const unknown = product({
+    model: "",
+    confidence: 0.3,
+    candidates: [candidate("Logitech", "G403")],
+  });
+  const rows = see([], [unknown]).rows;
+  const incoming = {
+    ...unknown,
+    id: "later",
+    previousProductId: unknown.id,
+    candidates: [candidate("Logitech", "G502")],
+  };
+  assert.equal(see(rows, [incoming], 140000).rows.length, 2);
+  const together = see(
+    rows,
+    [incoming, { ...incoming, id: "second-item" }],
+    8000,
+  );
+  assert.equal(together.rows.length, 2);
+  assert.equal(new Set(together.sightings.map((r) => r.rowId)).size, 2);
+});
