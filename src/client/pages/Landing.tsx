@@ -682,10 +682,6 @@ const questions: [string, string][] = [
     "In your phone’s browser, in Safari or Chrome. There’s no app to install.",
   ],
   [
-    "What does it read best?",
-    "Electronics and boxed products with a visible model name or number.",
-  ],
-  [
     "Which markets does it cover?",
     "The United States, the United Kingdom and Türkiye, in local currency.",
   ],
