@@ -136,3 +136,46 @@ test("saved image matches from another market cannot be reused", async () => {
   assert.equal(visualSearchForMarket(result, "US"), result);
   assert.equal(visualSearchForMarket(result, "GB"), undefined);
 });
+
+test("a known product with no price evidence receives one photo-search fallback for its current context", () => {
+  const known = {
+    ...row,
+    product: {
+      ...row.product,
+      brand: "NIVEA",
+      model: "Shea Nourish",
+      confidence: 0.95,
+    },
+  };
+  const comparison = {
+    id: "no-price",
+    product: known.product,
+    mode: "buy" as const,
+    market: "US" as const,
+    offers: [],
+    status: "no_evidence" as const,
+    checkedAt: Date.now(),
+    expiresAt: Date.now() + 60000,
+  };
+  assert.equal(visualSearchNeeded(known, "US", true), false);
+  const checked = { ...known, comparison };
+  assert.equal(visualSearchNeeded(checked, "US", true), true);
+  assert.equal(visualSearchNeeded(checked, "US", true, "resale"), false);
+  assert.equal(visualSearchNeeded(checked, "GB", true), false);
+  assert.equal(
+    visualSearchNeeded(
+      { ...checked, comparison: { ...comparison, expiresAt: 0 } },
+      "US",
+      true,
+    ),
+    false,
+  );
+  assert.equal(
+    visualSearchNeeded({ ...checked, visualSearch: result }, "US", true),
+    false,
+  );
+  assert.equal(
+    visualSearchNeeded({ ...checked, visualError: "Unavailable" }, "US", true),
+    false,
+  );
+});

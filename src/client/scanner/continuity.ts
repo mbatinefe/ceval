@@ -165,11 +165,21 @@ function sameUnresolvedDescription(a: Product, b: Product) {
       .sort()
       .join(" ");
   };
-  const label = describe(a);
+  const label = describe(a),
+    other = describe(b);
+  const left = new Set(label.split(" ").filter(Boolean)),
+    right = new Set(other.split(" ").filter(Boolean));
+  // A small wording change only admits an image comparison; it cannot merge rows itself.
+  const subset = (shorter: Set<string>, longer: Set<string>) =>
+    shorter.size >= 5 &&
+    longer.size === shorter.size + 1 &&
+    [...shorter].every((word) => longer.has(word));
+  const descriptionMatches =
+    label === other || subset(left, right) || subset(right, left);
   const proportions = a.box.width / a.box.height / (b.box.width / b.box.height);
   return (
     label.length > 0 &&
-    label === describe(b) &&
+    descriptionMatches &&
     brand(a.brand) === brand(b.brand) &&
     normalize(a.model) === normalize(b.model) &&
     proportions >= 0.8 &&
@@ -430,7 +440,14 @@ function matchScore(
         sighting.product.box,
         incoming.box,
         nearby ? 0.55 : 0.7,
-      )
+      ) ||
+      (unresolvedDescription &&
+        sameObjectAfterPan(
+          sighting.frame,
+          frame,
+          sighting.product.box,
+          incoming.box,
+        ))
     )
       return 78;
   }

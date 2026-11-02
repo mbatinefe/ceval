@@ -1251,3 +1251,38 @@ test("a newly read package weight enriches the same grocery find without duplica
     2,
   );
 });
+
+test("an unlabeled return keeps its photo search when one descriptive word changes", () => {
+  const table = product({
+    brand: "",
+    model: "",
+    variant: "",
+    candidates: [],
+    confidence: 0.4,
+    label: "white square side table with four straight legs",
+  });
+  const visual = detailedFrame();
+  const first = see([], [table], 1000, visual);
+  first.rows[0].visualSearching = true;
+  const returning = {
+    ...table,
+    id: "returned",
+    label: "white square side table with four legs",
+  };
+  const next = see(first.rows, [returning], 140000, visual);
+  assert.equal(next.rows.length, 1);
+  assert.equal(next.rows[0].product.id, table.id);
+  assert.equal(next.rows[0].visualSearching, true);
+  for (const label of [
+    "black square side table with four legs",
+    "white round side table with four legs",
+  ])
+    assert.equal(
+      see(first.rows, [{ ...returning, label }], 140000, visual).rows.length,
+      2,
+    );
+  assert.equal(
+    see(first.rows, [returning], 140000, detailedFrame(12819)).rows.length,
+    2,
+  );
+});

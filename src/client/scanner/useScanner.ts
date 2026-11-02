@@ -509,6 +509,10 @@ export function useScanner(mode: Mode, market: Market) {
             : item,
         ),
       );
+      if (change.comparison && !change.comparison.offers.length)
+        for (const item of resultsRef.current)
+          if (comparisonKey(item.product, mode, market) === key)
+            searchImage(item.product.id, item.rowId, false);
     };
     const cached = cachedComparison(cache.current, product, mode, market);
     if (cached) {
