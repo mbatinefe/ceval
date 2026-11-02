@@ -389,3 +389,70 @@ test("a selected color cannot hide storage variants with different prices", () =
     [],
   );
 });
+
+test("public supplement retailer pages supply prices without confirming an unread pack size", () => {
+  const bottle: Product = {
+    ...product,
+    brand: "Pharmaton",
+    model: "Vitality",
+    variant: "",
+    label: "Supplement bottle",
+    confidence: 0.9,
+    identification: undefined,
+  };
+  const page = html({
+    "@type": "Product",
+    name: "Pharmaton Vitality",
+    brand: { name: "Pharmaton" },
+    offers: { ...offer, price: "30.73", itemCondition: undefined },
+  });
+  const found = parsePageOffers(
+    page,
+    "https://efendina.com/products/pharmaton-vitality",
+    bottle,
+    "US",
+    "buy",
+  );
+  assert.equal(found.length, 1);
+  assert.equal(found[0].priceMinor, 3073);
+  assert.equal(found[0].match, "possible");
+  assert.equal(found[0].condition, "unknown");
+  assert.equal(found[0].evidenceType, "product_page");
+});
+
+test("package quantities after a model name are not mistaken for newer generations", () => {
+  const bottle: Product = {
+    ...product,
+    brand: "Pharmaton",
+    model: "Vitality",
+    variant: "30 capsules",
+    label: "Supplement bottle",
+    confidence: 0.9,
+    identification: undefined,
+  };
+  const page = html({
+    ...item,
+    name: "Pharmaton Vitality 30 Capsules",
+    brand: "Pharmaton",
+    color: undefined,
+  });
+  const found = parsePageOffers(
+    page,
+    "https://www.walmart.com/ip/pharmaton-vitality",
+    bottle,
+    "US",
+    "buy",
+  );
+  assert.equal(found.length, 1);
+  assert.equal(found[0].match, "exact");
+  assert.deepEqual(
+    parsePageOffers(
+      page,
+      "https://www.walmart.com/ip/pharmaton-vitality",
+      { ...bottle, variant: "60 capsules" },
+      "US",
+      "buy",
+    ),
+    [],
+  );
+});

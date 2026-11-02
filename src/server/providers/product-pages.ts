@@ -39,6 +39,9 @@ export const merchantHosts = new Set([
   "www.bose.co.uk",
   "www.amazon.co.uk",
   "www.ebay.co.uk",
+  "efendina.com",
+  "beautycarebag.com",
+  "lujainbeauty.com",
 ]);
 const MAX_BYTES = 2_000_000;
 type Json = Record<string, unknown>;

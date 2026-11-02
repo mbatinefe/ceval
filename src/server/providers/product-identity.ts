@@ -32,7 +32,7 @@ export function matchesModel(value: string, model: string): boolean {
   if (/^(?:pro|ultra|plus|lite|mini|ii|iii|iv)\b/.test(tail)) return false;
   if (
     /^\d+(?:\.\d+)?(?:st|nd|rd|th)?\b/.test(tail) &&
-    !/^\d+(?:\.\d+)?\s*(?:[- ]?inch|["″]|hz\b|gb\b|tb\b|usd\b|gbp\b|try\b)/.test(
+    !/^\d+(?:\.\d+)?\s*(?:[- ]?inch|["″]|hz\b|gb\b|tb\b|usd\b|gbp\b|try\b|capsules?\b|tablets?\b|softgels?\b|gummies\b|count\b|ct\b|pieces?\b|pcs\b|ml\b|liters?\b|g\b|kg\b|oz\b)/.test(
       tail,
     )
   )
