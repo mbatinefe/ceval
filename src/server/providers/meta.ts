@@ -1,6 +1,9 @@
 import { candidatePrices } from "./visual-prices.ts";
 import { searchCandidates, retrieveCandidatePhotos } from "./product-media.ts";
-import { visualFeatures } from "./visual-ranking.ts";
+import {
+  compatibleVisualCandidates,
+  visualFeatures,
+} from "./visual-ranking.ts";
 import { metaKey } from "./config.ts";
 import type {
   Market,
@@ -486,9 +489,10 @@ export async function discoverProductsFromPhoto(
     market,
     mode,
   );
-  return retrieveCandidatePhotos(candidates, market, signal, {
+  const retrieved = await retrieveCandidatePhotos(candidates, market, signal, {
     sources: [...cited, ...result.sources],
     category: product.label,
     mode,
   });
+  return compatibleVisualCandidates(retrieved, product);
 }

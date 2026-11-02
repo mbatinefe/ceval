@@ -459,3 +459,43 @@ test("nested merchant search, question and news pages cannot crowd out product l
     ["https://www.target.com/p/nintendo-switch/-/A-83887639"],
   );
 });
+
+test("a clearly named personal-care product excludes other formulations and multipacks from photo results", async () => {
+  const { compatibleVisualCandidates } =
+    await import("../../src/server/providers/visual-ranking.ts");
+  const product = {
+    id: "lotion",
+    brand: "NIVEA",
+    model: "Shea Nourish",
+    variant: "16.9 fl oz 500 ml",
+    label: "body lotion",
+    confidence: 0.95,
+    box: { x: 0, y: 0, width: 1, height: 1 },
+    shelfPriceMinor: null,
+    shelfCurrency: null,
+  };
+  const titles = [
+    "NIVEA Shea Nourish Body Lotion 16.9 fl oz",
+    "NIVEA Skin Firming Hydration Body Lotion Q10 16.9 fl oz",
+    "NIVEA Essentially Enriched Body Lotion Almond Oil 16.9 fl oz",
+    "NIVEA Shea Nourish Body Lotion 16.9 fl oz Pack of 2",
+    "NIVEA Shea Nourish Body Lotion 33.8 fl oz",
+  ];
+  const candidates = titles.map((title, i) => ({
+    ...base(),
+    id: String(i),
+    title,
+  }));
+  assert.deepEqual(
+    compatibleVisualCandidates(candidates, product).map((c) => c.id),
+    ["0"],
+  );
+  const unknown = {
+    ...product,
+    brand: "",
+    model: "",
+    variant: "",
+    confidence: 0.4,
+  };
+  assert.equal(compatibleVisualCandidates(candidates, unknown).length, 5);
+});

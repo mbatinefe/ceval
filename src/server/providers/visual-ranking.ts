@@ -1,3 +1,4 @@
+import type { Product } from "../../shared/scan.ts";
 import type { VisualCandidate } from "../../shared/visual-search.ts";
 import { containsIdentity, text } from "../scan/validation.ts";
 import {
@@ -6,6 +7,23 @@ import {
   variantConflicts,
 } from "./product-identity.ts";
 import { obj } from "./product-media.ts";
+export function compatibleVisualCandidates(
+  candidates: VisualCandidate[],
+  product: Product,
+): VisualCandidate[] {
+  if (
+    !product.model ||
+    !product.brand ||
+    (product.confidence < 0.85 && product.identification !== "user_selected")
+  )
+    return candidates;
+  // A readable product name or explicit choice takes precedence over a similar-looking package.
+  return candidates.filter(
+    (candidate) =>
+      matchesModel(candidate.title, product.model) &&
+      !variantConflicts(candidate.title, product.variant),
+  );
+}
 export const visualFeatures = [
   "shape",
   "color",
