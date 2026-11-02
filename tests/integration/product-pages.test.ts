@@ -484,3 +484,62 @@ test("a formulation without a readable pack size cannot confirm a merchant's cap
   );
   assert.equal(found.match, "possible");
 });
+
+test("a US comparison rejects a Middle East storefront even when it quotes USD", () => {
+  const bottle: Product = {
+    ...product,
+    brand: "Pharmaton",
+    model: "Vitality",
+    variant: "",
+    label: "Supplement bottle",
+  };
+  const page = html({
+    ...item,
+    name: "Pharmaton Vitality",
+    brand: "Pharmaton",
+    color: undefined,
+  });
+  assert.deepEqual(
+    parsePageOffers(
+      page,
+      "https://efendina.com/en-me/products/pharmaton-vitality",
+      bottle,
+      "US",
+      "buy",
+    ),
+    [],
+  );
+});
+
+test("multiple packs cannot become a single scanned bottle's comparison", () => {
+  const bottle: Product = {
+    ...product,
+    brand: "Pharmaton",
+    model: "Vitality",
+    variant: "",
+    label: "Supplement bottle",
+  };
+  for (const suffix of [
+    "60 Tablets (2 x 30 Tablet Packs)",
+    "30 Capsules - Pack of 3",
+    "30 Capsules 2-Pack",
+  ]) {
+    const page = html({
+      ...item,
+      name: `Pharmaton Vitality ${suffix}`,
+      brand: "Pharmaton",
+      color: undefined,
+    });
+    assert.deepEqual(
+      parsePageOffers(
+        page,
+        "https://beautycarebag.com/products/pharmaton-vitality",
+        bottle,
+        "US",
+        "buy",
+      ),
+      [],
+      suffix,
+    );
+  }
+});

@@ -24,3 +24,11 @@ export function packageSizeConfirmed(
     identity,
   );
 }
+
+export function isMultipack(value: string): boolean {
+  return [
+    ...value.matchAll(
+      /\b(?:(\d+)\s*[- ]?packs?\b|packs?\s+of\s+(\d+)\b|(\d+)\s*[x×]\s*\d+\s*(?:capsules?|tablets?|softgels?|bottles?|pieces?|pcs|ml|g|oz)\b)/gi,
+    ),
+  ].some((match) => Number(match[1] || match[2] || match[3]) > 1);
+}

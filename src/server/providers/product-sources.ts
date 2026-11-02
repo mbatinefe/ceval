@@ -23,7 +23,7 @@ export function sourceUrl(value: string, market?: Market): string | null {
     (/\.(?:co\.uk|ca|com\.au|co\.nz|sg|hk|com\.tr|de|fr|jp)$/.test(
       url.hostname,
     ) ||
-      /\/(?:[a-z]{2}-)?(?:uk|gb|ca|au|nz|sg|hk|tr|de|fr|jp|ie|nl|eu|at|be|ch|es|it|pt|pl|se|no|dk|fi|in|cn|kr|tw|mx|br)(?:-edu)?(?:\/|$)/.test(
+      /\/(?:[a-z]{2}-)?(?:uk|gb|ca|au|nz|sg|hk|tr|de|fr|jp|ie|nl|eu|at|be|ch|es|it|pt|pl|se|no|dk|fi|in|cn|kr|tw|mx|br|me)(?:-edu)?(?:\/|$)/.test(
         path,
       ) ||
       /\/[a-z]{2}-edu(?:\/|$)/.test(path))

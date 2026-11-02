@@ -7,7 +7,10 @@ import {
   type Mode,
   type ModelCandidate,
 } from "../../shared/scan.ts";
-import { packageSizeConfirmed } from "../../shared/package-size.ts";
+import {
+  isMultipack,
+  packageSizeConfirmed,
+} from "../../shared/package-size.ts";
 import { ScanError } from "./errors.ts";
 import { modelIdentityParts } from "../../shared/model-identity.ts";
 export const MAX_FRAME_BYTES = 200_000;
@@ -290,6 +293,7 @@ export function validateOffers(
     )
       continue;
     const evidence = `${source.title} ${source.snippet}`;
+    if (isMultipack(evidence)) continue;
     if (
       /\b(per month|monthly|installment|financing|sold out|out of stock|unavailable|expired|members? only|with coupon|after rebate|starting at|replacement|accessories|accessory|compatible with|ear pads|earpads|bundle|auction|bids?|for parts|not working|from\s*[$£₺])\b/i.test(
         evidence,
