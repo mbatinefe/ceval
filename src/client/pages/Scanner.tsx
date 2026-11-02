@@ -41,7 +41,7 @@ export function Scanner() {
   const upload = useRef<HTMLInputElement>(null),
     scan = useScanner(mode, market);
   const [trayOpen, setTrayOpen] = useState(false);
-  const [cardOpen, setCardOpen] = useState(true);
+  const [cardOpen, setCardOpen] = useState(false);
   const findsDialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     if (trayOpen) findsDialog.current?.showModal();
@@ -57,7 +57,7 @@ export function Scanner() {
   useEffect(() => {
     if (!scan.source) {
       setTrayOpen(false);
-      setCardOpen(true);
+      setCardOpen(false);
     }
   }, [scan.source]);
   const [focusedKey, setFocusedKey] = useState<string | null>(null);
