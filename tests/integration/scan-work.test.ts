@@ -314,3 +314,45 @@ test("a failed search reports its error and frees a slot while another search is
   assert.deepEqual(completed, ["next", "slow"]);
   assert.equal(work.state.draining, false);
 });
+
+test("resuming a stopped scan preserves pending recognition, comparisons and deduplication", async () => {
+  const work = new ScanWork(),
+    recognition = deferred(),
+    price = deferred();
+  const signals: AbortSignal[] = [];
+  const started: string[] = [];
+  work.start();
+  const current = work.recognize(async (signal) => {
+    signals.push(signal);
+    await recognition.promise;
+    for (const key of ["a", "b", "c"])
+      work.compare(key, async (signal) => {
+        signals.push(signal);
+        started.push(key);
+        await price.promise;
+      });
+  });
+  work.finishInput();
+  work.resume();
+  assert.ok(signals.every((signal) => !signal.aborted));
+  assert.equal(work.state.recognizing, true);
+  recognition.resolve();
+  await current;
+  assert.deepEqual(started, ["a", "b"]);
+  work.finishInput();
+  work.resume();
+  work.compare("a", async () => {
+    started.push("duplicate");
+  });
+  assert.equal(work.state.pending, 3);
+  let nextFrame = false;
+  await work.recognize(async () => {
+    nextFrame = true;
+  });
+  assert.equal(nextFrame, true);
+  assert.ok(signals.every((signal) => !signal.aborted));
+  price.resolve();
+  await tick();
+  assert.deepEqual(started, ["a", "b", "c"]);
+  assert.equal(work.state.pending, 0);
+});

@@ -21,6 +21,10 @@ export class ScanWork {
     this.inputOpen = true;
     this.onChange?.();
   }
+  resume() {
+    this.inputOpen = true;
+    this.onChange?.();
+  }
   cancel() {
     this.controller.abort();
     this.controller = new AbortController();

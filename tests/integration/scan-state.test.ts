@@ -274,3 +274,14 @@ test("actions target a local find when uncertain server fingerprints collide", (
   assert.equal(findActionRow([first, second], product.id), undefined);
   assert.equal(findActionRow([first], product.id), first);
 });
+
+test("stopping reports that pending searches will finish and keeps its completed status", () => {
+  assert.equal(
+    completionMessage([], "stopped", true),
+    "Scan stopped. Finishing your searches…",
+  );
+  assert.equal(
+    completionMessage([], "stopped", false),
+    "Scan stopped. No products identified yet.",
+  );
+});

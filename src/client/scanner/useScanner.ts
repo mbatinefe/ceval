@@ -70,7 +70,7 @@ export function useScanner(mode: Mode, market: Market) {
     null,
   );
   const [prepared, setPrepared] = useState(false);
-  const finished = useRef<"video" | "error" | null>(null);
+  const finished = useRef<"video" | "error" | "stopped" | null>(null);
   const runningRef = useRef(false),
     lastAnalyzed = useRef<GrayFrame | null>(null),
     previous = useRef<GrayFrame | null>(null);
@@ -220,13 +220,12 @@ export function useScanner(mode: Mode, market: Market) {
     updateResults(interruptFinds(resultsRef.current));
   }, [startup, updateResults, work, detectionTrail]);
   const finishAnalysis = useCallback(
-    (reason: "video" | "error") => {
+    (reason: "video" | "error" | "stopped") => {
       startup.cancel();
       finished.current = reason;
       runningRef.current = false;
       setRunning(false);
-      if (reason === "error" && sourceRef.current !== "camera")
-        video.current?.pause();
+      if (reason !== "video") video.current?.pause();
       work.finishInput();
     },
     [startup, work],
@@ -847,7 +846,8 @@ export function useScanner(mode: Mode, market: Market) {
     setError("");
     lastAnalysis.current = 0;
     recognitionRecovery.current = { attempts: 0, retryAt: 0 };
-    work.start();
+    finished.current = null;
+    work.resume();
     runningRef.current = true;
     setRunning(true);
     setMessage("Scanning started. Keep the model label in view.");
@@ -858,8 +858,13 @@ export function useScanner(mode: Mode, market: Market) {
     if (startupState === "waiting" && prepared) void attemptStartRef.current();
   }, [startupState, prepared, capabilities]);
   function start() {
-    if (!prepared || !capabilities?.analysisAvailable) return;
-    stopAnalysis();
+    if (
+      !prepared ||
+      !capabilities?.analysisAvailable ||
+      runningRef.current ||
+      startup.state === "starting"
+    )
+      return;
     startup.arm();
     void attemptStart();
   }
@@ -1011,9 +1016,12 @@ export function useScanner(mode: Mode, market: Market) {
     selectModel,
     retryComparison,
     searchImage,
-    stopAnalysis: () => {
+    stopScan: () => finishAnalysis("stopped"),
+    cancelSearches: () => {
       stopAnalysis();
-      setMessage("Scanning stopped. Your completed finds are kept.");
+      setMessage(
+        "Remaining searches cancelled. Your completed finds are kept.",
+      );
     },
     closeSource,
     ended,

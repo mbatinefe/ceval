@@ -422,22 +422,17 @@ export function Scanner() {
                 <span>{scan.message}</span>
               </div>
               {scan.running ||
-              scan.finishing ||
               scan.startupState === "waiting" ||
               scan.startupState === "starting" ? (
                 <button
                   className="button dark small"
                   onClick={() => {
-                    scan.stopAnalysis();
+                    scan.stopScan();
                     scan.video.current?.pause();
                   }}
                 >
                   <Square aria-hidden="true" />
-                  {scan.finishing
-                    ? "Cancel remaining"
-                    : scan.running
-                      ? "Pause scan"
-                      : "Cancel start"}
+                  {scan.running ? "Stop scan" : "Cancel start"}
                 </button>
               ) : (
                 <button
@@ -454,6 +449,11 @@ export function Scanner() {
                 </button>
               )}
             </div>
+          )}
+          {scan.finishing && (
+            <button className="text-link" onClick={scan.cancelSearches}>
+              Cancel remaining searches
+            </button>
           )}
           {scan.source && scan.found.length > 0 && (
             <button

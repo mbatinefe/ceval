@@ -49,11 +49,19 @@ export function interruptFinds(rows: FoundProduct[]): FoundProduct[] {
 }
 export function completionMessage(
   rows: FoundProduct[],
-  reason: "video" | "error",
+  reason: "video" | "error" | "stopped",
   draining: boolean,
 ) {
-  if (draining) return "Finishing your remaining comparisons…";
-  const prefix = reason === "video" ? "Video complete." : "Scanning paused.";
+  if (draining)
+    return reason === "stopped"
+      ? "Scan stopped. Finishing your searches…"
+      : "Finishing your remaining comparisons…";
+  const prefix =
+    reason === "video"
+      ? "Video complete."
+      : reason === "stopped"
+        ? "Scan stopped."
+        : "Scanning paused.";
   if (!rows.length) return `${prefix} No products identified yet.`;
   const completed = rows.filter(
     (row) =>
