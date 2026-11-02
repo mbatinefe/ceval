@@ -1,3 +1,4 @@
+import { VideoTransport } from "../components/VideoTransport";
 import { VisualMatchesDialog } from "../components/VisualMatchesDialog";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -47,6 +48,13 @@ export function Scanner() {
     else findsDialog.current?.close();
   }, [trayOpen]);
   useEffect(() => {
+    const header = document.querySelector<HTMLElement>(".app-header");
+    if (header) header.inert = Boolean(scan.source);
+    return () => {
+      if (header) header.inert = false;
+    };
+  }, [scan.source]);
+  useEffect(() => {
     if (!scan.source) {
       setTrayOpen(false);
       setCardOpen(true);
@@ -63,6 +71,7 @@ export function Scanner() {
       scan.pins.some((pin) => pin.rowId === rowKey(row)),
     ) ||
     scan.found[0];
+  const focusedPrice = offerSummary(focused?.comparison);
   const choice = scan.found.find((row) => rowKey(row) === choiceKey);
   const allowanceNotice = scan.found.find((row) =>
     isAllowanceError(row.errorCode),
@@ -472,8 +481,15 @@ export function Scanner() {
               product photos are saved privately to your finds.
             </p>
           )}
+          {scan.source && scan.source !== "camera" && (
+            <VideoTransport
+              video={scan.video}
+              sourceKey={scan.sourceName}
+              onPlay={scan.start}
+            />
+          )}
           {scan.source === "camera" && scan.previewBlocked && (
-            <div className="scan-actions">
+            <div className="scan-actions preview-actions">
               <p className="scan-status" role="status">
                 Camera access is allowed. Your browser needs a tap to play the
                 preview.
@@ -563,7 +579,6 @@ export function Scanner() {
             <div className="floating-finds">
               <div className="finds-rail" aria-label="Items found in this scan">
                 {scan.found.map((row, index) => {
-                  const summary = offerSummary(row.comparison);
                   return (
                     <button
                       key={rowKey(row)}
@@ -580,23 +595,16 @@ export function Scanner() {
                         <Tag aria-hidden="true" />
                       )}
                       <span className="rail-number">{index + 1}</span>
-                      <span className="rail-price">
-                        {summary ? (
-                          <Price
-                            minor={summary.offer.priceMinor}
-                            currency={summary.offer.currency}
-                          />
-                        ) : row.searching ||
-                          row.visualSearching ||
-                          row.selecting ? (
+                      {(row.searching ||
+                        row.visualSearching ||
+                        row.selecting) && (
+                        <span className="rail-searching">
                           <LoaderCircle
                             className="spin"
                             aria-label="Searching"
                           />
-                        ) : (
-                          "—"
-                        )}
-                      </span>
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -617,15 +625,18 @@ export function Scanner() {
                         ? "Selected find"
                         : focused.product.model || focused.product.label}
                     </span>
-                    {!cardOpen && offerSummary(focused.comparison) && (
-                      <Price
-                        minor={
-                          offerSummary(focused.comparison)!.offer.priceMinor
-                        }
-                        currency={
-                          offerSummary(focused.comparison)!.offer.currency
-                        }
-                      />
+                    {!cardOpen && focusedPrice && (
+                      <span className="collapsed-price">
+                        <Price
+                          minor={focusedPrice.offer.priceMinor}
+                          currency={focusedPrice.offer.currency}
+                        />
+                        <small>
+                          {[focusedPrice.shortLabel, focusedPrice.qualification]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </small>
+                      </span>
                     )}
                     {cardOpen ? (
                       <ChevronDown aria-hidden="true" />

@@ -456,3 +456,31 @@ test("package quantities after a model name are not mistaken for newer generatio
     [],
   );
 });
+
+test("a formulation without a readable pack size cannot confirm a merchant's capsule count", () => {
+  const bottle: Product = {
+    ...product,
+    brand: "Pharmaton",
+    model: "Vitality",
+    variant: "Ginseng",
+    label: "Supplement bottle",
+    confidence: 0.9,
+    identification: undefined,
+    shelfPriceMinor: 4999,
+    shelfCurrency: "USD",
+  };
+  const page = html({
+    ...item,
+    name: "Pharmaton Vitality 30 Capsules Ginseng",
+    brand: "Pharmaton",
+    color: undefined,
+  });
+  const [found] = parsePageOffers(
+    page,
+    "https://efendina.com/products/pharmaton-vitality",
+    bottle,
+    "US",
+    "buy",
+  );
+  assert.equal(found.match, "possible");
+});

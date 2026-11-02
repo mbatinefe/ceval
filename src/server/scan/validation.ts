@@ -7,6 +7,7 @@ import {
   type Mode,
   type ModelCandidate,
 } from "../../shared/scan.ts";
+import { packageSizeConfirmed } from "../../shared/package-size.ts";
 import { ScanError } from "./errors.ts";
 import { modelIdentityParts } from "../../shared/model-identity.ts";
 export const MAX_FRAME_BYTES = 200_000;
@@ -346,7 +347,11 @@ export function validateOffers(
       product.identification !== "user_selected" &&
       product.confidence >= 0.85 &&
       Boolean(product.variant) &&
-      containsIdentity(evidence, product.variant)
+      containsIdentity(evidence, product.variant) &&
+      packageSizeConfirmed(
+        evidence,
+        [product.model, product.variant, product.label].join(" "),
+      )
         ? "exact"
         : "possible";
     if (!accepted.some((a) => a.url === url))

@@ -72,6 +72,7 @@ export function useScanner(mode: Mode, market: Market) {
   const [prepared, setPrepared] = useState(false);
   const finished = useRef<"video" | "error" | "stopped" | null>(null);
   const positionRevision = useRef(0);
+  const cameraRevision = useRef(0);
   const runningRef = useRef(false),
     lastAnalyzed = useRef<GrayFrame | null>(null),
     previous = useRef<GrayFrame | null>(null);
@@ -204,6 +205,7 @@ export function useScanner(mode: Mode, market: Market) {
     [work, historyWriter, mode],
   );
   const stopAnalysis = useCallback(() => {
+    cameraRevision.current++;
     startup.cancel();
     setCameraPending(false);
     generation.current++;
@@ -287,6 +289,8 @@ export function useScanner(mode: Mode, market: Market) {
   useEffect(() => {
     function hidden() {
       if (document.hidden) {
+        cameraRevision.current++;
+        setCameraPending(false);
         finishAnalysis("stopped");
         if (sourceRef.current === "camera") {
           const media = stream.current;
@@ -312,7 +316,7 @@ export function useScanner(mode: Mode, market: Market) {
       );
     else if (!runningRef.current) setMessage("Camera preview is playing.");
   }
-  async function camera(keepFinds = false) {
+  async function camera(keepFinds = sourceRef.current === "camera") {
     if (!keepFinds) {
       closeSource();
       updateResults([]);
@@ -324,6 +328,7 @@ export function useScanner(mode: Mode, market: Market) {
     setReady(false);
     setMessage("Waiting for camera permission…");
     const epoch = generation.current;
+    const request = ++cameraRevision.current;
     try {
       if (!navigator.mediaDevices?.getUserMedia)
         throw new DOMException("Camera API unavailable", "NotSupportedError");
@@ -335,7 +340,11 @@ export function useScanner(mode: Mode, market: Market) {
         },
         audio: false,
       });
-      if (epoch !== generation.current || document.hidden) {
+      if (
+        epoch !== generation.current ||
+        request !== cameraRevision.current ||
+        document.hidden
+      ) {
         media.getTracks().forEach((t) => t.stop());
         return;
       }
@@ -360,7 +369,8 @@ export function useScanner(mode: Mode, market: Market) {
       setMessage("Opening camera. Scanning starts automatically when ready…");
       void playCameraPreview();
     } catch (err) {
-      if (epoch !== generation.current) return;
+      if (epoch !== generation.current || request !== cameraRevision.current)
+        return;
       if (!keepFinds) closeSource();
       else {
         setCameraPending(false);
@@ -732,7 +742,10 @@ export function useScanner(mode: Mode, market: Market) {
             : null;
         if (epoch !== generation.current || signal.aborted) return;
         tracked.current = reconciled.sightings.flatMap((row, index) => {
-          const box = projected?.boxes[index];
+          const box =
+            position === positionRevision.current
+              ? projected?.boxes[index]
+              : null;
           const currentRow = resultsRef.current.find(
             (item) => item.rowId === row.rowId,
           );
