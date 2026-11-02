@@ -120,3 +120,64 @@ test("tracking parameters do not detach a cited price from its canonical listing
   );
   assert.equal(found.price?.priceMinor, 1999);
 });
+
+test("US discovery verifies a localized manufacturer page before showing it", async (t) => {
+  const { retrieveCandidatePhotos } =
+    await import("../../src/server/providers/product-media.ts");
+  const { sourceUrl } =
+    await import("../../src/server/providers/product-sources.ts");
+  for (const url of [
+    "https://www.ikea.com/kw/en/p/lack-side-table-white-30449908",
+    "https://www.ikea.com/ma/en/p/lack-side-table-white-30449908",
+    "https://www.logitech.com/en-ae/shop/p/g502-hero-gaming-mouse",
+  ])
+    assert.equal(sourceUrl(url, "US"), null);
+  const url = "https://www.ikea.com/us/en/p/lack-side-table-white-30449908";
+  const sources = [
+    {
+      title: "LACK white table",
+      url: "https://www.ikea.com/kw/en/p/lack-side-table-white-30449908",
+    },
+  ];
+  let blocked = false;
+  t.mock.method(globalThis, "fetch", async (input) => {
+    assert.equal(String(input), url);
+    if (blocked) return new Response("Missing", { status: 404 });
+    return new Response(
+      '<script type="application/ld+json">' +
+        JSON.stringify({
+          "@type": "Product",
+          name: "LACK white side table",
+          brand: "IKEA",
+          image: "https://www.ikea.com/us/en/images/products/lack.jpg",
+          offers: {
+            "@type": "Offer",
+            price: "16.99",
+            priceCurrency: "USD",
+            availability: "https://schema.org/InStock",
+            itemCondition: "https://schema.org/NewCondition",
+          },
+        }) +
+        "</script>",
+      { headers: { "content-type": "text/html" } },
+    );
+  });
+  const found = await retrieveCandidatePhotos([], "US", undefined, {
+    sources,
+    category: "White table",
+    mode: "buy",
+  });
+  assert.equal(found.length, 1);
+  assert.equal(found[0].url, url);
+  assert.equal(found[0].price?.priceMinor, 1699);
+  assert.equal(found[0].price?.evidenceType, "product_page");
+  assert.equal(found[0].assessment, "unreviewed");
+  blocked = true;
+  assert.deepEqual(
+    await retrieveCandidatePhotos([], "US", undefined, {
+      sources,
+      category: "White table",
+    }),
+    [],
+  );
+});

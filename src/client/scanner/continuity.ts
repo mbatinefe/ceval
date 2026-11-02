@@ -1,3 +1,4 @@
+import { equivalentPackageVariants } from "../../shared/package-size.ts";
 import type { VisualSearch } from "../../shared/visual-search.ts";
 import type {
   Box,
@@ -55,6 +56,7 @@ function normalizedVariant(value: string) {
   );
 }
 function variantsCompatible(a: string, b: string) {
+  if (equivalentPackageVariants(a, b)) return true;
   const left = normalizedVariant(a).split(" ").filter(Boolean),
     right = normalizedVariant(b).split(" ").filter(Boolean);
   if (!left.length || !right.length) return true;
@@ -479,12 +481,13 @@ function keepSnapshot(row: FoundProduct, incoming: Product) {
       (sameSonyNumber(row.product, incoming) &&
         modelName(row.product).startsWith("a"))) &&
     variantsCompatible(row.product.variant, incoming.variant) &&
-    normalizedVariant(incoming.variant)
-      .split(" ")
-      .filter(Boolean)
-      .every((word) =>
-        normalizedVariant(row.product.variant).split(" ").includes(word),
-      )
+    (equivalentPackageVariants(row.product.variant, incoming.variant) ||
+      normalizedVariant(incoming.variant)
+        .split(" ")
+        .filter(Boolean)
+        .every((word) =>
+          normalizedVariant(row.product.variant).split(" ").includes(word),
+        ))
   );
 }
 type SightingContext = {

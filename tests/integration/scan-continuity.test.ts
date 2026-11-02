@@ -1220,3 +1220,34 @@ test("pack wording changes and return visits retain one priced grocery find", ()
     2,
   );
 });
+
+test("a newly read package weight enriches the same grocery find without duplicating it", () => {
+  const tea = product({
+    brand: "Twinings",
+    model: "English Breakfast",
+    variant: "20 tea bags",
+    label: "tea box",
+  });
+  let rows = see([], [tea]).rows;
+  rows = see(
+    rows,
+    [{ ...tea, id: "weight", variant: "20 tea bags, 1.41 OZ (40 g)" }],
+    7000,
+  ).rows;
+  assert.equal(rows.length, 1);
+  rows = see(
+    rows,
+    [{ ...tea, id: "return", variant: "20 teabags" }],
+    125000,
+  ).rows;
+  assert.equal(rows.length, 1);
+  const weighed = product({ ...tea, variant: "20 tea bags, 40 g" });
+  assert.equal(
+    see(
+      see([], [weighed]).rows,
+      [{ ...weighed, id: "different-weight", variant: "20 tea bags, 50 g" }],
+      7000,
+    ).rows.length,
+    2,
+  );
+});

@@ -7,7 +7,7 @@ import {
   merchantPageUrl,
   parsePageOffers,
 } from "./product-pages.ts";
-import { sourceUrl } from "./product-sources.ts";
+import { localizedProductUrl, sourceUrl } from "./product-sources.ts";
 
 export const obj = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value)
@@ -420,6 +420,58 @@ export async function retrieveCandidatePhotos(
   const pages = new Map<string, { html: string; url: string }>();
   let result = [...candidates];
   if (discovery && !bounded.aborted) {
+    const localized = [
+      ...new Set(
+        discovery.sources
+          .map((source) => localizedProductUrl(source.url, market))
+          .filter((url): url is string => Boolean(url)),
+      ),
+    ].slice(0, 2);
+    const verified = await Promise.all(
+      localized.map(async (url) => {
+        try {
+          const page = await readProductPage(
+            url,
+            market,
+            AbortSignal.any([bounded, AbortSignal.timeout(4500)]),
+          );
+          if (!page) return null;
+          const seed = searchCandidates(
+            [{ url, title: discovery.category }],
+            market,
+          )[0];
+          if (!seed) return null;
+          const candidate = candidateFromPage(
+            seed,
+            page.html,
+            page.url,
+            market,
+            discovery.mode,
+          );
+          if (!candidate.photos?.length && !candidate.price) return null;
+          pages.set(url, page);
+          return {
+            ...candidate,
+            reason:
+              "Retrieved from the local manufacturer store. Photo comparison pending; product identity unconfirmed.",
+          };
+        } catch {
+          // A missing or blocked local page never becomes a suggested listing.
+          return null;
+        }
+      }),
+    );
+    const localCandidates = verified.filter(
+      (candidate): candidate is NonNullable<typeof candidate> =>
+        Boolean(candidate),
+    );
+    result = [
+      ...localCandidates,
+      ...result.filter(
+        (candidate) =>
+          !localCandidates.some((local) => local.url === candidate.url),
+      ),
+    ].slice(0, 8);
     const official = discovery.sources
       .map((source) => ({
         ...source,

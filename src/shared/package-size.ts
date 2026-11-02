@@ -9,7 +9,7 @@ function quantities(value: string): Map<string, Set<number>> {
   for (const match of value
     .toLowerCase()
     .matchAll(
-      /\b(\d+(?:\.\d+)?)\s*(fl\.?\s*oz|fluid ounces?|tea bags?|capsules?|tablets?|softgels?|gumm(?:y|ies)|count|ct|pieces?|pcs|ml|milliliters?|liters?|litres?|l|kg|grams?|g|ounces?|oz|pounds?|lbs?)\b/g,
+      /\b(\d+(?:\.\d+)?)\s*(fl\.?\s*oz|fluid ounces?|tea\s*bags?|capsules?|tablets?|softgels?|gumm(?:y|ies)|count|ct|pieces?|pcs|ml|milliliters?|liters?|litres?|l|kg|grams?|g|ounces?|oz|pounds?|lbs?)\b/g,
     )) {
     const amount = Number(match[1]),
       unit = match[2];
@@ -78,11 +78,39 @@ export function packageSizeConfirmed(
   for (const unit of expected.keys()) if (!actual.has(unit)) return false;
   return (
     actual.size > 0 ||
-    !/\b(supplements?|vitamins?|multivitamins?|capsules?|tablets?|softgels?|gummies|bottle|shampoo|yogurt|tea bags?)\b/i.test(
+    !/\b(supplements?|vitamins?|multivitamins?|capsules?|tablets?|softgels?|gummies|bottle|shampoo|yogurt|tea\s*bags?)\b/i.test(
       identity,
     )
   );
 }
 export function isMultipack(value: string): boolean {
   return [...(quantities(value).get("pack") ?? [])].some((n) => n > 1);
+}
+
+/** Additional equivalent units do not make a second pack; explicit differences do. */
+export function equivalentPackageVariants(a: string, b: string): boolean {
+  const left = quantities(a),
+    right = quantities(b);
+  if (
+    !left.size ||
+    !right.size ||
+    packageSizeConflicts(a, b) ||
+    packageSizeConflicts(b, a)
+  )
+    return false;
+  const common = [...left].some(([unit, amounts]) =>
+    [...amounts].some((n) =>
+      [...(right.get(unit) ?? [])].some((m) => equalQuantity(n, m, unit)),
+    ),
+  );
+  const remainder = (value: string) =>
+    value
+      .toLowerCase()
+      .replace(
+        /\b\d+(?:\.\d+)?\s*(?:fl\.?\s*oz|fluid ounces?|tea\s*bags?|capsules?|tablets?|softgels?|gumm(?:y|ies)|count|ct|pieces?|pcs|ml|milliliters?|liters?|litres?|l|kg|grams?|g|ounces?|oz|pounds?|lbs?)\b/g,
+        " ",
+      )
+      .replace(/[^\p{L}\p{N}]+/gu, " ")
+      .trim();
+  return common && remainder(a) === remainder(b);
 }

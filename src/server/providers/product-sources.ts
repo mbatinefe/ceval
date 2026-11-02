@@ -18,11 +18,17 @@ export function sourceUrl(value: string, market?: Market): string | null {
   } catch {
     return null;
   }
+  const languageRegion = path.match(/^\/[a-z]{2}-([a-z]{2})(?:\/|$)/)?.[1];
+  const regionLanguage = path.match(
+    /^\/([a-z]{2})\/[a-z]{2}(?:_[a-z]{2})?(?:\/|$)/,
+  )?.[1];
   if (
     market === "US" &&
-    (/\.(?:co\.uk|ca|com\.au|co\.nz|sg|hk|com\.tr|de|fr|jp)$/.test(
-      url.hostname,
-    ) ||
+    ((languageRegion && languageRegion !== "us") ||
+      (regionLanguage && regionLanguage !== "us") ||
+      /\.(?:co\.uk|ca|com\.au|co\.nz|sg|hk|com\.tr|de|fr|jp)$/.test(
+        url.hostname,
+      ) ||
       /\/(?:[a-z]{2}-)?(?:uk|gb|ca|au|nz|sg|hk|tr|de|fr|jp|ie|nl|eu|at|be|ch|es|it|pt|pl|se|no|dk|fi|in|cn|kr|tw|mx|br|me)(?:-edu)?(?:\/|$)/.test(
         path,
       ) ||
@@ -39,6 +45,33 @@ export function sourceUrl(value: string, market?: Market): string | null {
       url.searchParams.delete(key);
   }
   return url.href;
+}
+
+// These are lookup targets only; the local product page must be fetched before display.
+export function localizedProductUrl(
+  value: string,
+  market: Market,
+): string | null {
+  if (market !== "US") return null;
+  const safe = sourceUrl(value);
+  if (!safe) return null;
+  const url = new URL(safe);
+  const original = url.pathname;
+  if (url.hostname === "www.ikea.com")
+    url.pathname = url.pathname.replace(
+      /^\/[a-z]{2}\/[a-z]{2}\/p\//i,
+      "/us/en/p/",
+    );
+  else if (url.hostname === "www.logitech.com")
+    url.pathname = url.pathname.replace(
+      /^\/[a-z]{2}-[a-z]{2}\/shop\/p\//i,
+      "/en-us/shop/p/",
+    );
+  else return null;
+  if (url.pathname === original) return null;
+  url.search = "";
+  url.hash = "";
+  return sourceUrl(url.href, market);
 }
 
 export function manufacturerHost(brand: string): string | null {
