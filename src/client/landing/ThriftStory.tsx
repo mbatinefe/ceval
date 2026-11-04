@@ -1,5 +1,5 @@
 import { useState, type CSSProperties } from "react";
-import { ArrowDown, ArrowUpRight, ImageOff, ScanLine } from "lucide-react";
+import { ArrowDown, ArrowUpRight, ImageOff } from "lucide-react";
 import {
   campaignPrice,
   campaignMatchLabel,
@@ -7,6 +7,7 @@ import {
   type CampaignOffer,
 } from "../../shared/campaign-listings";
 import { MarketplaceLinks } from "./MarketplaceLinks";
+import { checkedDate, priceSummary } from "./price-summary";
 import {
   portraitFinds,
   sceneMedia,
@@ -39,15 +40,15 @@ export function FindPhoto({
 function ListingPhoto({ offer }: { offer: CampaignOffer }) {
   const [missing, setMissing] = useState(false);
   return (
-    <span className="cinema-listing-photo" title={offer.imageCredit}>
+    <span className="price-tag-listing-photo" title={offer.imageCredit}>
       {missing ? (
-        <ImageOff size={19} role="img" aria-label="Product photo unavailable" />
+        <ImageOff size={17} role="img" aria-label="Product photo unavailable" />
       ) : (
         <img
           src={offer.image}
           alt={[offer.title, offer.imageCredit].filter(Boolean).join(". ")}
-          width={52}
-          height={58}
+          width={40}
+          height={44}
           loading="lazy"
           decoding="async"
           referrerPolicy="no-referrer"
@@ -58,75 +59,66 @@ function ListingPhoto({ offer }: { offer: CampaignOffer }) {
   );
 }
 
-function ShoppingCard({
-  find,
-  portrait,
-}: {
-  find: ThriftFind;
-  portrait: boolean;
-}) {
-  const prices = find.offers.map((offer) => campaignPrice(offer));
-  const date = new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  }).format(new Date(find.offers[0].checkedAt));
+function PriceTag({ find, portrait }: { find: ThriftFind; portrait: boolean }) {
+  const summary = priceSummary(find.offers);
+  const checkedAt = find.offers[0].checkedAt;
   return (
-    <aside
-      className="cinema-shopping"
-      aria-label={`Product listings for ${find.name}`}
-    >
-      <div className="cinema-shopping-heading">
-        <span className="cinema-product-photo">
+    <aside className="price-tag" aria-label={`Prices for ${find.name}`}>
+      <div className="price-tag-head">
+        <span className="price-tag-photo">
           <FindPhoto find={find} portrait={portrait} />
         </span>
         <div>
-          <span className="cinema-product-brand">{find.brand}</span>
+          <span className="price-tag-brand">{find.brand}</span>
           <h3>{find.model}</h3>
-          <p>{find.matchNote}</p>
+          <p>
+            <span className="price-tag-match" data-match={find.match}>
+              {campaignMatchLabel(find.match)}
+            </span>
+            {find.matchNote}
+          </p>
         </div>
       </div>
-      <div className="cinema-model-match" data-match={find.match}>
-        {campaignMatchLabel(find.match)}
+      <div className="price-tag-range">
+        <small>{summary ? summary.detail : "Prices change often"}</small>
+        <strong data-empty={!summary}>
+          {summary ? summary.range : "See the listings"}
+        </strong>
       </div>
+      <ul className="price-tag-offers">
+        {find.offers.map((offer) => {
+          const price = campaignPrice(offer);
+          const list = campaignReferencePrice(offer);
+          return (
+            <li key={offer.url}>
+              <a
+                href={offer.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`${offer.merchant}: ${offer.title}. ${offer.condition}. ${price || "Check price"}.${list ? ` List price ${list}.` : ""} Opens product page.`}
+              >
+                <ListingPhoto offer={offer} />
+                <span className="price-tag-store">
+                  <b>{offer.merchant}</b>
+                  <small>{offer.condition}</small>
+                  {list && <small>List price {list}</small>}
+                </span>
+                {price ? (
+                  <strong>{price}</strong>
+                ) : (
+                  <span className="price-tag-view">View listing</span>
+                )}
+                <ArrowUpRight size={15} aria-hidden="true" />
+              </a>
+            </li>
+          );
+        })}
+      </ul>
       <MarketplaceLinks product={find} />
-      <div className="cinema-offers-label">
-        <span>
-          {prices.some(Boolean)
-            ? "Retail & resale · USD"
-            : "Check current prices"}
-        </span>
-        <time dateTime={find.offers[0].checkedAt} title="Source snapshot date">
-          {date}
-        </time>
-      </div>
-      {find.offers.map((offer, index) => (
-        <a
-          className="cinema-offer"
-          key={offer.url}
-          href={offer.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={`${offer.merchant}: ${offer.title}. ${offer.condition}. ${prices[index] || "Check price"}.${campaignReferencePrice(offer) ? ` List price ${campaignReferencePrice(offer)}.` : ""} Opens product page.`}
-        >
-          <ListingPhoto offer={offer} />
-          <span className="cinema-offer-store">
-            <b>{offer.merchant}</b>
-            <small>{offer.condition}</small>
-            {campaignReferencePrice(offer) && (
-              <small className="cinema-list-price">
-                List price {campaignReferencePrice(offer)}
-              </small>
-            )}
-          </span>
-          {prices[index] ? (
-            <strong>{prices[index]}</strong>
-          ) : (
-            <span className="cinema-check-price">View listing</span>
-          )}
-          <ArrowUpRight size={16} aria-hidden="true" />
-        </a>
-      ))}
+      <p className="price-tag-date">
+        USD · Listings checked{" "}
+        <time dateTime={checkedAt}>{checkedDate(checkedAt)}</time>
+      </p>
     </aside>
   );
 }
@@ -140,6 +132,7 @@ export function ThriftStory() {
     setSelectedId(id);
     if (chapter !== 2) go(2, true);
   };
+  const checkedAt = wideFinds[0].offers[0].checkedAt;
   return (
     <section
       className="cinema-story"
@@ -148,7 +141,7 @@ export function ThriftStory() {
       data-chapter={chapter}
       data-portrait={portrait}
       data-reduced={reduced}
-      aria-label="Explore how Ceval works"
+      aria-label="How Ceval works"
     >
       <div className="cinema-stage" ref={stage}>
         <div className="cinema-scene">
@@ -185,20 +178,19 @@ export function ThriftStory() {
                     top: `${find.box.y * 100}%`,
                     width: `${find.box.width * 100}%`,
                     height: `${find.box.height * 100}%`,
-                    "--item-delay": `${index * 85}ms`,
+                    "--item-delay": `${index * 120}ms`,
                   } as CSSProperties
                 }
                 onClick={() => choose(find.id)}
-                aria-label={`Compare ${find.name}`}
+                aria-label={`Compare prices for ${find.name}`}
               >
                 <span className="cinema-corner cinema-corner-tl" />
                 <span className="cinema-corner cinema-corner-tr" />
                 <span className="cinema-corner cinema-corner-bl" />
                 <span className="cinema-corner cinema-corner-br" />
-                <span className="cinema-detection-label">
-                  <span />
-                  {find.id === "camera" ? find.name : find.short}
-                  <ArrowUpRight size={12} aria-hidden="true" />
+                <span className="find-tag-string" />
+                <span className="find-tag">
+                  <span>{find.name}</span>
                 </span>
               </button>
             ))}
@@ -216,28 +208,27 @@ export function ThriftStory() {
             it’s worth.
           </h1>
           <p className="cinema-intro-line">
-            Find better prices. Spot resale potential.
+            Point your phone at it. Ceval names it and finds its price, new and
+            used.
           </p>
           <button className="cinema-explore" onClick={() => go(1, true)}>
             Take a closer look <ArrowDown size={17} aria-hidden="true" />
           </button>
         </div>
         <div className="cinema-scan-copy" aria-hidden={chapter !== 1}>
-          <p className="cinema-overline">
-            <ScanLine size={14} aria-hidden="true" /> {finds.length} FINDS IN
-            VIEW
-          </p>
+          <p className="cinema-overline">{finds.length} finds in view</p>
           <h2>
-            A little curiosity.
-            <br />A lot to discover.
+            Ceval names
+            <br />
+            what it sees.
           </h2>
-          <p>Tap any find to explore it.</p>
+          <p>Tap a tag to compare prices.</p>
         </div>
         <div className="cinema-compare-copy" aria-hidden={chapter !== 2}>
           <h2>
-            Find it.
+            Every price,
             <br />
-            For less.
+            with its source.
           </h2>
         </div>
         <div
@@ -245,7 +236,8 @@ export function ThriftStory() {
           aria-hidden={chapter !== 2}
           inert={chapter !== 2}
         >
-          <ShoppingCard key={selected.id} find={selected} portrait={portrait} />
+          <span className="price-tag-string" aria-hidden="true" />
+          <PriceTag key={selected.id} find={selected} portrait={portrait} />
           <div
             className="cinema-find-picker"
             role="group"
@@ -265,28 +257,34 @@ export function ThriftStory() {
             ))}
           </div>
         </div>
-        <nav className="cinema-chapters" aria-label="Demo chapters">
-          {["Explore", "Identify", "Compare"].map((name, index) => (
-            <button
-              type="button"
-              key={name}
-              onClick={() => go(index)}
-              aria-current={chapter === index ? "step" : undefined}
-            >
-              <span className="cinema-chapter-track">
-                <i />
-              </span>
-              <span>
-                <small>0{index + 1}</small>
-                {name}
-              </span>
-            </button>
-          ))}
-        </nav>
+        <div className="cinema-rail">
+          <nav className="cinema-chapters" aria-label="Story chapters">
+            {["Explore", "Identify", "Compare"].map((name, index) => (
+              <button
+                type="button"
+                key={name}
+                onClick={() => go(index)}
+                aria-current={chapter === index ? "step" : undefined}
+              >
+                <span className="cinema-chapter-track">
+                  <i />
+                </span>
+                <span>
+                  <small>{index + 1}</small>
+                  {name}
+                </span>
+              </button>
+            ))}
+          </nav>
+          <p className="cinema-caption">
+            Illustrated scene · Listings checked{" "}
+            <time dateTime={checkedAt}>{checkedDate(checkedAt)}</time>
+          </p>
+        </div>
         <a
           className="cinema-story-next"
           href="#everywhere"
-          aria-label="Continue to more about Ceval"
+          aria-label="Skip to more places to use Ceval"
         >
           <ArrowDown size={18} aria-hidden="true" />
         </a>

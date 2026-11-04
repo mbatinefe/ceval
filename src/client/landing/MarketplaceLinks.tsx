@@ -8,48 +8,43 @@ export function MarketplaceLinks({
   product: Pick<ThriftFind, "brand" | "model" | "variant">;
 }) {
   const links = shoppingSearches(product);
+  const name = `${product.brand} ${product.model}`;
   return (
-    <div className="cinema-market-links" aria-label="Search marketplaces">
+    <div
+      className="market-links"
+      role="group"
+      aria-label={`Search marketplaces for ${name}`}
+    >
+      <span className="market-links-label">Search marketplaces</span>
       <a
         className="cinema-marketplace-primary"
         href={links.marketplace}
         target="_blank"
         rel="noopener noreferrer"
       >
-        <img src={facebookLogo} width={34} height={34} alt="Facebook" />
+        <img src={facebookLogo} width={22} height={22} alt="" />
         <span>
           <b>Facebook Marketplace</b>
-          <small>Search this model nearby</small>
+          <small>Search nearby</small>
         </span>
-        <ArrowUpRight size={20} aria-hidden="true" />
+        <ArrowUpRight size={16} aria-hidden="true" />
       </a>
-      <div className="cinema-secondary-markets">
+      <div className="market-links-more">
         <a
           href={links.ebay}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label={`Search eBay for ${product.brand} ${product.model}`}
+          aria-label={`Search eBay for ${name}`}
         >
-          <span className="cinema-ebay-word" aria-hidden="true">
-            <i>e</i>
-            <i>b</i>
-            <i>a</i>
-            <i>y</i>
-          </span>
-          <span>Search</span>
-          <ArrowUpRight size={14} aria-hidden="true" />
+          eBay <ArrowUpRight size={13} aria-hidden="true" />
         </a>
         <a
           href={links.etsy}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label={`Search Etsy for ${product.brand} ${product.model}`}
+          aria-label={`Search Etsy for ${name}`}
         >
-          <span className="cinema-etsy-word" aria-hidden="true">
-            Etsy
-          </span>
-          <span>Search</span>
-          <ArrowUpRight size={14} aria-hidden="true" />
+          Etsy <ArrowUpRight size={13} aria-hidden="true" />
         </a>
       </div>
     </div>

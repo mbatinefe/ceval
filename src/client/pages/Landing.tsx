@@ -1,15 +1,10 @@
-import {
-  ArrowRight,
-  ArrowUpRight,
-  Bookmark,
-  ScanLine,
-  Search,
-} from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { Brand } from "../components/Brand";
 import { useThemeColor } from "../lib/theme-color";
-import { FindPhoto, ThriftStory } from "../landing/ThriftStory";
+import { ThriftStory } from "../landing/ThriftStory";
 import { Everywhere } from "../landing/Everywhere";
-import { wideFinds } from "../landing/thrift-demo";
+import { SavedFinds } from "../landing/SavedFinds";
 import "../styles/landing.css";
 import "../styles/cinematic.css";
 
@@ -32,14 +27,40 @@ const questions = [
   ],
 ];
 
+// The header stays clear over the opening photo and turns solid once the
+// page starts moving, so it never sits on top of headings or cards.
+function useSolidHeader() {
+  const [solid, setSolid] = useState(false);
+  useEffect(() => {
+    let frame = 0;
+    const measure = () => {
+      frame = 0;
+      setSolid(window.scrollY > window.innerHeight * 0.3);
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(measure);
+    };
+    measure();
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    return () => {
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+      cancelAnimationFrame(frame);
+    };
+  }, []);
+  return solid;
+}
+
 export function Landing() {
-  useThemeColor("#111310");
+  useThemeColor("#14110e");
+  const solid = useSolidHeader();
   return (
     <div className="cinema-home">
       <a className="cinema-skip" href="#cinema-main">
         Skip to content
       </a>
-      <header className="cinema-nav">
+      <header className="cinema-nav" data-solid={solid}>
         <Brand />
         <nav aria-label="Main navigation">
           <a className="cinema-how-link" href="#how">
@@ -53,72 +74,7 @@ export function Landing() {
       <main id="cinema-main">
         <ThriftStory />
         <Everywhere />
-        <section
-          className="cinema-beyond"
-          id="beyond"
-          aria-labelledby="beyond-title"
-        >
-          <div className="cinema-section-heading">
-            <h2 id="beyond-title">
-              Your finds.
-              <br />
-              <span>All in one place.</span>
-            </h2>
-            <p>Photos, prices and links. Ready when you are.</p>
-          </div>
-          <div className="cinema-editorial">
-            <img
-              src="/campaign/thrift/discovery-table.webp"
-              width={1672}
-              height={941}
-              loading="lazy"
-              decoding="async"
-              alt="A vintage camera, red lamp, radio, records, boots and ceramic bowl on a worn thrift-store table."
-            />
-            <div className="cinema-editorial-gradient" />
-            <div className="cinema-editorial-caption">
-              <p>
-                Found today.
-                <br />
-                Saved for later.
-              </p>
-            </div>
-            <div
-              className="cinema-saved-card"
-              role="group"
-              aria-label="Example saved finds"
-            >
-              <span>
-                <Bookmark size={16} aria-hidden="true" /> Your finds
-              </span>
-              {[wideFinds[0], wideFinds[3], wideFinds[1]].map((find) => (
-                <div className="cinema-saved-row" key={find.id}>
-                  <FindPhoto find={find} />
-                  <div>
-                    <b>{find.name}</b>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="cinema-benefits">
-            <article>
-              <ScanLine aria-hidden="true" size={22} />
-              <h3>Look closer.</h3>
-              <p>Find the name behind the thing that caught your eye.</p>
-            </article>
-            <article>
-              <Search aria-hidden="true" size={22} />
-              <h3>Compare your options.</h3>
-              <p>Compare prices to buy or resell.</p>
-            </article>
-            <article>
-              <Bookmark aria-hidden="true" size={22} />
-              <h3>Keep the good ones.</h3>
-              <p>Your finds, with photos and details, ready to revisit.</p>
-            </article>
-          </div>
-        </section>
+        <SavedFinds />
         <section
           className="cinema-faq"
           id="questions"
@@ -138,21 +94,18 @@ export function Landing() {
           </div>
         </section>
         <section className="cinema-finale" aria-labelledby="finale-title">
-          <h2 id="finale-title">
-            Your next find
-            <br />
-            is out there.
-          </h2>
+          <h2 id="finale-title">Try it on the next thing you pick up.</h2>
           <a className="cinema-cta" href="/app">
             Open Ceval <ArrowRight size={18} aria-hidden="true" />
           </a>
-          <p>Right in your phone’s browser.</p>
+          <p>Works in your phone’s browser. Nothing to install.</p>
         </section>
       </main>
       <footer className="cinema-footer">
         <Brand />
         <nav aria-label="Footer navigation">
-          <a href="#questions">How it works</a>
+          <a href="#how">How it works</a>
+          <a href="#questions">Questions</a>
           <a href="/signin">Sign in</a>
         </nav>
       </footer>

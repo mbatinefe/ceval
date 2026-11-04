@@ -1,311 +1,180 @@
+/* Other places: a strip of finds, each with its own tag and a dated price. */
 .places-section {
-  padding: 110px 6vw 130px;
-  scroll-margin-top: 88px;
+  padding: 120px 0 100px;
+  border-top: 1px solid var(--rule);
+  scroll-margin-top: 76px;
 }
 .places-heading {
-  max-width: 1320px;
-  margin: 0 auto 38px;
-}
-.places-eyebrow {
-  display: block;
-  color: #a8b299;
-  font: 10px var(--mono);
-  letter-spacing: 0.13em;
-  margin-bottom: 21px;
-}
-.cinema-home .places-heading h2 {
-  font-size: clamp(44px, 6.1vw, 86px);
-  line-height: 0.99;
-  letter-spacing: -0.06em;
-  font-weight: 550;
-}
-.places-heading h2 span {
-  color: #a6b095;
-}
-.places-tabs {
   display: flex;
-  gap: 7px;
-  max-width: 1320px;
-  margin: 0 auto 20px;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px 60px;
+  max-width: 1240px;
+  margin: 0 auto 48px;
+  padding: 0 6vw;
+  box-sizing: content-box;
 }
-.places-tabs button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  flex: 1;
-  min-height: 48px;
-  color: #c5cbbf;
-  border: 1px solid #ffffff24;
-  background: #ffffff03;
-  border-radius: 7px;
-  font-size: 12px;
-  transition:
-    color 0.2s,
-    background 0.2s;
+.places-heading h2 {
+  max-width: 12ch;
+  font-size: clamp(46px, 5.8vw, 88px);
 }
-.places-tabs button > span {
-  color: #929d84;
-  font: 9px var(--mono);
+.places-heading p {
+  max-width: 380px;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--fog);
 }
-.places-tabs button[aria-selected="true"] {
-  background: #d8f18b;
-  color: #1d2814;
-  border-color: #d8f18b;
-}
-.places-tabs button[aria-selected="true"] > span {
-  color: #536432;
-}
-.places-tabs button:hover:not([aria-selected="true"]) {
-  background: #ffffff12;
-  color: #fff;
-}
-.places-panel {
-  position: relative;
-  max-width: 1320px;
-  min-height: 600px;
+.places-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 52px 24px;
+  max-width: 1240px;
   margin: 0 auto;
-  border-radius: 13px;
-  isolation: isolate;
+  padding: 0 6vw;
+  box-sizing: content-box;
+  list-style: none;
 }
-.places-visual {
-  position: absolute;
-  inset: 0;
-  border-radius: 13px;
+.place-photo {
+  position: relative;
+  aspect-ratio: 1672 / 941;
   overflow: hidden;
-  background: #20251e;
-  animation: place-in 0.45s ease-out;
+  border-radius: 6px;
+  background: var(--shop-raised);
 }
-.places-image {
+.place-photo img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  display: block;
 }
-.places-vignette {
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(180deg, #0002, transparent 35%, transparent 60%, #0008),
-    linear-gradient(90deg, #0003, transparent 40%);
-}
-.places-scan {
+.place-brackets {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  pointer-events: none;
-}
-.places-scan path {
-  stroke: #dcf995;
-  stroke-width: 2;
   fill: none;
-  opacity: 0.8;
+  stroke: var(--tag);
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.9;
 }
-.places-line {
+.place-tag {
   position: absolute;
-  left: 34px;
-  bottom: 32px;
-  max-width: 440px;
-  font-size: 26px;
-  font-weight: 500;
-  line-height: 1.08;
-  letter-spacing: -0.035em;
-  color: #fff;
-  text-wrap: balance;
+  font-size: 10.5px;
 }
-.places-card {
-  position: relative;
-  margin-left: auto;
-  top: 102px;
-  right: 28px;
-  width: 325px;
-  padding: 23px;
-  border: 1px solid #fff8;
-  border-radius: 12px;
-  color: #20251e;
-  background: #f4f4ed;
-  box-shadow: 0 12px 64px #0004;
+.place-tag .find-tag-string {
+  top: 0;
+  bottom: auto;
 }
-.places-product-brand {
-  font: 9px var(--mono);
-  letter-spacing: 0.09em;
-  color: #616950;
+.place-tag .find-tag-string::after {
+  top: -0.22em;
+  bottom: auto;
+}
+.place-tag .find-tag {
+  top: 0.9em;
+  bottom: auto;
+  transition: transform 0.6s cubic-bezier(0.3, 0.6, 0.3, 1);
+}
+@media (hover: hover) {
+  .place:hover .place-tag .find-tag {
+    transform: rotate(4deg);
+  }
+}
+.place h3 {
+  margin-top: 18px;
+  font-size: 15px;
+  font-weight: 700;
+  font-stretch: 72%;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
-.cinema-home .places-card h3 {
-  font-size: 24px;
-  line-height: 1.1;
-  font-weight: 550;
-  letter-spacing: -0.04em;
-  margin: 6px 0;
-}
-.cinema-home .places-product-note {
-  font-size: 10px;
-  line-height: 1.4;
-  color: #62685c;
-  margin-bottom: 18px;
-}
-.places-card .cinema-marketplace-primary b {
-  font-size: 12px;
-}
-.places-card .cinema-marketplace-primary {
-  gap: 9px;
-  padding: 13px 10px;
-}
-.places-card .cinema-secondary-markets a {
-  gap: 5px;
-  font-size: 9px;
-}
-.places-retail {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 15px 0 7px;
-  border-top: 1px solid #d9ddcf;
-}
-.places-retail > span {
-  display: grid;
-  gap: 5px;
-}
-.places-retail small {
-  font-size: 11px;
-  color: #5a6352;
-}
-.places-retail strong {
-  font-size: 31px;
-  line-height: 1;
-  font-weight: 500;
-  letter-spacing: -0.045em;
-}
-.places-retail:hover small {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-.places-source-note {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 9px;
-  line-height: 1.4;
-  color: #62685c;
-}
-.places-source-note time {
-  flex-shrink: 0;
-}
-.cinema-home .places-original {
-  font-size: 10px;
-  color: #62685c;
+.place-line {
   margin-top: 6px;
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--fog);
 }
-.cinema-home .places-card :focus-visible {
-  outline: 2px solid #42621d;
-  outline-offset: 3px;
+.place-price {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
 }
-@keyframes place-in {
-  from {
-    opacity: 0.3;
-  }
-  to {
-    opacity: 1;
-  }
+.place-price small {
+  color: var(--fog);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  line-height: 1.3;
+  text-transform: uppercase;
 }
-@media (max-width: 1100px) {
+.place-price strong {
+  margin-left: auto;
+  font-size: 30px;
+  font-weight: 700;
+  font-stretch: 78%;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.place-price svg {
+  flex-shrink: 0;
+  align-self: center;
+  color: var(--fog);
+}
+.place-price:hover small,
+.place-price:hover svg {
+  color: var(--tag);
+}
+.place-note {
+  margin-top: 8px;
+  color: rgb(243 238 227 / 0.55);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  line-height: 1.45;
+  text-transform: uppercase;
+}
+
+/* Phones and portrait screens: a strip you swipe through. */
+@media (max-width: 700px), (max-aspect-ratio: 1/1) {
   .places-section {
-    padding-left: 4vw;
-    padding-right: 4vw;
-  }
-  .places-tabs button {
-    font-size: 11px;
-    gap: 6px;
-  }
-  .places-tabs button > span {
-    display: none;
-  }
-  .places-card {
-    width: 290px;
-    padding: 19px;
-    right: 20px;
-  }
-  .places-line {
-    max-width: 300px;
-    font-size: 23px;
-  }
-}
-@media (max-width: 800px) {
-  .places-section {
-    padding: 80px 18px 90px;
+    padding: 84px 0 64px;
   }
   .places-heading {
-    margin-bottom: 28px;
+    margin-bottom: 30px;
+    padding: 0 22px;
   }
-  .cinema-home .places-heading h2 {
-    font-size: clamp(43px, 9vw, 65px);
+  .places-heading h2 {
+    font-size: clamp(42px, 11.5vw, 64px);
   }
-  .places-tabs {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 7px;
-    margin-bottom: 16px;
+  .places-heading p {
+    font-size: 15px;
   }
-  .places-tabs button {
-    min-height: 44px;
-    font-size: 11px;
+  .places-strip {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: min(82%, 380px);
+    gap: 16px;
+    padding: 0 22px 6px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: 22px;
+    scrollbar-width: none;
   }
-  .places-panel {
-    min-height: 0;
-    padding-bottom: 0;
+  .places-strip::-webkit-scrollbar {
+    display: none;
   }
-  .places-visual {
-    position: relative;
-    height: 390px;
+  .place {
+    scroll-snap-align: start;
   }
-  .places-line {
-    left: 20px;
-    bottom: 37px;
-    max-width: 250px;
-    font-size: 21px;
-  }
-  .places-card {
-    margin: -17px 14px 0;
-    top: auto;
-    right: auto;
-    width: auto;
-    padding: 22px;
-  }
-  .places-card .cinema-marketplace-primary b {
-    font-size: 14px;
-  }
-  .places-card .cinema-secondary-markets a {
-    font-size: 11px;
-    gap: 8px;
-  }
-}
-@media (max-width: 360px) {
-  .places-section {
-    padding-left: 12px;
-    padding-right: 12px;
-  }
-  .places-visual {
-    height: 320px;
-  }
-  .places-card {
-    margin-left: 7px;
-    margin-right: 7px;
-    padding: 17px;
-  }
-  .places-card .cinema-marketplace-primary b {
-    font-size: 12px;
-  }
-  .places-tabs button {
-    font-size: 10px;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .places-visual {
-    animation: none;
-  }
-  .places-tabs button {
-    transition: none;
+  .place-price strong {
+    font-size: 28px;
   }
 }

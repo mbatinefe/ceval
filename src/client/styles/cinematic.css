@@ -1,10 +1,25 @@
+/*
+  Ceval landing page.
+  A thrift shop late in the day: warm shop black, the photo, and paper tags.
+  Ceval's own marks are tags on red string. Red is kept for the strings and
+  for the prices Ceval finds.
+*/
 .cinema-home {
-  --cinema-ink: #f3f4ed;
-  --cinema-muted: #afb4a9;
-  --cinema-lime: #d4ef87;
-  background: #111310;
-  color: var(--cinema-ink);
+  --shop: #14110e;
+  --shop-raised: #1f1a15;
+  --tag: #f3eee3;
+  --tag-lift: #fffaf0;
+  --ink: #1a1612;
+  --ink-soft: #5e564b;
+  --fog: #aba294;
+  --red: #c4161c;
+  --rule: rgb(243 238 227 / 0.13);
+  --rule-ink: rgb(26 22 18 / 0.14);
+  --perforation: rgb(26 22 18 / 0.3);
+  background: var(--shop);
+  color: var(--tag);
   font-family: var(--sans);
+  font-stretch: 100%;
   overflow: clip;
   -webkit-font-smoothing: antialiased;
 }
@@ -16,15 +31,11 @@
 }
 .cinema-home h1,
 .cinema-home h2 {
-  font-stretch: 100%;
-  font-weight: 500;
-  letter-spacing: -0.065em;
-  line-height: 0.98;
-}
-.cinema-home h3 {
-  font-stretch: 100%;
-  font-weight: 550;
-  letter-spacing: -0.025em;
+  font-weight: 650;
+  font-stretch: 84%;
+  letter-spacing: -0.018em;
+  line-height: 0.94;
+  text-wrap: balance;
 }
 .cinema-home button,
 .cinema-home a,
@@ -32,17 +43,38 @@
   -webkit-tap-highlight-color: transparent;
 }
 .cinema-home :focus-visible {
-  outline: 3px solid var(--cinema-lime);
-  outline-offset: 5px;
+  outline: 2px solid var(--tag);
+  outline-offset: 4px;
+  border-radius: 3px;
 }
+.price-tag :focus-visible {
+  outline-color: var(--ink);
+  outline-offset: 2px;
+}
+
+/* Small print: sources, dates, counts. */
+.cinema-overline,
+.cinema-caption,
+.cinema-chapters small,
+.price-tag-brand,
+.price-tag-range small,
+.price-tag-date,
+.market-links-label,
+.price-tag-match {
+  font-family: var(--mono);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .cinema-home .brand {
-  color: var(--cinema-ink);
-  width: 108px;
+  color: var(--tag);
+  width: 104px;
   flex: none;
 }
 .cinema-home .brand svg {
   width: 100%;
-  height: 34px;
+  height: 32px;
 }
 .cinema-home .brand svg > path:first-child {
   fill: currentColor;
@@ -53,66 +85,79 @@
   top: 10px;
   left: 10px;
   padding: 14px 20px;
-  background: var(--cinema-lime);
-  color: #17200d;
-  border-radius: 8px;
+  background: var(--tag);
+  color: var(--ink);
+  border-radius: 5px;
+  font-weight: 650;
   transform: translateY(-160%);
 }
 .cinema-skip:focus {
   transform: none;
 }
+
+/* Header: clear over the opening photo, solid once the page moves. */
 .cinema-nav {
   position: fixed;
   inset: 0 0 auto;
   z-index: 30;
+  isolation: isolate;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: calc(84px + env(safe-area-inset-top));
+  height: calc(76px + env(safe-area-inset-top));
   padding: env(safe-area-inset-top) max(5vw, env(safe-area-inset-right)) 0
     max(5vw, env(safe-area-inset-left));
-  background: linear-gradient(#111310b8, #11131050 72%, transparent);
+  background: linear-gradient(rgb(20 17 14 / 0.7), rgb(20 17 14 / 0));
+}
+.cinema-nav::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--shop);
+  border-bottom: 1px solid var(--rule);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.cinema-nav[data-solid="true"]::before {
+  opacity: 1;
 }
 .cinema-nav nav {
   display: flex;
   align-items: center;
-  gap: 32px;
+  gap: 30px;
 }
 .cinema-how-link {
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 550;
   padding: 14px 0;
+}
+.cinema-how-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
 }
 .cinema-cta {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 18px;
+  gap: 12px;
   min-height: 44px;
-  padding: 13px 21px;
-  background: var(--cinema-lime);
-  border-radius: 999px;
-  color: #1a2511;
-  font-weight: 600;
-  font-size: 13px;
+  padding: 11px 18px;
+  background: var(--tag);
+  color: var(--ink);
+  border-radius: 5px;
+  font-size: 14px;
+  font-weight: 650;
   transition:
-    background 0.2s,
+    background-color 0.2s,
     transform 0.2s;
 }
 .cinema-cta:hover {
-  background: #e4ffab;
-  transform: translateY(-2px);
+  background: var(--tag-lift);
+  transform: translateY(-1px);
 }
-.cinema-overline {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  font-family: var(--mono);
-  font-size: 10px;
-  font-weight: 400;
-  letter-spacing: 0.1em;
-  line-height: 1.5;
-}
+
+/* The story: one sticky stage, three chapters driven by scroll. */
 .cinema-story {
   position: relative;
   height: 380svh;
@@ -150,6 +195,7 @@
 }
 .cinema-hero-image {
   object-fit: cover;
+  border-radius: calc(8px / var(--scene-scale));
 }
 .cinema-shade {
   position: absolute;
@@ -157,13 +203,18 @@
   z-index: 1;
   pointer-events: none;
   background:
-    linear-gradient(90deg, #080c08c4 0%, #080c0860 42%, #080c0800 80%),
+    linear-gradient(
+      90deg,
+      rgb(12 9 6 / 0.8) 0%,
+      rgb(12 9 6 / 0.4) 42%,
+      rgb(12 9 6 / 0) 80%
+    ),
     linear-gradient(
       0deg,
-      #111310ef,
-      transparent 33%,
-      transparent 80%,
-      #11131066
+      rgb(20 17 14 / 0.95),
+      rgb(20 17 14 / 0) 33%,
+      rgb(20 17 14 / 0) 80%,
+      rgb(20 17 14 / 0.45)
     );
   transition: opacity 0.8s;
 }
@@ -174,137 +225,199 @@
   top: 50%;
   transform: translateY(-46%);
   opacity: var(--intro-opacity);
-  width: 680px;
+  width: 720px;
   max-width: 86%;
 }
-.cinema-intro .cinema-overline {
-  color: #e4e8da;
-  margin-bottom: 26px;
-}
 .cinema-intro h1 {
-  font-size: clamp(76px, 9.4vw, 158px);
+  font-size: clamp(76px, 9.6vw, 160px);
 }
-.cinema-intro .cinema-intro-line {
-  margin-top: 25px;
-  font-size: clamp(15px, 1.25vw, 19px);
-  color: #e2e4d9;
-  letter-spacing: -0.02em;
+.cinema-intro-line {
+  margin-top: 26px;
+  max-width: 430px;
+  font-size: clamp(16px, 1.3vw, 19px);
+  line-height: 1.45;
+  color: #ebe4d6;
 }
 .cinema-explore {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 25px;
-  margin-top: 35px;
-  border-bottom: 1px solid #f3f4ed80;
-  padding: 10px 0 12px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--cinema-ink);
+  gap: 14px;
+  margin-top: 34px;
+  padding: 10px 0 11px;
+  border-bottom: 1px solid rgb(243 238 227 / 0.5);
+  color: var(--tag);
+  font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
 }
 .cinema-explore svg {
   transition: transform 0.2s;
 }
 .cinema-explore:hover svg {
-  transform: translateY(4px);
+  transform: translateY(3px);
 }
+
+/* Finds in the scene: thin viewfinder corners and a paper tag on red string.
+   Sizes are in em of a font size divided by the scene scale, so they stay the
+   same on screen while the photo zooms. */
 .cinema-detections {
   position: absolute;
   inset: 0;
-  transition: opacity 0.4s;
   opacity: 0;
+  transition: opacity 0.4s;
 }
 .cinema-detection {
   position: absolute;
+  padding: 0;
+  color: var(--tag);
+  font-size: calc(11px / var(--scene-scale));
+  border-radius: 0.3em;
   cursor: pointer;
-  color: #edffd6;
-  border: 1px solid #d4ef8740;
-  border-radius: 5px;
-  background: #d4ef8705;
   opacity: 0;
   transition:
-    opacity 0.6s var(--item-delay),
-    background 0.2s,
-    border-color 0.2s;
+    opacity 0.5s var(--item-delay),
+    background-color 0.2s;
 }
 .cinema-detection:hover,
 .cinema-detection:focus-visible {
-  background: #d4ef8724;
-  border-color: #d4ef87;
   z-index: 2;
+  background: rgb(243 238 227 / 0.08);
 }
 .cinema-corner {
   position: absolute;
-  width: 18px;
-  height: 18px;
-  border: solid #e2ffb0;
-  border-width: 0;
+  width: 1.5em;
+  height: 1.5em;
+  border: 0 solid currentColor;
 }
 .cinema-corner-tl {
-  top: -1px;
-  left: -1px;
-  border-top-width: 2px;
-  border-left-width: 2px;
-  border-radius: 5px 0 0;
+  top: 0;
+  left: 0;
+  border-width: 0.15em 0 0 0.15em;
+  border-top-left-radius: 0.3em;
 }
 .cinema-corner-tr {
-  top: -1px;
-  right: -1px;
-  border-top-width: 2px;
-  border-right-width: 2px;
-  border-radius: 0 5px 0 0;
+  top: 0;
+  right: 0;
+  border-width: 0.15em 0.15em 0 0;
+  border-top-right-radius: 0.3em;
 }
 .cinema-corner-bl {
-  bottom: -1px;
-  left: -1px;
-  border-bottom-width: 2px;
-  border-left-width: 2px;
-  border-radius: 0 0 0 5px;
+  bottom: 0;
+  left: 0;
+  border-width: 0 0 0.15em 0.15em;
+  border-bottom-left-radius: 0.3em;
 }
 .cinema-corner-br {
-  bottom: -1px;
-  right: -1px;
-  border-bottom-width: 2px;
-  border-right-width: 2px;
-  border-radius: 0 0 5px;
+  bottom: 0;
+  right: 0;
+  border-width: 0 0.15em 0.15em 0;
+  border-bottom-right-radius: 0.3em;
 }
-.cinema-detection-label {
+.find-tag {
   position: absolute;
-  left: -1px;
-  bottom: calc(100% + 8px);
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  white-space: nowrap;
-  font-size: calc(11px / var(--scene-scale));
-  padding: 7px 9px;
-  border: 1px solid #e2ffb073;
-  border-radius: 4px;
-  background: #192015e8;
-  transform-origin: left bottom;
+  left: 0;
+  bottom: calc(100% + 0.9em);
+  filter: drop-shadow(0 0.2em 0.45em rgb(0 0 0 / 0.42));
+  transform-origin: 0.95em 50%;
+  transform: rotate(-2deg);
+  pointer-events: none;
+}
+.find-tag > span {
+  display: block;
+  padding: 0.5em 0.8em 0.5em 1.7em;
+  background: var(--tag);
+  color: var(--ink);
+  font-size: 1em;
+  font-weight: 700;
+  font-stretch: 72%;
+  letter-spacing: 0.045em;
   line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  clip-path: polygon(0.75em 0, 100% 0, 100% 100%, 0.75em 100%, 0 50%);
+  -webkit-mask: radial-gradient(
+    circle at 0.95em 50%,
+    transparent 0.22em,
+    #000 0.26em
+  );
+  mask: radial-gradient(circle at 0.95em 50%, transparent 0.22em, #000 0.26em);
 }
-.cinema-detection-label > span {
-  width: 4px;
-  height: 4px;
-  background: var(--cinema-lime);
+.cinema-detection:hover .find-tag > span,
+.cinema-detection:focus-visible .find-tag > span {
+  background: var(--tag-lift);
+}
+.find-tag-string {
+  position: absolute;
+  left: 0.88em;
+  bottom: 100%;
+  width: 0.14em;
+  height: 1.9em;
+  background: var(--red);
+  transform-origin: 50% 100%;
+}
+.find-tag-string::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -0.22em;
+  width: 0.44em;
+  height: 0.44em;
+  margin-left: -0.22em;
   border-radius: 50%;
+  background: var(--red);
 }
+@keyframes tag-string {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+@keyframes tag-hang {
+  0% {
+    opacity: 0;
+    transform: rotate(-26deg);
+  }
+  18% {
+    opacity: 1;
+  }
+  48% {
+    transform: rotate(7deg);
+  }
+  70% {
+    transform: rotate(-4.5deg);
+  }
+  86% {
+    transform: rotate(0.5deg);
+  }
+  100% {
+    transform: rotate(-2deg);
+  }
+}
+.cinema-story:not([data-chapter="0"]) .find-tag-string {
+  animation: tag-string 0.3s ease-out var(--item-delay) both;
+}
+.cinema-story:not([data-chapter="0"]) .find-tag {
+  animation: tag-hang 1.3s cubic-bezier(0.3, 0.5, 0.3, 1)
+    calc(var(--item-delay) + 0.2s) both;
+}
+
+/* Chapter copy. */
 .cinema-scan-copy,
 .cinema-compare-copy {
   position: absolute;
-  isolation: isolate;
-  max-width: calc(100% - 12vw);
-  color: #fff;
   z-index: 3;
+  isolation: isolate;
   left: 5vw;
-  top: 125px;
+  top: 118px;
+  max-width: calc(100% - 12vw);
   opacity: 0;
+  transform: translateY(12px);
   pointer-events: none;
   transition:
     opacity 0.6s,
     transform 0.6s;
-  transform: translateY(12px);
 }
 .cinema-scan-copy::before,
 .cinema-compare-copy::before {
@@ -312,12 +425,11 @@
   position: absolute;
   inset: -18px -48px -22px -24px;
   z-index: -1;
-  pointer-events: none;
   background: linear-gradient(
     90deg,
-    #111310f7,
-    #111310ef calc(100% - 40px),
-    #11131000
+    rgb(20 17 14 / 0.96),
+    rgb(20 17 14 / 0.9) calc(100% - 40px),
+    rgb(20 17 14 / 0)
   );
   mask-image: linear-gradient(
     transparent,
@@ -326,257 +438,396 @@
     transparent
   );
 }
+.cinema-overline {
+  font-size: 10px;
+  color: var(--fog);
+}
 .cinema-scan-copy h2 {
-  font-size: clamp(30px, 3.2vw, 52px);
   margin-top: 14px;
+  font-size: clamp(32px, 3.4vw, 56px);
 }
 .cinema-scan-copy > p:last-child {
-  color: #edf0e6;
-  font-size: 13px;
-  line-height: 1.5;
-  margin-top: 15px;
+  margin-top: 14px;
+  font-size: 15px;
+  color: #ebe4d6;
 }
 .cinema-compare-copy h2 {
-  font-size: clamp(52px, 5.5vw, 90px);
-  margin-top: 18px;
+  font-size: clamp(48px, 5.2vw, 88px);
 }
+
+/* The comparison: the tapped tag, grown into a full price tag. */
 .cinema-results {
   position: absolute;
   z-index: 4;
   right: 6vw;
   top: 50%;
+  width: 360px;
   transform: translateY(calc(-50% + 24px));
-  width: 365px;
   opacity: 0;
+  filter: drop-shadow(0 30px 50px rgb(0 0 0 / 0.5));
   transition:
     opacity 0.7s,
     transform 0.7s;
 }
-.cinema-shopping {
-  background: #f4f4ed;
-  color: #20251e;
-  border: 1px solid #ffffff60;
-  border-radius: 15px;
-  padding: 23px;
-  box-shadow: 0 24px 90px #0005;
+.price-tag-string {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  top: -34px;
+  width: 2px;
+  height: 50px;
+  margin-left: -1px;
+  background: var(--red);
 }
-.cinema-shopping-heading {
-  display: flex;
-  align-items: center;
+.price-tag {
+  position: relative;
+  padding: 32px 20px 16px;
+  background: var(--tag);
+  color: var(--ink);
+  border-radius: 6px;
+  clip-path: polygon(
+    20px 0,
+    calc(100% - 20px) 0,
+    100% 20px,
+    100% 100%,
+    0 100%,
+    0 20px
+  );
+  -webkit-mask: radial-gradient(
+    circle at 50% 16px,
+    transparent 5.5px,
+    #000 6px
+  );
+  mask: radial-gradient(circle at 50% 16px, transparent 5.5px, #000 6px);
+}
+.price-tag-head {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
   gap: 14px;
-  padding-bottom: 21px;
+  align-items: center;
+  padding-bottom: 14px;
+  border-bottom: 1px dashed var(--perforation);
 }
-.cinema-product-photo {
+.price-tag-photo {
   display: block;
-  width: 64px;
-  height: 72px;
-  border-radius: 7px;
-  background: #d8dacc;
+  width: 54px;
+  height: 62px;
+  border-radius: 4px;
   overflow: hidden;
-  flex-shrink: 0;
+  background: #d9d0bf;
 }
 .cinema-find-photo {
   display: block;
   width: 100%;
   height: 100%;
 }
-.cinema-shopping-heading .cinema-overline {
-  color: #686e5f;
-  font-size: 8px;
-  letter-spacing: 0.08em;
-}
-.cinema-shopping-heading h3 {
-  font-size: 21px;
-  line-height: 1.1;
-  margin: 6px 0;
-}
-.cinema-shopping-heading p {
-  font-size: 11px;
-  color: #62685c;
-}
-.cinema-offers-label {
-  display: flex;
-  justify-content: space-between;
-  color: #5a6352;
+.price-tag-brand {
+  display: block;
   font-size: 10px;
-  padding: 11px 0 8px;
-  border-top: 1px solid #d9ddcf;
+  color: var(--ink-soft);
 }
-.cinema-offer {
+.price-tag h3 {
+  margin: 3px 0 7px;
+  font-size: 26px;
+  font-weight: 700;
+  font-stretch: 72%;
+  letter-spacing: 0.01em;
+  line-height: 0.95;
+  text-transform: uppercase;
+}
+.price-tag-head p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 8px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--ink-soft);
+}
+.price-tag-match {
+  padding: 4px 6px 3px;
+  border: 1px solid var(--ink);
+  border-radius: 3px;
+  color: var(--ink);
+  font-size: 9px;
+  line-height: 1;
+}
+.price-tag-match[data-match="similar"] {
+  border-style: dashed;
+}
+.price-tag-range {
+  padding: 15px 0 12px;
+}
+.price-tag-range small {
+  display: block;
+  font-size: 10px;
+  color: var(--ink-soft);
+}
+.price-tag-range strong {
+  display: block;
+  margin-top: 7px;
+  color: var(--red);
+  font-size: 46px;
+  font-weight: 700;
+  font-stretch: 78%;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  line-height: 0.9;
+}
+.price-tag-range strong[data-empty="true"] {
+  color: var(--ink);
+  font-size: 26px;
+}
+.price-tag-offers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.price-tag-offers a {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 14px 0;
-  border-bottom: 1px solid #d9ddcf;
+  padding: 10px 0;
+  border-top: 1px solid var(--rule-ink);
 }
-.cinema-store-logo {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.cinema-ebay {
-  color: #2854cb;
-  font-size: 26px;
-  font-family: Georgia, serif;
-  background: #e4e9f1;
-}
-.cinema-etsy {
-  color: #d35b29;
-  font-size: 22px;
-  font-family: Georgia, serif;
-  background: #eee4da;
-}
-.cinema-offer-store {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  flex: 1;
-}
-.cinema-offer-store b {
-  font-size: 13px;
-  font-weight: 550;
-}
-.cinema-offer-store small {
-  font-size: 10px;
-  color: #62685c;
-}
-.cinema-offer strong {
-  font-size: 25px;
-  font-weight: 500;
-  letter-spacing: -0.04em;
-}
-.cinema-offer > svg {
-  margin-left: 3px;
-  color: #59654e;
-}
-.cinema-offer:hover b,
-.cinema-marketplace:hover b {
+.price-tag-offers a:hover b {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-.cinema-marketplace {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  padding: 16px 0 12px;
+.price-tag-offers a > svg {
+  flex-shrink: 0;
+  color: var(--ink-soft);
 }
-.cinema-marketplace > span {
+.price-tag-listing-photo {
+  display: grid;
+  place-items: center;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 40px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: #fff;
+  color: var(--ink-soft);
+}
+.price-tag-listing-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.price-tag-store {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   flex: 1;
+  min-width: 0;
 }
-.cinema-marketplace b {
-  font-size: 12px;
-  font-weight: 550;
+.price-tag-store b {
+  font-size: 13px;
+  font-weight: 650;
 }
-.cinema-marketplace small {
+.price-tag-store small {
   font-size: 10px;
-  color: #62685c;
+  line-height: 1.35;
+  color: var(--ink-soft);
 }
-.cinema-shopping :focus-visible {
-  outline-color: #42621d;
-  outline-offset: 3px;
+.price-tag-offers strong {
+  font-size: 20px;
+  font-weight: 700;
+  font-stretch: 80%;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.price-tag-view {
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.market-links {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--perforation);
+}
+.market-links-label {
+  font-size: 9.5px;
+  color: var(--ink-soft);
+}
+.cinema-marketplace-primary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border: 1px solid rgb(26 22 18 / 0.22);
+  border-radius: 5px;
+  transition:
+    background-color 0.2s,
+    border-color 0.2s;
+}
+.cinema-marketplace-primary:hover {
+  background: var(--tag-lift);
+  border-color: rgb(26 22 18 / 0.45);
+}
+.cinema-marketplace-primary > img {
+  flex: 0 0 22px;
+  border-radius: 50%;
+}
+.cinema-marketplace-primary > span {
+  display: grid;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.cinema-marketplace-primary b {
+  font-size: 13px;
+  font-weight: 650;
+}
+.cinema-marketplace-primary small {
+  font-size: 10px;
+  color: var(--ink-soft);
+}
+.cinema-marketplace-primary > svg {
+  flex-shrink: 0;
+  color: var(--ink-soft);
+}
+.market-links-more {
+  display: flex;
+  gap: 20px;
+  padding: 0 2px;
+}
+.market-links-more a {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 32px;
+  font-size: 12.5px;
+  font-weight: 650;
+}
+.market-links-more a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.price-tag-date {
+  margin-top: 6px;
+  font-size: 9px;
+  color: var(--ink-soft);
 }
 .cinema-find-picker {
   display: flex;
   justify-content: center;
-  gap: 8px;
-  padding-top: 17px;
+  gap: 10px;
+  padding-top: 14px;
 }
 .cinema-find-picker button {
-  width: 48px;
-  flex: 0 0 48px;
-  color: #dce1d3;
-  cursor: pointer;
+  width: 56px;
+  flex: 0 0 56px;
   padding: 0;
-  border-radius: 6px;
+  color: var(--fog);
+  cursor: pointer;
 }
 .cinema-find-picker svg {
-  height: 44px;
-  border-radius: 6px;
-  border: 2px solid transparent;
-  opacity: 0.65;
+  height: 46px;
+  border-radius: 4px;
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  opacity: 0.6;
   transition:
     opacity 0.2s,
-    border-color 0.2s;
-}
-.cinema-find-picker button[aria-pressed="true"] svg {
-  border-color: var(--cinema-lime);
-  opacity: 1;
+    outline-color 0.2s;
 }
 .cinema-find-picker button:hover svg {
   opacity: 1;
 }
+.cinema-find-picker button[aria-pressed="true"] {
+  color: var(--tag);
+}
+.cinema-find-picker button[aria-pressed="true"] svg {
+  opacity: 1;
+  outline-color: var(--tag);
+}
 .cinema-find-picker span {
   display: block;
-  font-size: 9px;
-  margin-top: 5px;
+  margin-top: 7px;
+  font-size: 10px;
+  font-weight: 600;
 }
-.cinema-chapters {
+
+/* Chapter rail and the scene's caption. */
+.cinema-rail {
   position: absolute;
   z-index: 5;
-  bottom: 28px;
-  width: 348px;
   left: 50%;
+  bottom: 16px;
+  width: 360px;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
   transform: translateX(-50%);
+}
+.cinema-chapters {
   display: flex;
   gap: 14px;
+  width: 100%;
 }
 .cinema-chapters button {
-  color: #c0c6b7;
   flex: 1;
   min-width: 0;
-  padding: 14px 0 0;
-  cursor: pointer;
+  min-height: 40px;
+  padding: 12px 0 0;
+  color: var(--fog);
   text-align: left;
-  min-height: 44px;
+  cursor: pointer;
 }
 .cinema-chapter-track {
   display: block;
   height: 2px;
-  background: #e0e7cc40;
-  margin-bottom: 10px;
+  margin-bottom: 9px;
+  background: rgb(243 238 227 / 0.22);
 }
 .cinema-chapter-track i {
   display: block;
   width: 0;
   height: 100%;
-  background: var(--cinema-lime);
+  background: var(--tag);
   transition: width 0.6s;
 }
 .cinema-chapters button > span:last-child {
   display: flex;
-  align-items: center;
-  gap: 11px;
-  font-size: 11px;
+  align-items: baseline;
+  gap: 9px;
+  font-size: 12px;
+  font-weight: 600;
 }
 .cinema-chapters small {
-  font-family: var(--mono);
   font-size: 9px;
-  opacity: 0.65;
+  opacity: 0.7;
 }
 .cinema-chapters button[aria-current="step"] {
-  color: #fff;
+  color: var(--tag);
 }
 .cinema-chapters button[aria-current="step"] i {
   width: 100%;
+}
+.cinema-caption {
+  font-size: 8.5px;
+  color: rgb(243 238 227 / 0.62);
+  white-space: nowrap;
 }
 .cinema-story-next {
   position: absolute;
   z-index: 5;
   right: 5vw;
-  bottom: 26px;
+  bottom: 24px;
   display: grid;
   place-items: center;
   width: 40px;
   height: 40px;
-  border: 1px solid #e0e7cc40;
+  border: 1px solid rgb(243 238 227 / 0.3);
   border-radius: 50%;
+  color: var(--tag);
 }
+
+/* Chapter states. */
 .cinema-story[data-chapter="1"] .cinema-shade {
   opacity: 0.5;
 }
@@ -602,154 +853,167 @@
 .cinema-story[data-chapter="2"] .cinema-detection:not([data-selected="true"]) {
   opacity: 0.35;
 }
-.cinema-beyond {
-  position: relative;
-  padding: 140px 5vw 90px;
-  max-width: 1600px;
-  margin: 0 auto;
-  scroll-margin-top: 90px;
-}
-.cinema-section-heading {
-  text-align: center;
-  margin: 0 auto 65px;
-}
-.cinema-section-heading .cinema-overline {
-  color: var(--cinema-muted);
-  margin-bottom: 25px;
-}
-.cinema-section-heading h2 {
-  font-size: clamp(42px, 5.2vw, 80px);
-}
-.cinema-section-heading h2 span {
-  color: #9da693;
-}
-.cinema-section-heading > p:last-child {
-  margin-top: 25px;
-  font-size: 14px;
-  color: var(--cinema-muted);
-}
-.cinema-editorial {
-  position: relative;
-  border-radius: 12px;
-  overflow: hidden;
-  height: min(54vw, 730px);
-  min-height: 510px;
-  background: #292e24;
-}
-.cinema-editorial > img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.cinema-editorial-gradient {
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(0deg, #060b06c9, transparent 75%),
-    linear-gradient(90deg, #060b0633, transparent 55%);
-}
-.cinema-editorial-caption {
-  position: absolute;
-  left: 5%;
-  bottom: 10%;
-}
-.cinema-editorial-caption .cinema-overline {
-  font-size: 9px;
-}
-.cinema-editorial-caption p {
-  font-size: clamp(35px, 3.9vw, 62px);
-  font-weight: 500;
-  line-height: 1.02;
-  letter-spacing: -0.05em;
-  margin-top: 17px;
-}
-.cinema-saved-card {
-  position: absolute;
-  width: 285px;
-  right: 5%;
-  top: 13%;
-  padding: 20px;
-  color: #20251e;
-  background: #f4f4eded;
-  border: 1px solid #fff7;
-  border-radius: 12px;
-  box-shadow: 0 15px 50px #0003;
-  transform: rotate(3deg);
-}
-.cinema-saved-card > span {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  font-weight: 550;
-  font-size: 13px;
-  margin-bottom: 15px;
-}
-.cinema-saved-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 0;
-  border-top: 1px solid #d5d9cd;
-}
-.cinema-saved-row svg {
-  height: 44px;
-  width: 40px;
-  border-radius: 4px;
-  flex-shrink: 0;
-}
-.cinema-saved-row div {
-  flex: 1;
-}
-.cinema-saved-row b {
-  display: block;
-  font-size: 10px;
-  font-weight: 550;
-}
-.cinema-benefits {
+
+/* Saved finds: three tags on one ring. */
+.saved {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
   gap: 6vw;
-  padding: 55px 3vw 0;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 120px 6vw 130px;
+  box-sizing: content-box;
+  border-top: 1px solid var(--rule);
 }
-.cinema-benefits article > svg {
-  color: var(--cinema-lime);
-  margin-bottom: 23px;
+.saved-copy h2 {
+  font-size: clamp(48px, 5.6vw, 84px);
 }
-.cinema-benefits h3 {
-  font-size: 21px;
-}
-.cinema-benefits p {
-  font-size: 14px;
+.saved-copy p {
+  margin-top: 24px;
+  max-width: 400px;
+  font-size: 16px;
   line-height: 1.6;
-  margin-top: 12px;
-  color: var(--cinema-muted);
-  max-width: 270px;
+  color: var(--fog);
 }
+/* Three tags threaded on one sagging string. The tags' holes sit on the
+   curve: 23px down at the sides, 38px in the middle. */
+.saved-line {
+  position: relative;
+  width: 100%;
+  max-width: 540px;
+  justify-self: center;
+}
+.saved-line::before,
+.saved-line::after {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--red);
+}
+.saved-line::before {
+  left: -4px;
+}
+.saved-line::after {
+  right: -4px;
+}
+.saved-line ul {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  filter: drop-shadow(0 16px 24px rgb(0 0 0 / 0.45));
+}
+.saved-string {
+  position: absolute;
+  z-index: 2;
+  inset: 0 0 auto;
+  width: 100%;
+  height: 60px;
+  overflow: visible;
+  pointer-events: none;
+}
+.saved-string path {
+  fill: none;
+  stroke: var(--red);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+.saved-tag {
+  margin-top: 8px;
+  padding: 32px 12px 16px;
+  background: var(--tag);
+  color: var(--ink);
+  border-radius: 6px;
+  clip-path: polygon(
+    22px 0,
+    calc(100% - 22px) 0,
+    100% 22px,
+    100% 100%,
+    0 100%,
+    0 22px
+  );
+  -webkit-mask: radial-gradient(
+    circle at 50% 15px,
+    transparent 5.5px,
+    #000 6px
+  );
+  mask: radial-gradient(circle at 50% 15px, transparent 5.5px, #000 6px);
+  transform-origin: 50% 15px;
+  transform: rotate(var(--r));
+  transition: transform 0.6s cubic-bezier(0.3, 0.6, 0.3, 1);
+}
+.saved-tag:nth-child(2) {
+  margin-top: 23px;
+}
+.saved-tag svg {
+  display: block;
+  width: 100%;
+  height: 120px;
+  border-radius: 3px;
+}
+.saved-tag b {
+  display: block;
+  margin-top: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  font-stretch: 72%;
+  letter-spacing: 0.03em;
+  line-height: 1.08;
+  text-transform: uppercase;
+}
+.saved-tag span {
+  display: block;
+  margin-top: 8px;
+  color: var(--red);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+}
+@media (hover: hover) {
+  .saved-tag:hover {
+    transform: rotate(calc(var(--r) * -1));
+  }
+}
+
+/* Questions, closing, footer. */
 .cinema-faq {
   display: grid;
-  grid-template-columns: 1fr 1.4fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
   gap: 7vw;
-  padding: 90px 8vw 100px;
-  max-width: 1500px;
+  max-width: 1240px;
   margin: 0 auto;
-  scroll-margin-top: 90px;
+  padding: 100px 6vw 110px;
+  box-sizing: content-box;
+  border-top: 1px solid var(--rule);
+  scroll-margin-top: 76px;
 }
 .cinema-faq h2 {
-  font-size: 48px;
+  font-size: clamp(40px, 4vw, 56px);
 }
 .cinema-faq details {
-  border-top: 1px solid #363c30;
+  border-top: 1px solid var(--rule);
 }
 .cinema-faq details:last-child {
-  border-bottom: 1px solid #363c30;
+  border-bottom: 1px solid var(--rule);
 }
 .cinema-faq summary {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  padding: 23px 0;
-  font-size: 15px;
+  padding: 22px 0;
+  font-size: 17px;
+  font-weight: 550;
   cursor: pointer;
   list-style: none;
 }
@@ -757,100 +1021,94 @@
   display: none;
 }
 .cinema-faq summary span {
-  font-size: 22px;
-  color: #adb4a3;
+  font-size: 24px;
   font-weight: 300;
+  color: var(--fog);
   transition: transform 0.2s;
 }
 .cinema-faq details[open] summary span {
   transform: rotate(45deg);
 }
 .cinema-faq details p {
-  font-size: 13px;
-  line-height: 1.7;
-  padding: 0 25px 25px 0;
-  color: var(--cinema-muted);
+  max-width: 620px;
+  padding: 0 32px 24px 0;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--fog);
 }
 .cinema-finale {
+  display: grid;
+  justify-items: center;
+  padding: 120px 6vw 140px;
+  border-top: 1px solid var(--rule);
   text-align: center;
-  padding: 100px 20px 130px;
-  background: radial-gradient(ellipse at 50% 100%, #242d1b, #111310 70%);
-}
-.cinema-finale .cinema-overline {
-  color: var(--cinema-muted);
-  margin-bottom: 24px;
 }
 .cinema-finale h2 {
-  font-size: clamp(58px, 7.5vw, 115px);
+  max-width: 11ch;
+  font-size: clamp(54px, 7vw, 112px);
 }
 .cinema-finale .cinema-cta {
-  margin-top: 35px;
-  min-height: 50px;
-  padding: 15px 27px;
+  margin-top: 38px;
+  min-height: 52px;
+  padding: 14px 26px;
+  font-size: 15px;
 }
-.cinema-finale > p:last-child {
-  font-size: 12px;
-  color: var(--cinema-muted);
-  margin-top: 19px;
+.cinema-finale p {
+  margin-top: 18px;
+  font-size: 13px;
+  color: var(--fog);
 }
 .cinema-footer {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 25px;
-  padding: 35px 5vw;
-  border-top: 1px solid #363c30;
-}
-.cinema-footer > p {
-  font-size: 12px;
-  color: var(--cinema-muted);
+  gap: 24px;
+  padding: 32px 5vw calc(32px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--rule);
 }
 .cinema-footer nav {
   display: flex;
-  gap: 28px;
+  gap: 26px;
   margin-left: auto;
-  font-size: 12px;
+  font-size: 13px;
+  color: var(--fog);
 }
-.cinema-footer > small {
-  flex-basis: 100%;
-  font-size: 10px;
-  color: var(--cinema-muted);
-  line-height: 1.6;
+.cinema-footer nav a:hover {
+  color: var(--tag);
 }
+
+/* Landscape tablets and small laptops. */
 @media (max-width: 1050px) and (min-aspect-ratio: 1/1) {
-  .cinema-scan-copy {
-    top: 104px;
-  }
+  .cinema-scan-copy,
   .cinema-compare-copy {
-    top: 115px;
-  }
-  .cinema-compare-copy .cinema-overline {
-    max-width: 200px;
+    top: 100px;
   }
   .cinema-results {
     right: 4vw;
     width: 330px;
   }
-  .cinema-chapters {
+  .cinema-rail {
     width: 320px;
   }
 }
+
+/* Phones and portrait screens. */
 @media (max-width: 700px), (max-aspect-ratio: 1/1) {
   .cinema-nav {
-    height: calc(72px + env(safe-area-inset-top));
-    padding-inline: max(22px, env(safe-area-inset-left));
+    height: calc(64px + env(safe-area-inset-top));
+    padding-inline: max(20px, env(safe-area-inset-left));
   }
   .cinema-home .brand {
-    width: 94px;
+    width: 92px;
   }
   .cinema-how-link {
     display: none;
   }
   .cinema-nav .cinema-cta {
-    font-size: 12px;
     min-height: 40px;
-    padding: 11px 16px;
-    gap: 14px;
+    padding: 9px 14px;
+    gap: 10px;
+    font-size: 13px;
   }
   .cinema-intro {
     left: 7%;
@@ -859,113 +1117,113 @@
     transform: translateY(-35%);
   }
   .cinema-intro h1 {
-    font-size: clamp(64px, 17vw, 116px);
+    font-size: clamp(64px, 17.5vw, 116px);
   }
-  .cinema-intro .cinema-overline {
-    font-size: 8px;
-    letter-spacing: 0.07em;
-    margin-bottom: 22px;
-  }
-  .cinema-intro .cinema-intro-line {
-    font-size: 14px;
+  .cinema-intro-line {
+    max-width: 300px;
+    margin-top: 22px;
+    font-size: 15px;
     line-height: 1.5;
-    max-width: 260px;
-    margin-top: 23px;
   }
   .cinema-explore {
-    margin-top: 25px;
-    font-size: 12px;
+    margin-top: 24px;
+    font-size: 13px;
   }
   .cinema-shade {
     background:
-      linear-gradient(90deg, #070e08a6, #070e0817 90%),
-      linear-gradient(0deg, #111310, transparent 48%, #1113103b);
+      linear-gradient(90deg, rgb(12 9 6 / 0.66), rgb(12 9 6 / 0.08) 90%),
+      linear-gradient(
+        0deg,
+        var(--shop),
+        rgb(20 17 14 / 0) 48%,
+        rgb(20 17 14 / 0.25)
+      );
+  }
+  .cinema-detection {
+    font-size: calc(10.5px / var(--scene-scale));
   }
   .cinema-scan-copy,
   .cinema-compare-copy {
-    top: calc(95px + env(safe-area-inset-top));
-    left: 7%;
+    top: calc(84px + env(safe-area-inset-top));
+    left: 6%;
+  }
+  .cinema-overline {
+    font-size: 9px;
   }
   .cinema-scan-copy h2 {
-    font-size: clamp(29px, 7.4vw, 46px);
     margin-top: 10px;
-  }
-  .cinema-scan-copy .cinema-overline {
-    font-size: 8px;
+    font-size: clamp(30px, 8.4vw, 46px);
   }
   .cinema-scan-copy > p:last-child {
     margin-top: 10px;
+    font-size: 14px;
   }
   .cinema-compare-copy h2 {
-    font-size: clamp(42px, 10.5vw, 64px);
-    margin-top: 10px;
-  }
-  .cinema-compare-copy .cinema-overline {
-    font-size: 7px;
+    font-size: clamp(32px, 8.8vw, 54px);
   }
   .cinema-story[data-chapter="2"] .cinema-scene {
     left: 50%;
-    opacity: 0.55;
+    opacity: 0.5;
   }
   .cinema-story[data-chapter="2"] .cinema-detections {
     visibility: hidden;
   }
   .cinema-results {
     top: auto;
-    bottom: 108px;
+    bottom: 84px;
     right: 50%;
-    width: min(360px, calc(100% - 36px));
+    width: min(360px, calc(100% - 32px));
     transform: translate(50%, 16px);
   }
   .cinema-story[data-chapter="2"] .cinema-results {
     transform: translate(50%, 0);
   }
-  .cinema-shopping {
-    padding: 17px 19px;
-    border-radius: 13px;
+  .price-tag {
+    max-height: calc(100svh - 300px - env(safe-area-inset-top));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+    padding: 30px 16px 14px;
   }
-  .cinema-shopping-heading {
-    padding-bottom: 14px;
+  .price-tag-head {
+    grid-template-columns: 46px minmax(0, 1fr);
     gap: 12px;
+    padding-bottom: 12px;
   }
-  .cinema-product-photo {
-    width: 54px;
-    height: 58px;
+  .price-tag-photo {
+    width: 46px;
+    height: 52px;
   }
-  .cinema-shopping-heading h3 {
-    font-size: 19px;
+  .price-tag h3 {
+    font-size: 23px;
   }
-  .cinema-shopping-heading .cinema-overline {
-    font-size: 7px;
-  }
-  .cinema-shopping-heading p {
-    font-size: 10px;
-  }
-  .cinema-offer {
-    padding: 11px 0;
-  }
-  .cinema-marketplace {
+  .price-tag-range {
     padding: 12px 0 10px;
+  }
+  .price-tag-range strong {
+    font-size: 40px;
+  }
+  .price-tag-offers a {
+    padding: 9px 0;
   }
   .cinema-find-picker {
     gap: 10px;
-    padding-top: 12px;
+    padding-top: 10px;
   }
   .cinema-find-picker button {
-    width: 45px;
-    flex-basis: 45px;
+    width: 50px;
+    flex-basis: 50px;
   }
   .cinema-find-picker svg {
-    height: 41px;
+    height: 40px;
+  }
+  .cinema-rail {
+    bottom: 10px;
+    width: min(330px, calc(100% - 40px));
+    gap: 4px;
   }
   .cinema-chapters {
-    width: min(320px, calc(100% - 44px));
-    bottom: 23px;
-    gap: 13px;
-  }
-  .cinema-chapters button > span:last-child {
-    font-size: 11px;
-    gap: 9px;
+    gap: 12px;
   }
   .cinema-story-next {
     display: none;
@@ -976,243 +1234,176 @@
   .cinema-story[data-chapter="2"] .cinema-shade {
     opacity: 1;
   }
-  .cinema-beyond {
-    padding: 85px 20px 50px;
+  .saved {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 36px;
+    padding: 84px 22px 80px;
   }
-  .cinema-section-heading {
-    margin-bottom: 35px;
+  .saved-copy h2 {
+    font-size: clamp(42px, 11.5vw, 64px);
   }
-  .cinema-section-heading .cinema-overline {
-    font-size: 8px;
-    margin-bottom: 20px;
+  .saved-copy p {
+    margin-top: 18px;
+    font-size: 15px;
   }
-  .cinema-section-heading h2 {
-    font-size: clamp(34px, 8vw, 64px);
+  .saved-line ul {
+    gap: 10px;
   }
-  .cinema-section-heading > p:last-child {
-    font-size: 12px;
-    line-height: 1.6;
-    max-width: 280px;
-    margin: 20px auto 0;
+  .saved-tag {
+    padding: 30px 8px 12px;
   }
-  .cinema-editorial {
-    height: 590px;
-    min-height: 0;
+  .saved-tag svg {
+    height: 84px;
   }
-  .cinema-editorial > img {
-    object-position: 40%;
+  .saved-tag b {
+    margin-top: 10px;
+    font-size: 11.5px;
   }
-  .cinema-editorial-caption {
-    left: 7%;
-    bottom: 7%;
-  }
-  .cinema-editorial-caption .cinema-overline {
-    font-size: 7px;
-  }
-  .cinema-editorial-caption p {
-    font-size: clamp(31px, 8vw, 48px);
-  }
-  .cinema-saved-card {
-    top: 8%;
-    right: 8%;
-    width: 240px;
-    padding: 17px;
-  }
-  .cinema-benefits {
-    grid-template-columns: 1fr;
-    gap: 33px;
-    padding: 45px 7px 0;
-  }
-  .cinema-benefits article {
-    display: grid;
-    grid-template-columns: 26px 1fr;
-    column-gap: 18px;
-    align-items: center;
-  }
-  .cinema-benefits article > svg {
-    margin: 0;
-    grid-row: 1/3;
-    align-self: start;
-  }
-  .cinema-benefits h3 {
-    font-size: 19px;
-  }
-  .cinema-benefits p {
-    font-size: 13px;
-    max-width: 360px;
-    margin-top: 8px;
-    grid-column: 2;
+  .saved-tag span {
+    font-size: 8.5px;
   }
   .cinema-faq {
-    grid-template-columns: 1fr;
-    gap: 30px;
-    padding: 50px 27px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+    padding: 72px 22px;
   }
   .cinema-faq h2 {
-    font-size: 38px;
+    font-size: 40px;
   }
   .cinema-faq summary {
-    font-size: 13px;
     padding-block: 20px;
+    font-size: 16px;
   }
   .cinema-faq details p {
-    font-size: 12px;
+    padding-right: 8px;
+    font-size: 14px;
   }
   .cinema-finale {
-    padding: 80px 20px 90px;
-  }
-  .cinema-finale .cinema-overline {
-    font-size: 8px;
+    padding: 90px 22px 100px;
   }
   .cinema-finale h2 {
-    font-size: clamp(48px, 13vw, 88px);
+    font-size: clamp(46px, 13vw, 84px);
   }
   .cinema-footer {
-    padding: 25px 25px 30px;
+    padding: 24px 22px calc(28px + env(safe-area-inset-bottom));
     gap: 18px;
   }
-  .cinema-footer > p {
-    display: none;
-  }
   .cinema-footer nav {
-    font-size: 11px;
-    gap: 20px;
-  }
-  .cinema-footer > small {
-    font-size: 9px;
+    gap: 18px;
+    font-size: 12px;
   }
 }
+
+/* Shorter phones: keep the price tag clear of the heading. */
 @media (max-width: 700px) and (max-height: 760px) {
   .cinema-compare-copy {
-    top: 83px;
+    top: calc(76px + env(safe-area-inset-top));
   }
   .cinema-compare-copy h2 {
-    font-size: 35px;
+    font-size: 30px;
   }
   .cinema-results {
-    bottom: 98px;
+    bottom: 76px;
   }
-  .cinema-shopping {
-    padding: 13px 16px;
+  .price-tag {
+    padding: 28px 14px 12px;
   }
-  .cinema-shopping-heading {
-    padding-bottom: 9px;
+  .price-tag-head {
+    grid-template-columns: 40px minmax(0, 1fr);
+    padding-bottom: 10px;
   }
-  .cinema-product-photo {
-    width: 44px;
-    height: 47px;
+  .price-tag-photo {
+    width: 40px;
+    height: 46px;
   }
-  .cinema-shopping-heading h3 {
-    font-size: 17px;
+  .price-tag h3 {
+    font-size: 21px;
   }
-  .cinema-offer {
-    padding-block: 9px;
+  .price-tag-range strong {
+    font-size: 34px;
   }
-  .cinema-offers-label {
-    padding-top: 8px;
-  }
-  .cinema-marketplace {
-    padding-block: 10px 7px;
+  .price-tag-listing-photo {
+    width: 32px;
+    height: 36px;
+    flex-basis: 32px;
   }
   .cinema-find-picker svg {
-    height: 35px;
+    height: 34px;
   }
-  .cinema-find-picker {
-    padding-top: 9px;
-  }
-  .cinema-find-picker button {
-    width: 40px;
-    flex-basis: 40px;
-  }
-  .cinema-chapters {
-    bottom: 17px;
+  .cinema-find-picker span {
+    margin-top: 4px;
   }
 }
+@media (max-width: 700px) and (max-height: 680px) {
+  .cinema-compare-copy {
+    display: none;
+  }
+}
+
+/* Phones held sideways. */
 @media (max-height: 550px) and (min-aspect-ratio: 1/1) {
   .cinema-nav {
-    height: 62px;
-  }
-  .cinema-intro h1 {
-    font-size: 62px;
+    height: 58px;
   }
   .cinema-intro {
-    top: 48%;
+    top: 50%;
   }
-  .cinema-intro .cinema-overline {
-    margin-bottom: 12px;
-    font-size: 8px;
+  .cinema-intro h1 {
+    font-size: 60px;
   }
-  .cinema-intro .cinema-intro-line {
+  .cinema-intro-line {
     margin-top: 12px;
-    font-size: 13px;
+    font-size: 14px;
   }
   .cinema-explore {
     margin-top: 10px;
   }
   .cinema-scan-copy,
   .cinema-compare-copy {
-    top: 78px;
+    top: 72px;
   }
   .cinema-scan-copy h2 {
     font-size: 28px;
   }
   .cinema-compare-copy h2 {
-    font-size: 39px;
-    margin-top: 8px;
-  }
-  .cinema-scan-copy .cinema-overline,
-  .cinema-compare-copy .cinema-overline {
-    font-size: 7px;
+    font-size: 36px;
   }
   .cinema-results {
-    top: 61px;
-    bottom: 62px;
-    transform: translateY(12px);
-    width: 290px;
+    top: 60px;
+    bottom: 54px;
+    width: 300px;
     right: 4vw;
     overflow-y: auto;
-    scrollbar-width: thin;
+    scrollbar-width: none;
+    transform: translateY(12px);
   }
   .cinema-story[data-chapter="2"] .cinema-results {
     transform: none;
   }
-  .cinema-shopping {
-    padding: 13px 17px;
+  .price-tag-string {
+    display: none;
   }
-  .cinema-shopping-heading {
-    padding-bottom: 10px;
+  .price-tag {
+    padding: 28px 14px 12px;
   }
-  .cinema-shopping-heading h3 {
-    font-size: 17px;
-  }
-  .cinema-product-photo {
-    width: 42px;
-    height: 46px;
-  }
-  .cinema-offer {
-    padding: 8px 0;
-  }
-  .cinema-marketplace {
-    padding: 11px 0 8px;
+  .price-tag-range strong {
+    font-size: 34px;
   }
   .cinema-find-picker {
     padding: 10px 0;
   }
-  .cinema-find-picker button {
-    width: 37px;
-    flex-basis: 37px;
-  }
   .cinema-find-picker svg {
-    height: 35px;
+    height: 34px;
   }
-  .cinema-chapters {
-    bottom: 12px;
-    width: 290px;
+  .cinema-rail {
+    bottom: 6px;
+    width: 300px;
   }
   .cinema-story-next {
-    bottom: 12px;
+    bottom: 10px;
   }
 }
+
 @media (prefers-reduced-motion: reduce) {
   .cinema-home *,
   .cinema-home *::before,
@@ -1220,316 +1411,5 @@
     transition: none !important;
     animation: none !important;
     scroll-behavior: auto !important;
-  }
-}
-
-@media (max-width: 700px) and (max-height: 680px) {
-  .cinema-compare-copy {
-    display: none;
-  }
-}
-
-.cinema-product-brand {
-  display: block;
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #616950;
-}
-.cinema-shopping-heading {
-  padding-bottom: 12px;
-}
-.cinema-model-match {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 8px;
-  border-radius: 4px;
-  margin-bottom: 12px;
-  color: #43601e;
-  background: #e0e9d1;
-  font-size: 10px;
-  line-height: 1.3;
-}
-.cinema-model-match[data-match="similar"] {
-  color: #776139;
-  background: #ebe5d6;
-}
-.cinema-listing-photo {
-  display: grid;
-  place-items: center;
-  width: 46px;
-  height: 52px;
-  flex: 0 0 46px;
-  border-radius: 5px;
-  overflow: hidden;
-  background: #fff;
-  color: #737b69;
-}
-.cinema-listing-photo img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-.cinema-offer-store {
-  min-width: 0;
-}
-.cinema-offer-store small {
-  line-height: 1.35;
-}
-.cinema-check-price {
-  font-size: 10px;
-  text-align: right;
-  max-width: 45px;
-  color: #4e5a43;
-}
-.cinema-offer > strong {
-  white-space: nowrap;
-  font-size: 23px;
-}
-.cinema-offer > svg {
-  flex-shrink: 0;
-}
-.cinema-shopping .cinema-marketplace {
-  padding-bottom: 0;
-}
-.cinema-find-picker {
-  gap: 12px;
-}
-.cinema-find-picker button {
-  width: 58px;
-  flex-basis: 58px;
-}
-.cinema-find-picker svg {
-  height: 48px;
-}
-.cinema-find-picker span {
-  font-size: 9px;
-}
-@media (max-width: 700px), (max-aspect-ratio: 1/1) {
-  .cinema-shopping {
-    padding: 16px 18px;
-  }
-  .cinema-shopping-heading {
-    gap: 11px;
-    padding-bottom: 8px;
-  }
-  .cinema-product-brand {
-    font-size: 9px;
-  }
-  .cinema-shopping-heading h3 {
-    margin: 4px 0;
-  }
-  .cinema-shopping-heading p {
-    line-height: 1.35;
-  }
-  .cinema-model-match {
-    margin-bottom: 9px;
-    font-size: 9px;
-  }
-  .cinema-offer {
-    gap: 9px;
-    padding: 10px 0;
-  }
-  .cinema-listing-photo {
-    width: 43px;
-    height: 47px;
-    flex-basis: 43px;
-  }
-  .cinema-offer-store small {
-    font-size: 9px;
-  }
-  .cinema-offer > strong {
-    font-size: 22px;
-  }
-  .cinema-find-picker button {
-    width: 51px;
-    flex-basis: 51px;
-  }
-  .cinema-find-picker svg {
-    height: 44px;
-  }
-}
-@media (max-width: 700px) and (max-height: 760px) {
-  .cinema-shopping {
-    padding: 13px 15px;
-  }
-  .cinema-model-match {
-    margin-bottom: 7px;
-    padding: 3px 7px;
-  }
-  .cinema-listing-photo {
-    width: 36px;
-    height: 40px;
-    flex-basis: 36px;
-  }
-  .cinema-offer {
-    padding: 8px 0;
-  }
-  .cinema-offer > strong {
-    font-size: 20px;
-  }
-  .cinema-find-picker svg {
-    height: 35px;
-  }
-}
-@media (max-height: 550px) and (min-aspect-ratio: 1/1) {
-  .cinema-listing-photo {
-    width: 36px;
-    height: 40px;
-    flex-basis: 36px;
-  }
-  .cinema-model-match {
-    margin-bottom: 6px;
-  }
-  .cinema-find-picker button {
-    width: 44px;
-    flex-basis: 44px;
-  }
-  .cinema-find-picker svg {
-    height: 35px;
-  }
-}
-
-/* Marketplace is the primary route; source prices stay separate below. */
-.cinema-market-links {
-  margin: 0 0 15px;
-}
-.cinema-marketplace-primary {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  padding: 15px 13px;
-  border-radius: 9px;
-  background: #0866ff;
-  color: #fff;
-  box-shadow: 0 4px 16px #0866ff18;
-  transition: background 0.2s;
-}
-.cinema-marketplace-primary:hover {
-  background: #0756d9;
-}
-.cinema-marketplace-primary > img {
-  flex: 0 0 34px;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: #fff;
-}
-.cinema-marketplace-primary > span {
-  display: grid;
-  gap: 4px;
-  flex: 1;
-  min-width: 0;
-}
-.cinema-marketplace-primary b {
-  font-size: 14px;
-  font-weight: 650;
-  line-height: 1.2;
-}
-.cinema-marketplace-primary small {
-  font-size: 10px;
-  color: #fff;
-  opacity: 0.85;
-}
-.cinema-marketplace-primary > svg {
-  flex-shrink: 0;
-}
-.cinema-secondary-markets {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-top: 8px;
-}
-.cinema-secondary-markets a {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  min-height: 39px;
-  padding: 6px;
-  border: 1px solid #d9ddcf;
-  border-radius: 6px;
-  background: #fff6;
-  color: #3c4537;
-  font-size: 10px;
-}
-.cinema-secondary-markets a:hover {
-  background: #fff;
-  border-color: #b9c2ac;
-}
-.cinema-ebay-word {
-  display: inline-flex;
-  font-family: Arial, sans-serif;
-  font-size: 19px;
-  letter-spacing: -1.5px;
-  padding-right: 2px;
-  line-height: 1;
-}
-.cinema-ebay-word i {
-  font-style: normal;
-}
-.cinema-ebay-word i:nth-child(1) {
-  color: #e53238;
-}
-.cinema-ebay-word i:nth-child(2) {
-  color: #0064d2;
-}
-.cinema-ebay-word i:nth-child(3) {
-  color: #b38900;
-}
-.cinema-ebay-word i:nth-child(4) {
-  color: #5d8911;
-}
-.cinema-etsy-word {
-  color: #b7440c;
-  font:
-    19px Georgia,
-    serif;
-  line-height: 1;
-}
-.cinema-offer-store .cinema-list-price {
-  color: #54624b;
-}
-.cinema-shopping .cinema-offer:last-child {
-  border-bottom: 0;
-  padding-bottom: 0;
-}
-@media (max-width: 700px), (max-aspect-ratio: 1/1) {
-  .cinema-shopping {
-    max-height: calc(100svh - 260px - env(safe-area-inset-top));
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-width: thin;
-  }
-  .cinema-marketplace-primary {
-    padding: 12px 11px;
-  }
-  .cinema-marketplace-primary b {
-    font-size: 13px;
-  }
-  .cinema-market-links {
-    margin-bottom: 12px;
-  }
-  .cinema-secondary-markets a {
-    min-height: 36px;
-  }
-}
-@media (max-width: 360px), (max-height: 550px) {
-  .cinema-marketplace-primary {
-    padding: 10px;
-    gap: 8px;
-  }
-  .cinema-marketplace-primary b {
-    font-size: 12px;
-  }
-  .cinema-marketplace-primary > img {
-    width: 30px;
-    height: 30px;
-    flex-basis: 30px;
-  }
-  .cinema-secondary-markets a {
-    font-size: 9px;
-    gap: 5px;
   }
 }
