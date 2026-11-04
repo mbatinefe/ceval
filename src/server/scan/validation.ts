@@ -89,6 +89,7 @@ export function parseProducts(
   value: unknown,
   referenceIds: string[] = [],
   maximum = 3,
+  partialPositions = false,
 ): Omit<Product, "id">[] {
   const claimedReferences = new Set<number>();
   const input = record(value).products;
@@ -98,9 +99,15 @@ export function parseProducts(
       "The analysis returned an unreadable result.",
       502,
     );
-  return input.map((item) => {
-    const p = record(item);
-    const box = record(p.box);
+  return input.flatMap((item) => {
+    let p: Record<string, unknown>, box: Record<string, unknown>;
+    try {
+      p = record(item);
+      box = record(p.box);
+    } catch (error) {
+      if (partialPositions) return [];
+      throw error;
+    }
     const coords = [box.x, box.y, box.width, box.height];
     if (
       coords.some(
@@ -108,14 +115,25 @@ export function parseProducts(
       ) ||
       Number(box.width) <= 0 ||
       Number(box.height) <= 0 ||
-      Number(box.x) + Number(box.width) > 1.01 ||
-      Number(box.y) + Number(box.height) > 1.01
-    )
+      (partialPositions
+        ? Number(box.x) >= 1 || Number(box.y) >= 1
+        : Number(box.x) + Number(box.width) > 1.01 ||
+          Number(box.y) + Number(box.height) > 1.01)
+    ) {
+      if (partialPositions) return [];
       throw new ScanError(
         "invalid_data",
         "Product positions could not be read.",
         502,
       );
+    }
+    if (partialPositions)
+      box = {
+        x: box.x,
+        y: box.y,
+        width: Math.min(Number(box.width), 1 - Number(box.x)),
+        height: Math.min(Number(box.height), 1 - Number(box.y)),
+      };
     const candidates: ModelCandidate[] = [];
     const seen = new Set<string>();
     for (const entry of Array.isArray(p.candidates)
@@ -153,27 +171,29 @@ export function parseProducts(
         ? referenceIds[Number(index)]
         : undefined;
     if (previousProductId) claimedReferences.add(Number(index));
-    return {
-      ...(previousProductId ? { previousProductId } : {}),
-      brand: text(p.brand, 80),
-      model: text(p.model, 100),
-      variant: text(p.variant),
-      label: text(p.label) || "Unidentified product",
-      confidence: candidates.length ? Math.min(confidence, 0.59) : confidence,
-      ...(candidates.length ? { candidates } : {}),
-      box: box as Box,
-      shelfPriceMinor:
-        Number.isSafeInteger(p.shelfPriceMinor) &&
-        Number(p.shelfPriceMinor) > 0 &&
-        Number(p.shelfPriceMinor) < 100_000_000
-          ? Number(p.shelfPriceMinor)
-          : null,
-      shelfCurrency:
-        typeof p.shelfCurrency === "string" &&
-        /^[A-Z]{3}$/.test(p.shelfCurrency)
-          ? p.shelfCurrency
-          : null,
-    };
+    return [
+      {
+        ...(previousProductId ? { previousProductId } : {}),
+        brand: text(p.brand, 80),
+        model: text(p.model, 100),
+        variant: text(p.variant),
+        label: text(p.label) || "Unidentified product",
+        confidence: candidates.length ? Math.min(confidence, 0.59) : confidence,
+        ...(candidates.length ? { candidates } : {}),
+        box: box as Box,
+        shelfPriceMinor:
+          Number.isSafeInteger(p.shelfPriceMinor) &&
+          Number(p.shelfPriceMinor) > 0 &&
+          Number(p.shelfPriceMinor) < 100_000_000
+            ? Number(p.shelfPriceMinor)
+            : null,
+        shelfCurrency:
+          typeof p.shelfCurrency === "string" &&
+          /^[A-Z]{3}$/.test(p.shelfCurrency)
+            ? p.shelfCurrency
+            : null,
+      },
+    ];
   });
 }
 export function safeUrl(value: unknown): string | null {

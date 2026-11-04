@@ -328,6 +328,7 @@ Any later REFERENCE images are previous sightings, not input frames. For each de
       group,
       references.map((r) => r.product.id),
       6,
+      true,
     ).map((product) => ({ ...product, frameIndex })),
   );
 }
