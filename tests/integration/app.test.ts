@@ -1,3 +1,4 @@
+import { applyMigration } from "../helpers/migrations.ts";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import worker from "../../src/server/index.ts";
@@ -49,13 +50,7 @@ before(async () => {
   for (const file of (await readdir("db/d1/migrations"))
     .filter((name) => name.endsWith(".sql"))
     .sort()) {
-    const sql = await readFile(`db/d1/migrations/${file}`, "utf8");
-    await db.batch(
-      sql
-        .split(";")
-        .filter((part) => part.trim())
-        .map((part) => db.prepare(part)),
-    );
+    await applyMigration(db, file);
   }
   env = {
     DB: db,
@@ -96,6 +91,10 @@ beforeEach(async () => {
   deliveries.clear();
   rejectDelivery = false;
   Reflect.set(env, "SIGNUPS_ENABLED", "true");
+  await env.DB.batch([
+    env.DB.prepare("UPDATE signup_trial_policy SET enabled=0 WHERE id=1"),
+    env.DB.prepare("DELETE FROM signup_trial_enrollments"),
+  ]);
   const names = await env.DB.prepare(
     "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'",
   ).all<{ name: string }>();
@@ -187,6 +186,122 @@ test("paused signups suppress new-account codes without revealing membership", a
       }>()
     )?.n,
     0,
+  );
+});
+
+test("concurrent verified OTP signups claim exactly three trials and keep existing accounts signing in", async () => {
+  const existing = await login("existing@example.com", "192.0.2.20");
+  await env.DB.prepare(
+    "UPDATE signup_trial_policy SET enabled=1 WHERE id=1",
+  ).run();
+  assert.deepEqual(await (await request("/api/auth/status")).json(), {
+    signupsEnabled: true,
+    trialSignup: { limit: 3, remainingSlots: 3, durationSeconds: 600 },
+  });
+  const emails = Array.from(
+    { length: 6 },
+    (_, index) => `trial-${index}@example.com`,
+  );
+  const sent = await Promise.all(
+    emails.map((email, index) => send(email, `192.0.2.${30 + index}`)),
+  );
+  assert.ok(sent.every((response) => response.status === 200));
+  assert.equal(deliveries.size, 7);
+  const signedIn = await Promise.all(
+    emails.map((email, index) =>
+      request(
+        "/api/auth/sign-in/email-otp",
+        { email, otp: deliveries.get(email) },
+        undefined,
+        { ip: `192.0.2.${30 + index}` },
+      ),
+    ),
+  );
+  assert.equal(
+    signedIn.filter((response) => response.status === 200).length,
+    3,
+  );
+  assert.ok(
+    signedIn
+      .filter((response) => response.status !== 200)
+      .every((response) => !response.headers.has("set-cookie")),
+  );
+  assert.deepEqual(
+    await env.DB.prepare("SELECT COUNT(*) AS n FROM user").first(),
+    { n: 4 },
+  );
+  assert.deepEqual(
+    await env.DB.prepare(
+      "SELECT COUNT(*) AS n FROM signup_trial_enrollments WHERE started_at IS NULL",
+    ).first(),
+    { n: 3 },
+  );
+  assert.deepEqual(await (await request("/api/auth/status")).json(), {
+    signupsEnabled: false,
+    trialSignup: { limit: 3, remainingSlots: 0, durationSeconds: 600 },
+  });
+  deliveries.clear();
+  const suppressed = await send("late@example.com", "192.0.2.50");
+  assert.equal(suppressed.status, 200);
+  assert.equal(deliveries.size, 0);
+  await env.DB.prepare("DELETE FROM app_limits").run();
+  const sentExisting = await send("existing@example.com", "192.0.2.51");
+  assert.equal(sentExisting.status, 200);
+  assert.deepEqual(await suppressed.json(), await sentExisting.json());
+  assert.equal(deliveries.size, 1);
+  assert.equal(
+    (await request("/api/me", undefined, existing.cookie)).status,
+    200,
+  );
+  const returned = await request(
+    "/api/auth/sign-in/email-otp",
+    {
+      email: "existing@example.com",
+      otp: deliveries.get("existing@example.com"),
+    },
+    undefined,
+    { ip: "192.0.2.51" },
+  );
+  assert.equal(returned.status, 200);
+});
+
+test("expired trial sessions retain saved finds and cannot reset their window through request data", async () => {
+  await env.DB.prepare(
+    "UPDATE signup_trial_policy SET enabled=1 WHERE id=1",
+  ).run();
+  const { cookie } = await login("saved-trial@example.com");
+  await env.DB.prepare("UPDATE signup_trial_enrollments SET started_at=?")
+    .bind(Date.now() - 600_000)
+    .run();
+  const before = await env.DB.prepare(
+    "SELECT started_at FROM signup_trial_enrollments",
+  ).first();
+  assert.equal(
+    (
+      await request(
+        "/api/finds",
+        { productId: "sony-xm5", mode: "buy", trial: false, startedAt: null },
+        cookie,
+      )
+    ).status,
+    200,
+  );
+  assert.equal(
+    (await (await request("/api/finds", undefined, cookie)).json()).finds
+      .length,
+    1,
+  );
+  assert.equal((await request("/api/me", undefined, cookie)).status, 200);
+  assert.equal(
+    (await request("/api/auth/trial", { startedAt: Date.now() }, cookie))
+      .status,
+    404,
+  );
+  assert.deepEqual(
+    await env.DB.prepare(
+      "SELECT started_at FROM signup_trial_enrollments",
+    ).first(),
+    before,
   );
 });
 

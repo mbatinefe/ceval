@@ -12,12 +12,27 @@ import type { Comparison } from "../../shared/scan.ts";
 import { ScanError } from "./errors.ts";
 import { consumeLimit } from "../auth/limits.ts";
 import { historyRoutes } from "./history.ts";
+import { expiredTrialError, trialAccess } from "../auth/trial.ts";
 export const scanRoutes = new Hono<{
   Bindings: Env;
   Variables: { body: Record<string, unknown>; userId: string };
 }>();
 scanRoutes.route("/", historyRoutes);
-scanRoutes.get("/scan/capabilities", (c) => c.json(capabilities(c.env)));
+scanRoutes.get("/scan/capabilities", async (c) => {
+  const access = await trialAccess(c.env, c.get("userId"));
+  const expired = access.trial && access.trialAccess.remainingSeconds === 0;
+  return c.json({
+    ...capabilities(c.env),
+    ...access,
+    ...(expired
+      ? {
+          analysisAvailable: false,
+          visualSearchAvailable: false,
+          reason: expiredTrialError().message,
+        }
+      : {}),
+  });
+});
 scanRoutes.post("/scan/visual-matches", async (c) => {
   const body = c.get("body"),
     userId = c.get("userId");

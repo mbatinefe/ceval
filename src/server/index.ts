@@ -1,7 +1,8 @@
 import { campaignImageSources } from "../shared/campaign-listings.ts";
 import { productImageHosts } from "./providers/product-media.ts";
 import { Hono } from "hono";
-import { createAuth, sessionAuth, signupsEnabled } from "./auth/config.ts";
+import { createAuth, sessionAuth } from "./auth/config.ts";
+import { signupStatus, mayAuthenticateEmail } from "./auth/trial.ts";
 import { consumeLimit, privateKey, reserveEmail } from "./auth/limits.ts";
 import { demoProducts } from "../shared/demo.ts";
 
@@ -79,9 +80,7 @@ app.use("/api/*", async (c, next) => {
   await next();
 });
 
-app.get("/api/auth/status", (c) =>
-  c.json({ signupsEnabled: signupsEnabled(c.env) }),
-);
+app.get("/api/auth/status", async (c) => c.json(await signupStatus(c.env)));
 
 app.all("/api/auth/*", async (c) => {
   const path = c.req.path.slice("/api/auth".length);
@@ -108,6 +107,8 @@ app.all("/api/auth/*", async (c) => {
       if (body.type !== "sign-in")
         return c.json({ error: "Invalid code request." }, 400);
       await reserveEmail(c.env, email, ip);
+      if (!(await mayAuthenticateEmail(c.env, email)))
+        return c.json({ success: true });
     } else {
       if (typeof body.otp !== "string" || !/^\d{6}$/.test(body.otp))
         return c.json({ error: "Enter the six-digit code." }, 400);
@@ -117,6 +118,11 @@ app.all("/api/auth/*", async (c) => {
         30,
         900,
       );
+      if (!(await mayAuthenticateEmail(c.env, email)))
+        return c.json(
+          { error: "Sign-in could not be completed. Please try again later." },
+          400,
+        );
     }
     c.req.raw = new Request(c.req.url, {
       method: "POST",

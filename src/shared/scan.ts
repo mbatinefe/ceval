@@ -53,6 +53,14 @@ export type Comparison = {
   saved?: boolean;
 };
 export type ScanCapabilities = {
+  trial: boolean;
+  trialAccess?: {
+    durationSeconds: number;
+    startedAt: number | null;
+    expiresAt: number | null;
+    remainingSeconds: number;
+    serverNow: number;
+  };
   analysisAvailable: boolean;
   visualSearchAvailable?: boolean;
   reason: string | null;

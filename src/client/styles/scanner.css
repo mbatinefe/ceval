@@ -736,3 +736,26 @@
     display: none;
   }
 }
+
+.trial-notice {
+  margin: 0 0 14px;
+  color: var(--graphite);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.scan-status-copy {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+.trial-countdown {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+@media (max-width: 699px) {
+  .immersive-scanner .scan-status-copy {
+    justify-content: center;
+  }
+}

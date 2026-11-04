@@ -1,3 +1,4 @@
+import { applyMigration } from "../helpers/migrations.ts";
 import { attachScanProcessor } from "../helpers/scan-processor.ts";
 import { test, before, after, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
@@ -188,13 +189,7 @@ before(async () => {
   for (const file of (await readdir("db/d1/migrations"))
     .filter((x) => x.endsWith(".sql"))
     .sort()) {
-    const sql = await readFile(`db/d1/migrations/${file}`, "utf8");
-    await db.batch(
-      sql
-        .split(";")
-        .filter((x) => x.trim())
-        .map((x) => db.prepare(x)),
-    );
+    await applyMigration(db, file);
   }
   frame =
     "data:image/jpeg;base64," +

@@ -1,3 +1,4 @@
+import { applyMigration } from "../helpers/migrations.ts";
 import { test, before, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
@@ -10,13 +11,7 @@ let env: Env;
 let legacyDb: D1Database;
 
 async function migrate(db: D1Database, file: string) {
-  const sql = await readFile(`db/d1/migrations/${file}`, "utf8");
-  await db.batch(
-    sql
-      .split(";")
-      .filter((statement) => statement.trim())
-      .map((statement) => db.prepare(statement)),
-  );
+  await applyMigration(db, file);
 }
 
 type SpendRow = {
@@ -58,6 +53,7 @@ before(async () => {
     await migrate(legacyDb, file);
   }
   await migrate(db, stateMigration);
+  await migrate(db, "0007_trial_access.sql");
   env = {
     DB: db,
     SCAN_TOTAL_BUDGET_MICROS: "100000000",
@@ -302,7 +298,7 @@ test("reported usage above the original hold remains counted in exposure", async
 });
 
 test("only pending holds older than sixty seconds become unresolved on the next reservation", async (t) => {
-  const now = 1_800_000_000_000;
+  const now = Date.now();
   t.mock.method(Date, "now", () => now);
   await env.DB.batch([
     env.DB.prepare(

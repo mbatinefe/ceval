@@ -40,6 +40,15 @@ export function Scanner() {
     [selected, setSelected] = useState<Comparison | null>(null);
   const upload = useRef<HTMLInputElement>(null),
     scan = useScanner(mode, market);
+  const trialTime =
+    scan.trialRemainingSeconds === null
+      ? null
+      : `${Math.floor(scan.trialRemainingSeconds / 60)
+          .toString()
+          .padStart(
+            2,
+            "0",
+          )}:${(scan.trialRemainingSeconds % 60).toString().padStart(2, "0")}`;
   const [trayOpen, setTrayOpen] = useState(false);
   const [cardOpen, setCardOpen] = useState(false);
   const findsDialog = useRef<HTMLDialogElement>(null);
@@ -332,6 +341,15 @@ export function Scanner() {
           }}
         />
       </div>
+      {!scan.source && scan.trialRemainingSeconds !== null && (
+        <p className="trial-notice" role="status">
+          {scan.trialExpired
+            ? scan.message
+            : scan.trialStarted
+              ? `Trial ${trialTime} remaining. The timer keeps counting when paused.`
+              : "10-minute trial starts with your first scan. The timer keeps counting when paused."}
+        </p>
+      )}
       {(scan.cameraPending || scan.cameraProblem) && (
         <div
           className="camera-notice"
@@ -549,7 +567,24 @@ export function Scanner() {
                     className={`status-dot ${scan.running ? "active" : ""}`}
                   />
                 )}
-                <span>{scan.message}</span>
+                <span className="scan-status-copy">
+                  {scan.trialRemainingSeconds !== null && (
+                    <strong
+                      className="trial-countdown"
+                      role="timer"
+                      aria-live="off"
+                    >
+                      Trial {trialTime}
+                    </strong>
+                  )}
+                  <span>
+                    {scan.trialRemainingSeconds !== null &&
+                    !scan.trialStarted &&
+                    !scan.trialExpired
+                      ? "10-minute trial starts with your first scan"
+                      : scan.message}
+                  </span>
+                </span>
               </div>
               {scan.running ||
               scan.startupState === "waiting" ||
@@ -594,7 +629,7 @@ export function Scanner() {
             <button
               className="text-link rescan-view"
               onClick={scan.rescan}
-              disabled={scan.busy}
+              disabled={scan.busy || scan.trialExpired}
             >
               <RotateCw aria-hidden="true" /> Check this view again
             </button>

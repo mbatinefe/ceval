@@ -1,3 +1,4 @@
+import { applyMigration } from "../helpers/migrations.ts";
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -182,13 +183,7 @@ export default { async fetch(request, env, ctx) {
   for (const file of (await readdir("db/d1/migrations"))
     .filter((name) => name.endsWith(".sql"))
     .sort()) {
-    const sql = await readFile(`db/d1/migrations/${file}`, "utf8");
-    await db.batch(
-      sql
-        .split(";")
-        .filter((s) => s.trim())
-        .map((s) => db.prepare(s)),
-    );
+    await applyMigration(db, file);
   }
   for (const id of ["shopper", "other"]) {
     const now = Date.now();

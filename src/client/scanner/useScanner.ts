@@ -38,6 +38,7 @@ import {
 import { reconcileCurrentSightings, type FoundProduct } from "./continuity";
 import { ScanWork } from "./work";
 import { CaptureBuffer } from "./capture-buffer";
+import { trialCountdown, finishTrialInput, TRIAL_ENDED_MESSAGE } from "./trial";
 import { retryCapturedRequest } from "./recognition-request";
 import {
   MediaStartup,
@@ -101,6 +102,27 @@ export function useScanner(mode: Mode, market: Market) {
   const [capabilities, setCapabilities] = useState<ScanCapabilities | null>(
     null,
   );
+  const capabilitySnapshot = useRef<{
+    value: ScanCapabilities;
+    receivedAt: number;
+  } | null>(null);
+  const [trialNow, setTrialNow] = useState(Date.now);
+  const trialRemainingSeconds = trialCountdown(
+    capabilities?.trialAccess,
+    capabilitySnapshot.current?.receivedAt ?? trialNow,
+    trialNow,
+  );
+  const trialExpired = trialRemainingSeconds === 0;
+  const trialHasEnded = useCallback(() => {
+    const snapshot = capabilitySnapshot.current;
+    return (
+      trialCountdown(
+        snapshot?.value.trialAccess,
+        snapshot?.receivedAt ?? 0,
+        Date.now(),
+      ) === 0
+    );
+  }, []);
   const [message, setMessage] = useState(
     "Choose your camera or a video to get started.",
   );
@@ -250,7 +272,7 @@ export function useScanner(mode: Mode, market: Market) {
       runningRef.current = false;
       setRunning(false);
       if (reason !== "video") video.current?.pause();
-      if (reason === "error") captureBuffer.clear();
+      if (reason === "error" || trialHasEnded()) captureBuffer.clear();
       if (!captureBuffer.length) work.finishInput();
       else {
         setFinishing(true);
@@ -265,8 +287,25 @@ export function useScanner(mode: Mode, market: Market) {
         });
       }
     },
-    [startup, work, captureBuffer],
+    [startup, work, captureBuffer, trialHasEnded],
   );
+  const endTrial = useCallback(() => {
+    startup.cancel();
+    finished.current = "stopped";
+    runningRef.current = false;
+    setRunning(false);
+    finishTrialInput(captureBuffer, work);
+    setError("");
+    setMessage(TRIAL_ENDED_MESSAGE);
+  }, [startup, captureBuffer, work]);
+  useEffect(() => {
+    if (trialExpired) endTrial();
+  }, [trialExpired, endTrial]);
+  useEffect(() => {
+    if (capabilities?.trialAccess?.startedAt == null || trialExpired) return;
+    const timer = setInterval(() => setTrialNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [capabilities?.trialAccess?.startedAt, trialExpired]);
   const closeSource = useCallback(() => {
     stopAnalysis();
     sceneMemory.clear();
@@ -295,18 +334,33 @@ export function useScanner(mode: Mode, market: Market) {
   }, [stopAnalysis, sceneMemory]);
   useEffect(() => {
     let active = true;
-    api<ScanCapabilities>("/api/scan/capabilities")
-      .then((value) => {
-        if (active) setCapabilities(value);
-      })
-      .catch(() => {
-        if (active)
+    let poll: ReturnType<typeof setTimeout>;
+    async function refreshCapabilities() {
+      try {
+        const value = await api<ScanCapabilities>("/api/scan/capabilities");
+        if (!active) return;
+        const receivedAt = Date.now();
+        capabilitySnapshot.current = { value, receivedAt };
+        setTrialNow(receivedAt);
+        setCapabilities(value);
+      } catch {
+        if (active && !capabilitySnapshot.current)
           setError(
             "Couldn’t check analysis availability. Refresh to try again.",
           );
-      });
+      } finally {
+        if (
+          active &&
+          capabilitySnapshot.current?.value.trialAccess &&
+          !trialHasEnded()
+        )
+          poll = setTimeout(() => void refreshCapabilities(), 5000);
+      }
+    }
+    void refreshCapabilities();
     return () => {
       active = false;
+      clearTimeout(poll);
       startup.cancel();
       generation.current++;
       captureBuffer.clear();
@@ -553,6 +607,7 @@ export function useScanner(mode: Mode, market: Market) {
       });
       return;
     }
+    if (trialHasEnded()) return;
     if (comparisonBlock.current) {
       updateMatching({
         ...comparisonBlock.current,
@@ -637,6 +692,7 @@ export function useScanner(mode: Mode, market: Market) {
       });
   }
   function searchImage(productId: string, rowId?: string, manual = true) {
+    if (trialHasEnded()) return;
     const { mode, market } = comparisonContext.current;
     const row = findActionRow(resultsRef.current, productId, rowId);
     if (!row || row.visualSearching || row.selecting || !row.thumbnail) return;
@@ -744,6 +800,7 @@ export function useScanner(mode: Mode, market: Market) {
       });
   }
   function retryComparison(productId: string, rowId?: string) {
+    if (trialHasEnded()) return;
     const row = findActionRow(resultsRef.current, productId, rowId);
     if (!row || row.searching || row.selecting) return;
     comparisonBlock.current = null;
@@ -759,6 +816,10 @@ export function useScanner(mode: Mode, market: Market) {
     queueComparison(retry);
   }
   async function analyze() {
+    if (trialHasEnded()) {
+      endTrial();
+      return;
+    }
     const element = video.current;
     if (!element) return;
     const now = Date.now();
@@ -844,6 +905,7 @@ export function useScanner(mode: Mode, market: Market) {
             ),
           signal,
           (error) => {
+            if (trialHasEnded()) return null;
             const at = recognitionRetryAt(
               error,
               recognitionRecovery.current.attempts,
@@ -940,7 +1002,9 @@ export function useScanner(mode: Mode, market: Market) {
             "Scanning as you explore. Clear labels give better matches.",
           );
       } catch (err) {
-        if (epoch === generation.current) {
+        if (epoch === generation.current && trialHasEnded()) {
+          endTrial();
+        } else if (epoch === generation.current) {
           setError(
             err instanceof Error ? err.message : "Analysis could not finish.",
           );
@@ -1004,6 +1068,11 @@ export function useScanner(mode: Mode, market: Market) {
   async function attemptStart() {
     const element = video.current;
     if (!element || !sourceRef.current || document.hidden) return;
+    if (trialHasEnded()) {
+      endTrial();
+      if (element.paused) void element.play().catch(() => {});
+      return;
+    }
     if (!capabilities?.analysisAvailable) {
       setMessage(capabilities?.reason || "Checking analysis availability…");
       return;
@@ -1017,6 +1086,10 @@ export function useScanner(mode: Mode, market: Market) {
       return;
     }
     if (result !== "started" || document.hidden) return;
+    if (trialHasEnded()) {
+      endTrial();
+      return;
+    }
     loaded();
     if (!sourceRef.current) return;
     setPreviewBlocked(false);
@@ -1035,6 +1108,12 @@ export function useScanner(mode: Mode, market: Market) {
     if (startupState === "waiting" && prepared) void attemptStartRef.current();
   }, [startupState, prepared, capabilities]);
   function start() {
+    if (trialHasEnded()) {
+      endTrial();
+      const element = video.current;
+      if (element?.paused) void element.play().catch(() => {});
+      return;
+    }
     if (sourceRef.current === "camera" && !stream.current) {
       if (!cameraPending) void camera(true);
       return;
@@ -1057,6 +1136,7 @@ export function useScanner(mode: Mode, market: Market) {
     candidateKey: string,
     rowId?: string,
   ) {
+    if (trialHasEnded()) return;
     const row = findActionRow(resultsRef.current, productId, rowId);
     if (!row || pendingSelections.current.has(productId)) return;
     pendingSelections.current.add(productId);
@@ -1161,16 +1241,28 @@ export function useScanner(mode: Mode, market: Market) {
     video,
     source,
     sourceName,
-    capabilities,
-    message,
-    error,
+    capabilities:
+      trialExpired && capabilities
+        ? {
+            ...capabilities,
+            analysisAvailable: false,
+            visualSearchAvailable: false,
+            reason: TRIAL_ENDED_MESSAGE,
+          }
+        : capabilities,
+    trialRemainingSeconds,
+    trialStarted: capabilities?.trialAccess?.startedAt != null,
+    trialExpired,
+    message: trialExpired ? TRIAL_ENDED_MESSAGE : message,
+    error: trialExpired ? "" : error,
     cameraPending,
     previewBlocked,
     playCameraPreview,
     cameraProblem,
     startupState,
     prepared,
-    canResume: prepared || (source === "camera" && !cameraPending),
+    canResume:
+      !trialExpired && (prepared || (source === "camera" && !cameraPending)),
     running,
     busy,
     finishing,
@@ -1183,6 +1275,7 @@ export function useScanner(mode: Mode, market: Market) {
     historyLoadError,
     retryHistory: () => historyWriter.current?.retry(),
     rescan: () => {
+      if (trialHasEnded()) return;
       sceneMemory.clear();
       lastAnalysis.current = 0;
       lastAnalyzed.current = null;

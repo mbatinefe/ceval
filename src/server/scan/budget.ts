@@ -1,4 +1,5 @@
 import { ScanError } from "./errors.ts";
+import { expiredTrialError } from "../auth/trial.ts";
 
 type Reservation = { id: string; reserved: number };
 const PENDING_LIFETIME_MS = 60000;
@@ -33,9 +34,16 @@ export async function reserveScan(
   // One conditional write protects the total across users and concurrent requests.
   // Amounts without terminal usage remain exposure, never confirmed provider charges.
   const row = await env.DB.prepare(
-    `INSERT INTO scan_spend (id,user_id,kind,amount,reserved_amount,status,job_id,created_at)
-    SELECT ?,?,?,?,?,'pending',?,? WHERE
+    `WITH reservation_time AS (
+      SELECT CAST(unixepoch('subsec')*1000 AS INTEGER) AS now
+    )
+    INSERT INTO scan_spend (id,user_id,kind,amount,reserved_amount,status,job_id,created_at)
+    SELECT ?,?,?,?,?,'pending',?,reservation_time.now FROM reservation_time WHERE
     (SELECT COALESCE(SUM(amount),0) FROM scan_spend)+?<=?
+    AND NOT EXISTS (
+      SELECT 1 FROM signup_trial_enrollments
+      WHERE user_id=? AND started_at IS NOT NULL AND started_at+600000<=reservation_time.now
+    )
     RETURNING id`,
   )
     .bind(
@@ -45,17 +53,25 @@ export async function reserveScan(
       amount,
       amount,
       jobId ?? null,
-      now,
       required,
       total,
+      userId,
     )
     .first<{ id: string }>();
-  if (!row)
+  if (!row) {
+    const expired = await env.DB.prepare(
+      `SELECT 1 FROM signup_trial_enrollments WHERE user_id=?
+       AND started_at IS NOT NULL AND started_at+600000<=CAST(unixepoch('subsec')*1000 AS INTEGER)`,
+    )
+      .bind(userId)
+      .first();
+    if (expired) throw expiredTrialError();
     throw new ScanError(
       "total_budget_exhausted",
       "Analysis is paused because its total budget is used or reserved. Existing results are still available.",
       429,
     );
+  }
   return { id: row.id, reserved: amount };
 }
 

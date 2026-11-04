@@ -13,11 +13,26 @@ export function SignIn() {
   const [error, setError] = useState("");
   const [cooldown, setCooldown] = useState(0);
   const [signupsOpen, setSignupsOpen] = useState(false);
+  const [trialSignup, setTrialSignup] = useState<{
+    limit: number;
+    remainingSlots: number;
+    durationSeconds: number;
+  } | null>(null);
   useEffect(() => {
     let active = true;
-    api<{ signupsEnabled: boolean }>("/api/auth/status")
+    api<{
+      signupsEnabled: boolean;
+      trialSignup?: {
+        limit: number;
+        remainingSlots: number;
+        durationSeconds: number;
+      };
+    }>("/api/auth/status")
       .then((status) => {
-        if (active) setSignupsOpen(status.signupsEnabled);
+        if (active) {
+          setSignupsOpen(status.signupsEnabled);
+          setTrialSignup(status.trialSignup ?? null);
+        }
       })
       .catch(() => {});
     return () => {
@@ -96,6 +111,28 @@ export function SignIn() {
               </>
             )}
           </p>
+          {step === "email" && trialSignup && (
+            <p className="lp-si-trial" role="status">
+              {trialSignup.remainingSlots > 0 && signupsOpen ? (
+                <>
+                  <strong>
+                    {trialSignup.remainingSlots} of {trialSignup.limit} trial
+                    places available.
+                  </strong>{" "}
+                  New accounts get one continuous{" "}
+                  {trialSignup.durationSeconds / 60}-minute trial starting with
+                  their first scan. Pausing doesn’t stop the timer.
+                </>
+              ) : trialSignup.remainingSlots === 0 ? (
+                <>
+                  All {trialSignup.limit} trial places are taken. Existing
+                  accounts can still sign in.
+                </>
+              ) : (
+                "New trials are paused. Existing accounts can still sign in."
+              )}
+            </p>
+          )}
           <form className="lp-si-form" onSubmit={submit}>
             {step === "email" ? (
               <>

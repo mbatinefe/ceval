@@ -86,7 +86,7 @@
       },
       "vars": {
         "APP_ENVIRONMENT": "production",
-        "SIGNUPS_ENABLED": "false",
+        "SIGNUPS_ENABLED": "true",
         "SCAN_ENABLED": "true",
         "SCAN_TOTAL_BUDGET_MICROS": "100000000",
         "EMAIL_DAILY_LIMIT": "70",
