@@ -293,6 +293,9 @@
 .cinema-scan-copy,
 .cinema-compare-copy {
   position: absolute;
+  isolation: isolate;
+  max-width: calc(100% - 12vw);
+  color: #fff;
   z-index: 3;
   left: 5vw;
   top: 125px;
@@ -303,13 +306,34 @@
     transform 0.6s;
   transform: translateY(12px);
 }
+.cinema-scan-copy::before,
+.cinema-compare-copy::before {
+  content: "";
+  position: absolute;
+  inset: -18px -48px -22px -24px;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    #111310f7,
+    #111310ef calc(100% - 40px),
+    #11131000
+  );
+  mask-image: linear-gradient(
+    transparent,
+    #000 18px,
+    #000 calc(100% - 22px),
+    transparent
+  );
+}
 .cinema-scan-copy h2 {
   font-size: clamp(30px, 3.2vw, 52px);
   margin-top: 14px;
 }
 .cinema-scan-copy > p:last-child {
-  color: #d5dacf;
-  font-size: 12px;
+  color: #edf0e6;
+  font-size: 13px;
+  line-height: 1.5;
   margin-top: 15px;
 }
 .cinema-compare-copy h2 {
@@ -870,7 +894,6 @@
     font-size: 8px;
   }
   .cinema-scan-copy > p:last-child {
-    font-size: 11px;
     margin-top: 10px;
   }
   .cinema-compare-copy h2 {
