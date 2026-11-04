@@ -107,7 +107,7 @@ function ShoppingCard({
           href={offer.url}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label={`${offer.merchant}: ${offer.title}. ${offer.condition}. ${prices[index] || "Check price"}. Opens product page.`}
+          aria-label={`${offer.merchant}: ${offer.title}. ${offer.condition}. ${prices[index] || "Check price"}.${campaignReferencePrice(offer) ? ` List price ${campaignReferencePrice(offer)}.` : ""} Opens product page.`}
         >
           <ListingPhoto offer={offer} />
           <span className="cinema-offer-store">

@@ -13,7 +13,7 @@
   letter-spacing: 0.13em;
   margin-bottom: 21px;
 }
-.places-heading h2 {
+.cinema-home .places-heading h2 {
   font-size: clamp(44px, 6.1vw, 86px);
   line-height: 0.99;
   letter-spacing: -0.06em;
@@ -133,14 +133,14 @@
   color: #616950;
   text-transform: uppercase;
 }
-.places-card h3 {
+.cinema-home .places-card h3 {
   font-size: 24px;
   line-height: 1.1;
   font-weight: 550;
   letter-spacing: -0.04em;
   margin: 6px 0;
 }
-.places-product-note {
+.cinema-home .places-product-note {
   font-size: 10px;
   line-height: 1.4;
   color: #62685c;
@@ -193,12 +193,12 @@
 .places-source-note time {
   flex-shrink: 0;
 }
-.places-original {
+.cinema-home .places-original {
   font-size: 10px;
   color: #62685c;
   margin-top: 6px;
 }
-.places-card :focus-visible {
+.cinema-home .places-card :focus-visible {
   outline: 2px solid #42621d;
   outline-offset: 3px;
 }
@@ -239,7 +239,7 @@
   .places-heading {
     margin-bottom: 28px;
   }
-  .places-heading h2 {
+  .cinema-home .places-heading h2 {
     font-size: clamp(43px, 9vw, 65px);
   }
   .places-tabs {
