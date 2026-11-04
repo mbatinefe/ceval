@@ -4,11 +4,7 @@ See what it’s worth.
 
 Ceval is a camera web app for shopping in physical stores. Point your phone at a product to read its label and shelf price, then compare shopping or resale listings with links to their sources. Results distinguish confirmed product matches from uncertain candidates and visually similar items. Retail prices, asking prices and evidence of completed sales have separate meanings; an asking price is never proof of resale value.
 
-- **Live:** https://ceval.mbefe34.workers.dev
-
-Hosted access and scan allowances depend on the current deployment settings. You can also run your own copy locally using the steps below.
-
-The hosted trial is limited to the first three new accounts. Each enrolled account gets one continuous ten-minute AI scanning window, starting when its first AI operation reserves budget. The clock continues when scanning stops. After it expires, sign-in and saved results remain available. Existing accounts do not consume new-account trial slots.
+- **Website:** https://ceval.mbefe34.workers.dev
 
 ## How it works
 
@@ -32,13 +28,15 @@ The hosted trial is limited to the first three new accounts. Each enrolled accou
 You need Node.js 22.18 or later and npm. The local app uses Wrangler’s local D1 SQLite and Durable Object simulation. It needs no Cloudflare account, remote database or Resend account.
 
 ```sh
+git clone https://github.com/mbatinefe/ceval.git
+cd ceval
 npm ci
 npm run dev
 ```
 
 Open **http://localhost:8787**. The first run creates an ignored `.dev.vars.local` with a random Better Auth secret, applies local migrations, builds the browser assets and starts the Worker. Later runs preserve that file and your local data. `npm run setup:local` performs setup without starting the server. Restart `npm run dev` after editing browser code or local credentials.
 
-Sign in with an email address. The terminal running the app prints only the six-digit sign-in code; local mode sends no email. Accounts, sessions and scans remain authenticated and use the local database. Console codes and HTTP session cookies are enabled only when `APP_ENVIRONMENT` is `local` and `BETTER_AUTH_URL` is a validated loopback origin.
+For local sign-in, enter an email address and use the six-digit code printed in the terminal. Local mode sends no email. Accounts, sessions and scans use the local database.
 
 For live recognition and comparisons, put **your own Meta API key** in the generated `.dev.vars.local`:
 
@@ -50,7 +48,7 @@ Restart the server after changing it. Without a key you can open the app, sign i
 
 Local storage is isolated under `.wrangler/local-state`; the scripts explicitly use `wrangler.local.jsonc`, `--env local`, `--local` and the same persistence path for migrations and serving. The local configuration has no production database IDs or public Worker URL. The existing deployment configuration is separate.
 
-Local setup leaves hosted trial enrollment disabled; authentication and scan budget checks still apply to your own-key runs.
+Local scanning uses your own Meta account and keeps authentication and scan budget checks enabled.
 
 ## Host your own copy
 
