@@ -1,3 +1,4 @@
+import { attachScanProcessor } from "../helpers/scan-processor.ts";
 import { after, before, beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
@@ -56,6 +57,7 @@ function request(
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     }),
     env,
+    { waitUntil() {}, passThroughOnException() {}, props: {} },
   );
 }
 async function seedProduct(value = product, owner = "shopper") {
@@ -110,6 +112,7 @@ before(async () => {
     APP_ENVIRONMENT: "staging",
     ASSETS: { fetch: async () => new Response("page") },
   } as unknown as Env;
+  attachScanProcessor(env);
 });
 after(async () => {
   await mf?.dispose();

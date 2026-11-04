@@ -1,3 +1,4 @@
+import { attachScanProcessor } from "../helpers/scan-processor.ts";
 import { after, before, beforeEach, test, mock } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
@@ -120,6 +121,7 @@ before(async () => {
     META_API_KEY: "test-only",
     ASSETS: { fetch: async () => new Response("page") },
   } as unknown as Env;
+  attachScanProcessor(env);
 });
 after(async () => {
   await mf?.dispose();

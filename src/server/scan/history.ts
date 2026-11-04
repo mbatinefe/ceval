@@ -7,7 +7,6 @@ import {
   type ScanHistorySource,
 } from "../../shared/history.ts";
 import type { Comparison, Market, Mode, Product } from "../../shared/scan.ts";
-import type { Session } from "../types.ts";
 import { consumeLimit } from "../auth/limits.ts";
 import { ScanError } from "./errors.ts";
 import { modeOf, validateFrame } from "./validation.ts";
@@ -102,18 +101,18 @@ const removeOrphanVisualJobs = (db: D1Database, userId: string) =>
 
 export const historyRoutes = new Hono<{
   Bindings: Env;
-  Variables: { body: Record<string, unknown>; session: Session };
+  Variables: { body: Record<string, unknown>; userId: string };
 }>();
 historyRoutes.get("/scan/history", async (c) => {
   const rows = await c.env.DB.prepare(
     `SELECT ${columns} FROM scan_history WHERE user_id=? ORDER BY updated_at DESC,id DESC LIMIT ?`,
   )
-    .bind(c.get("session").user.id, MAX_HISTORY_ENTRIES)
+    .bind(c.get("userId"), MAX_HISTORY_ENTRIES)
     .all<HistoryRow>();
   const matches = await c.env.DB.prepare(
     "SELECT product_id,market,data FROM scan_visual_matches WHERE user_id=? AND json_extract(data,'$.provider')='meta' AND json_extract(data,'$.version')=2 AND EXISTS(SELECT 1 FROM scan_history h WHERE h.user_id=scan_visual_matches.user_id AND h.product_id=scan_visual_matches.product_id) LIMIT 300",
   )
-    .bind(c.get("session").user.id)
+    .bind(c.get("userId"))
     .all<{ product_id: string; market: Market; data: string }>();
   return c.json({
     entries: rows.results.map((row) => {
@@ -136,7 +135,7 @@ historyRoutes.get("/scan/history/:id/image", async (c) => {
   const row = await c.env.DB.prepare(
     "SELECT thumbnail FROM scan_history WHERE user_id=? AND id=?",
   )
-    .bind(c.get("session").user.id, c.req.param("id"))
+    .bind(c.get("userId"), c.req.param("id"))
     .first<{ thumbnail: string | null }>();
   if (!row?.thumbnail)
     throw new ScanError("not_found", "Photo not found.", 404);
@@ -153,7 +152,7 @@ historyRoutes.get("/scan/history/:id/image", async (c) => {
 });
 historyRoutes.post("/scan/history", async (c) => {
   const body = c.get("body"),
-    userId = c.get("session").user.id;
+    userId = c.get("userId");
   const id = identifier(body.id, true),
     productId = identifier(body.productId);
   const source = body.source;
@@ -254,7 +253,7 @@ historyRoutes.post("/scan/history", async (c) => {
   return c.json({ entry: entryOf(row) });
 });
 historyRoutes.delete("/scan/history/:id", async (c) => {
-  const userId = c.get("session").user.id;
+  const userId = c.get("userId");
   await c.env.DB.batch([
     c.env.DB.prepare("DELETE FROM scan_history WHERE user_id=? AND id=?").bind(
       userId,
@@ -266,7 +265,7 @@ historyRoutes.delete("/scan/history/:id", async (c) => {
   return c.json({ deleted: true });
 });
 historyRoutes.delete("/scan/history", async (c) => {
-  const userId = c.get("session").user.id;
+  const userId = c.get("userId");
   await c.env.DB.batch([
     c.env.DB.prepare("DELETE FROM scan_history WHERE user_id=?").bind(userId),
     removeOrphanMatches(c.env.DB, userId),

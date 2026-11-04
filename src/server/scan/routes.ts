@@ -1,6 +1,5 @@
 import { discoverVisualMatches } from "./visual-search.ts";
 import { Hono } from "hono";
-import type { Session } from "../types.ts";
 import {
   capabilities,
   recognize,
@@ -15,13 +14,13 @@ import { consumeLimit } from "../auth/limits.ts";
 import { historyRoutes } from "./history.ts";
 export const scanRoutes = new Hono<{
   Bindings: Env;
-  Variables: { body: Record<string, unknown>; session: Session };
+  Variables: { body: Record<string, unknown>; userId: string };
 }>();
 scanRoutes.route("/", historyRoutes);
 scanRoutes.get("/scan/capabilities", (c) => c.json(capabilities(c.env)));
 scanRoutes.post("/scan/visual-matches", async (c) => {
   const body = c.get("body"),
-    userId = c.get("session").user.id;
+    userId = c.get("userId");
   await consumeLimit(c.env.DB, `visual:request:${userId}`, 30, 60);
   const task = discoverVisualMatches(
     c.env,
@@ -42,7 +41,7 @@ scanRoutes.post("/scan/visual-matches", async (c) => {
 });
 scanRoutes.post("/scan/recognize", async (c) => {
   const body = c.get("body"),
-    userId = c.get("session").user.id;
+    userId = c.get("userId");
   await consumeLimit(c.env.DB, `scan:request:${userId}`, 30, 60);
   const market = marketOf(body.market),
     frame = validateFrame(body.frame);
@@ -107,7 +106,7 @@ scanRoutes.post("/scan/recognize", async (c) => {
 });
 scanRoutes.post("/scan/select-model", async (c) => {
   const body = c.get("body"),
-    userId = c.get("session").user.id;
+    userId = c.get("userId");
   await consumeLimit(c.env.DB, `selection:request:${userId}`, 30, 60);
   return c.json(
     await selectModel(
@@ -121,7 +120,7 @@ scanRoutes.post("/scan/select-model", async (c) => {
 });
 scanRoutes.post("/scan/compare", async (c) => {
   const body = c.get("body"),
-    userId = c.get("session").user.id;
+    userId = c.get("userId");
   await consumeLimit(c.env.DB, `compare:request:${userId}`, 30, 60);
   const task = compare(
     c.env,
@@ -143,7 +142,7 @@ scanRoutes.get("/comparisons", async (c) => {
   const rows = await c.env.DB.prepare(
     "SELECT c.data FROM scan_comparisons c JOIN scan_saves s ON s.comparison_id=c.id AND s.user_id=c.user_id WHERE s.user_id=? ORDER BY s.created_at DESC LIMIT 100",
   )
-    .bind(c.get("session").user.id)
+    .bind(c.get("userId"))
     .all<{ data: string }>();
   return c.json({
     comparisons: rows.results.map((row) => ({
@@ -153,7 +152,7 @@ scanRoutes.get("/comparisons", async (c) => {
   });
 });
 scanRoutes.post("/comparisons", async (c) => {
-  const userId = c.get("session").user.id,
+  const userId = c.get("userId"),
     id = text(c.get("body").comparisonId, 80);
   const existing = await c.env.DB.prepare(
     "SELECT id FROM scan_comparisons WHERE id=? AND user_id=?",
@@ -185,13 +184,13 @@ scanRoutes.delete("/comparisons/:id", async (c) => {
   await c.env.DB.prepare(
     "DELETE FROM scan_saves WHERE user_id=? AND comparison_id=?",
   )
-    .bind(c.get("session").user.id, c.req.param("id"))
+    .bind(c.get("userId"), c.req.param("id"))
     .run();
   return c.json({ deleted: true });
 });
 scanRoutes.delete("/comparisons", async (c) => {
   await c.env.DB.prepare("DELETE FROM scan_saves WHERE user_id=?")
-    .bind(c.get("session").user.id)
+    .bind(c.get("userId"))
     .run();
   return c.json({ deleted: true });
 });

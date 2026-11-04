@@ -1,3 +1,4 @@
+import { attachScanProcessor } from "../helpers/scan-processor.ts";
 import { test, before, after, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
@@ -115,6 +116,7 @@ before(async () => {
     SCAN_TOTAL_BUDGET_MICROS: "100000000",
     ASSETS: { fetch: async () => new Response("page") },
   } as unknown as Env;
+  attachScanProcessor(env);
   mock.method(
     globalThis,
     "fetch",
@@ -1447,4 +1449,114 @@ test("recognition bounds reference inputs before contacting the provider", async
     );
   }
   assert.equal(calls.length, 0);
+});
+
+test("authenticated scan bodies stream to the account processor before JSON parsing", async () => {
+  const original = env.SCANS;
+  const routed: {
+    owner: string;
+    userId: string;
+    body: string;
+    cookie: string | null;
+  }[] = [];
+  Reflect.set(env, "SCANS", {
+    getByName(owner: string) {
+      return {
+        async fetch(incoming: Request) {
+          const userId = incoming.headers.get("X-Ceval-Account")!;
+          routed.push({
+            owner,
+            userId,
+            body: await incoming.text(),
+            cookie: incoming.headers.get("Cookie"),
+          });
+          return Response.json({ forwarded: true });
+        },
+      };
+    },
+  });
+  try {
+    const result = await worker.fetch(
+      new Request(origin + "/api/scan/recognize", {
+        method: "POST",
+        headers: {
+          Cookie: cookie(),
+          Origin: origin,
+          "Content-Type": "application/json",
+        },
+        body: "{not parsed in gateway}",
+      }),
+      env,
+      { waitUntil() {}, passThroughOnException() {}, props: {} },
+    );
+    assert.equal(result.status, 200);
+    assert.deepEqual(routed, [
+      {
+        owner: "shopper",
+        userId: "shopper",
+        body: "{not parsed in gateway}",
+        cookie: null,
+      },
+    ]);
+    assert.equal(result.headers.get("Cache-Control"), "no-store");
+    assert.equal(result.headers.get("X-Content-Type-Options"), "nosniff");
+  } finally {
+    Reflect.set(env, "SCANS", original);
+  }
+});
+
+test("processor identity comes from the verified session, never the submitted user id", async () => {
+  const original = env.SCANS;
+  const routed: string[] = [];
+  Reflect.set(env, "SCANS", {
+    getByName(owner: string) {
+      routed.push(owner);
+      return {
+        async fetch(incoming: Request) {
+          const userId = incoming.headers.get("X-Ceval-Account")!;
+          routed.push(userId);
+          await incoming.text();
+          return Response.json({ done: true });
+        },
+      };
+    },
+  });
+  try {
+    assert.equal(
+      (await request("/api/scan/recognize", { userId: "other", market: "US" }))
+        .status,
+      200,
+    );
+    assert.deepEqual(routed, ["shopper", "shopper"]);
+    routed.length = 0;
+    assert.equal((await request("/api/scan/recognize", {}, null)).status, 401);
+    assert.equal(
+      (
+        await request(
+          "/api/scan/recognize",
+          {},
+          "shopper",
+          "POST",
+          "https://foreign.example",
+        )
+      ).status,
+      403,
+    );
+    assert.deepEqual(routed, []);
+  } finally {
+    Reflect.set(env, "SCANS", original);
+  }
+});
+
+test("a missing processor binding fails closed without calling the paid provider", async () => {
+  const original = env.SCANS;
+  Reflect.deleteProperty(env, "SCANS");
+  try {
+    const result = await recognize();
+    assert.equal(result.status, 503);
+    assert.equal((await result.json()).code, "processor_unavailable");
+    assert.equal(calls.length, 0);
+  } finally {
+    Reflect.set(env, "SCANS", original);
+  }
 });

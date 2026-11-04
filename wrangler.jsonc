@@ -1,9 +1,12 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "ceval",
-  "main": "src/server/index.ts",
+  "main": "src/server/worker.ts",
   "compatibility_date": "2026-10-29",
   "compatibility_flags": ["nodejs_compat", "enable_request_signal"],
+  "migrations": [
+    { "tag": "scan-processor-v1", "new_sqlite_classes": ["ScanProcessor"] },
+  ],
   "workers_dev": false,
   "preview_urls": false,
   "observability": {
@@ -18,6 +21,9 @@
       "name": "ceval-staging",
       "workers_dev": true,
       "preview_urls": false,
+      "durable_objects": {
+        "bindings": [{ "name": "SCANS", "class_name": "ScanProcessor" }],
+      },
       "assets": {
         "directory": "./dist/client",
         "binding": "ASSETS",
@@ -57,6 +63,9 @@
       "name": "ceval",
       "workers_dev": true,
       "preview_urls": false,
+      "durable_objects": {
+        "bindings": [{ "name": "SCANS", "class_name": "ScanProcessor" }],
+      },
       "assets": {
         "directory": "./dist/client",
         "binding": "ASSETS",

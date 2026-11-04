@@ -2,17 +2,12 @@ import { campaignImageSources } from "../shared/campaign-listings.ts";
 import { productImageHosts } from "./providers/product-media.ts";
 import { Hono } from "hono";
 import { createAuth, sessionAuth, signupsEnabled } from "./auth/config.ts";
-import {
-  consumeLimit,
-  LimitReached,
-  privateKey,
-  reserveEmail,
-} from "./auth/limits.ts";
+import { consumeLimit, privateKey, reserveEmail } from "./auth/limits.ts";
 import { demoProducts } from "../shared/demo.ts";
 
 import type { Session } from "./types.ts";
-import { scanRoutes } from "./scan/routes.ts";
-import { ScanError } from "./scan/errors.ts";
+import { forwardScanRequest } from "./scan/dispatch.ts";
+import { apiErrorHandler, isScanPath, readJsonBody } from "./http.ts";
 import { capabilities } from "./scan/service.ts";
 import { isDemoVideo, serveDemoVideo } from "./media/demo-video.ts";
 import demoManifest from "../../public/demo/manifest.json" with { type: "json" };
@@ -67,39 +62,10 @@ app.use("/api/*", async (c, next) => {
         .startsWith("application/json")
     )
       return c.json({ error: "Use a JSON request." }, 415);
-    const reader = c.req.raw.body?.getReader();
-    const chunks: Uint8Array[] = [];
-    let size = 0;
-    if (reader) {
-      for (;;) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        size += value.length;
-        const maxBodyBytes =
-          c.req.path === "/api/scan/recognize" ||
-          c.req.path === "/api/scan/visual-matches"
-            ? 280000
-            : c.req.path === "/api/scan/history"
-              ? 45000
-              : 4096;
-        if (size > maxBodyBytes) {
-          await reader.cancel();
-          return c.json({ error: "Request is too large." }, 413);
-        }
-        chunks.push(value);
-      }
-    }
-    const data = new Uint8Array(size);
-    let offset = 0;
-    for (const chunk of chunks) {
-      data.set(chunk, offset);
-      offset += chunk.length;
-    }
-    try {
-      const body: unknown = JSON.parse(new TextDecoder().decode(data) || "{}");
-      if (typeof body !== "object" || body === null || Array.isArray(body))
-        return c.json({ error: "Invalid request." }, 400);
-      c.set("body", body as Record<string, unknown>);
+    // Scan bodies are bounded and parsed inside the Durable Object.
+    if (!isScanPath(c.req.path)) {
+      const body = await readJsonBody(c.req.raw);
+      c.set("body", body);
       const headers = new Headers(c.req.raw.headers);
       headers.delete("Content-Length");
       c.req.raw = new Request(c.req.url, {
@@ -108,8 +74,6 @@ app.use("/api/*", async (c, next) => {
         body: JSON.stringify(body),
         signal: c.req.raw.signal,
       });
-    } catch {
-      return c.json({ error: "Invalid JSON." }, 400);
     }
   }
   await next();
@@ -247,7 +211,15 @@ app.delete("/api/finds", async (c) => {
     .run();
   return c.json({ deleted: true });
 });
-app.route("/api", scanRoutes);
+app.use("/api/*", async (c, next) => {
+  if (!isScanPath(c.req.path)) return next();
+  return forwardScanRequest(
+    c.env,
+    c.get("session").user.id,
+    c.req.raw,
+    c.executionCtx,
+  );
+});
 app.all("/api/*", (c) => c.json({ error: "Not found." }, 404));
 app.get("*", async (c) => {
   if (
@@ -270,17 +242,5 @@ app.get("*", async (c) => {
   );
   return c.newResponse(response.body, response);
 });
-app.onError((error, c) => {
-  if (error instanceof ScanError) {
-    if (error.status === 429 || error.status === 409)
-      c.header("Retry-After", error.status === 409 ? "3" : "60");
-    return c.json({ error: error.message, code: error.code }, error.status);
-  }
-  if (error instanceof LimitReached) {
-    c.header("Retry-After", String(error.retryAfter));
-    return c.json({ error: error.message, retryAfter: error.retryAfter }, 429);
-  }
-  console.error("request_failed", c.req.method, c.req.path);
-  return c.json({ error: "Something went wrong. Please try again." }, 500);
-});
+app.onError(apiErrorHandler);
 export default app;
