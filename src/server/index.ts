@@ -1,7 +1,7 @@
 import { campaignImageSources } from "../shared/campaign-listings.ts";
 import { productImageHosts } from "./providers/product-media.ts";
 import { Hono } from "hono";
-import { createAuth, signupsEnabled } from "./auth/config.ts";
+import { createAuth, sessionAuth, signupsEnabled } from "./auth/config.ts";
 import {
   consumeLimit,
   LimitReached,
@@ -179,7 +179,7 @@ app.all("/api/auth/*", async (c) => {
 
 app.use("/api/*", async (c, next) => {
   if (!c.req.header("Cookie")) return c.json({ error: "Please sign in." }, 401);
-  const result = await createAuth(c.env).api.getSession({
+  const result = await sessionAuth(c.env).api.getSession({
     headers: c.req.raw.headers,
     returnHeaders: true,
   });
@@ -256,7 +256,7 @@ app.get("*", async (c) => {
     return c.notFound();
   if (c.req.path.startsWith("/app")) {
     if (!c.req.header("Cookie")) return c.redirect("/signin");
-    const result = await createAuth(c.env).api.getSession({
+    const result = await sessionAuth(c.env).api.getSession({
       headers: c.req.raw.headers,
       returnHeaders: true,
     });

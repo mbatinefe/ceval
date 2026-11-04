@@ -26,3 +26,29 @@ test("scanner requests preserve error codes so budget denial does not look like 
     globalThis.fetch = original;
   }
 });
+
+test("HTML gateway failures preserve HTTP status for scanner recovery", async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response("<!DOCTYPE html><h1>Worker exceeded resource limits</h1>", {
+      status: 503,
+      headers: { "Content-Type": "text/html" },
+    });
+  try {
+    await assert.rejects(
+      scanRequest("/api/scan/recognize", {}, new AbortController().signal),
+      (error) => {
+        assert.ok(error instanceof Error);
+        assert.equal((error as Error & { status?: number }).status, 503);
+        assert.equal(
+          (error as Error & { code?: string }).code,
+          "request_failed",
+        );
+        assert.doesNotMatch(error.message, /DOCTYPE|Unexpected token/);
+        return true;
+      },
+    );
+  } finally {
+    globalThis.fetch = original;
+  }
+});

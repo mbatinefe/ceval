@@ -60,13 +60,30 @@ export async function scanRequest<T>(
     body: JSON.stringify(body),
     signal,
   });
-  const data = await response.json();
-  if (!response.ok)
+  const fallback = "Analysis is temporarily unavailable. Please try again.";
+  let data: unknown;
+  try {
+    data = await response.json();
+  } catch (error) {
+    if (signal.aborted) throw error;
     throw new ScanRequestError(
-      data.error || "Analysis could not finish. Please try again.",
-      typeof data.code === "string" ? data.code : "request_failed",
+      fallback,
+      "request_failed",
+      response.ok ? 502 : response.status,
+    );
+  }
+  if (!response.ok) {
+    const details = data && typeof data === "object" ? data : {};
+    throw new ScanRequestError(
+      "error" in details && typeof details.error === "string"
+        ? details.error
+        : fallback,
+      "code" in details && typeof details.code === "string"
+        ? details.code
+        : "request_failed",
       response.status,
     );
+  }
   return data as T;
 }
 

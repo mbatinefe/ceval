@@ -52,3 +52,14 @@ export function createAuth(env: Env, onDeliveryError?: () => void) {
     ],
   });
 }
+
+// Reuse service configuration only. Sessions still come from D1 on every read.
+const sessionServices = new WeakMap<Env, ReturnType<typeof createAuth>>();
+export function sessionAuth(env: Env) {
+  let auth = sessionServices.get(env);
+  if (!auth) {
+    auth = createAuth(env);
+    sessionServices.set(env, auth);
+  }
+  return auth;
+}

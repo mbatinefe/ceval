@@ -369,7 +369,9 @@ test("saved demo products are deduplicated, validated and isolated by account", 
 
 test("sign-out revokes the session and forgery never authorizes", async () => {
   const { cookie } = await login();
+  assert.equal((await request("/api/me", undefined, cookie)).status, 200);
   assert.equal((await request("/api/auth/sign-out", {}, cookie)).status, 200);
+  assert.equal((await request("/api/me", undefined, cookie)).status, 401);
   assert.equal((await request("/api/finds", undefined, cookie)).status, 401);
   assert.equal(
     (
