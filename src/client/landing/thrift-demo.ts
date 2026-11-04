@@ -1,8 +1,8 @@
-import { marketplaceSearch } from "../../shared/marketplace";
+import { marketplaceSearch } from "../../shared/marketplace.ts";
 import type {
   CampaignMatch,
   CampaignOffer,
-} from "../../shared/campaign-listings";
+} from "../../shared/campaign-listings.ts";
 
 export type SceneBox = { x: number; y: number; width: number; height: number };
 export type ThriftFind = {
@@ -109,7 +109,8 @@ const shoes = {
       title: "Chuck 70 Canvas · 162062C",
       url: "https://www.converse.com/shop/p/chuck-70-canvas-unisex-low-top-shoe/162062C.html",
       image:
-        "https://www.converse.com/dw/image/v2/BCZC_PRD/on/demandware.static/-/Sites-cnv-master-catalog/default/dw356d8c76/images/a_107/162062C_A_107X1.jpg?strip=false&sw=240",
+        "https://www.karenwalker.com/cdn/shop/files/converse-chuck-taylor-all-star-70-low-top-parchment-162062-parchmentgarnetegret-front-0250542001611101284_3cc78a31-b1b6-4adc-a8d8-b1af6e9476e5.jpg?v=1724545526&width=240",
+      imageCredit: "Product photo: Karen Walker · Style 162062C",
       condition: "New · Choose size",
       priceMinor: 9000,
       availability: "available",
@@ -149,7 +150,12 @@ const jacket = {
   ],
 };
 export const wideFinds: ThriftFind[] = [
-  { ...camera, box: { x: 0.16, y: 0.496, width: 0.13, height: 0.172 } },
+  {
+    ...camera,
+    match: "similar",
+    matchNote: "FM2 candidate · Check front badge",
+    box: { x: 0.16, y: 0.496, width: 0.13, height: 0.172 },
+  },
   { ...lamp, box: { x: 0.267, y: 0.199, width: 0.151, height: 0.425 } },
   { ...shoes, box: { x: 0.382, y: 0.482, width: 0.199, height: 0.162 } },
   { ...jacket, box: { x: 0.438, y: 0.068, width: 0.179, height: 0.411 } },

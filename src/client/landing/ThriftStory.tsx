@@ -39,13 +39,13 @@ export function FindPhoto({
 function ListingPhoto({ offer }: { offer: CampaignOffer }) {
   const [missing, setMissing] = useState(false);
   return (
-    <span className="cinema-listing-photo">
+    <span className="cinema-listing-photo" title={offer.imageCredit}>
       {missing ? (
         <ImageOff size={19} role="img" aria-label="Product photo unavailable" />
       ) : (
         <img
           src={offer.image}
-          alt={offer.title}
+          alt={[offer.title, offer.imageCredit].filter(Boolean).join(". ")}
           width={52}
           height={58}
           loading="lazy"

@@ -3,6 +3,7 @@ export type CampaignOffer = {
   title: string;
   url: string;
   image: string;
+  imageCredit?: string;
   condition: string;
   priceMinor?: number;
   currency: "USD";
@@ -16,7 +17,6 @@ export const campaignImageSources = [
   "https://cgi.keh.com/media/catalog/product/",
   "https://storage.googleapis.com/mpb-platform-prod-media-service-prod-y1m8/",
   "https://lscoglobal.scene7.com/is/image/lscoglobal/",
-  "https://www.converse.com/dw/image/",
   "https://www.karenwalker.com/cdn/shop/",
   "https://shophorne.com/cdn/shop/",
   "https://www.anglepoise.com/usa/wp-content/uploads/",

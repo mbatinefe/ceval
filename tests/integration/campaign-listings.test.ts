@@ -47,3 +47,11 @@ test("a visual candidate stays a similar match rather than claiming an exact mod
   assert.equal(campaignMatchLabel("similar"), "Similar match");
   assert.equal(campaignMatchLabel("model"), "Model match");
 });
+
+// The full wide frame returned a candidate; the closer portrait confirmed FM2.
+test("the same product keeps the certainty supported by each scene", async () => {
+  const { wideFinds, portraitFinds } =
+    await import("../../src/client/landing/thrift-demo.ts");
+  assert.equal(wideFinds.find((x) => x.id === "camera")?.match, "similar");
+  assert.equal(portraitFinds.find((x) => x.id === "camera")?.match, "model");
+});
