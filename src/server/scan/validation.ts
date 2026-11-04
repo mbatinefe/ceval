@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import {
   markets,
   type Box,
@@ -53,12 +54,14 @@ export function validateFrame(value: unknown): string {
     value.length > (MAX_FRAME_BYTES * 4) / 3 + 40
   )
     throw invalid();
-  let bytes: Uint8Array;
-  try {
-    bytes = Uint8Array.from(atob(value.slice(23)), (c) => c.charCodeAt(0));
-  } catch {
+  const encoded = value.slice(23);
+  // Buffer decoding is permissive; preserve the strict base64 input boundary.
+  if (
+    encoded.length % 4 === 1 ||
+    (encoded.endsWith("=") && encoded.length % 4 !== 0)
+  )
     throw invalid();
-  }
+  const bytes = Buffer.from(encoded, "base64");
   if (
     bytes.length > MAX_FRAME_BYTES ||
     bytes[0] !== 255 ||

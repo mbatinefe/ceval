@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import type { Market, Mode, ProductSource } from "../../shared/scan.ts";
 import type { VisualCandidate } from "../../shared/visual-search.ts";
 import { text } from "../scan/validation.ts";
@@ -605,11 +606,14 @@ export async function candidatePhoto(
         continue;
       }
       const bytes = await boundedBytes(response, 500000);
-      let binary = "";
-      for (const byte of bytes) binary += String.fromCharCode(byte);
+      const encoded = Buffer.from(
+        bytes.buffer,
+        bytes.byteOffset,
+        bytes.byteLength,
+      ).toString("base64");
       // Display the same image that Meta actually received when a fallback succeeds.
       candidate.thumbnail = url;
-      return `data:${mime};base64,${btoa(binary)}`;
+      return `data:${mime};base64,${encoded}`;
     } catch {
       /* Try another image from the same product page within the shared deadline. */
     }
