@@ -49,7 +49,6 @@ function ShoppingCard({
           <FindPhoto find={find} portrait={portrait} />
         </span>
         <div>
-          <span className="cinema-overline">A CLOSER LOOK</span>
           <h3>{find.name}</h3>
           <p>Compare similar finds</p>
         </div>
@@ -103,9 +102,6 @@ function ShoppingCard({
         </span>
         <ArrowUpRight size={18} aria-hidden="true" />
       </a>
-      <p className="cinema-shopping-note">
-        Illustrative prices. Links open current search results.
-      </p>
     </aside>
   );
 }
@@ -144,7 +140,7 @@ export function ThriftStory() {
               width={1672}
               height={941}
               fetchPriority="high"
-              alt="A sunlit thrift shop filled with vintage cameras, clothing, ceramics and other secondhand finds."
+              alt="Illustration of a sunlit thrift shop with vintage cameras, clothing, ceramics and secondhand finds."
             />
           </picture>
           <div
@@ -189,14 +185,13 @@ export function ThriftStory() {
           aria-hidden={chapter !== 0}
           inert={chapter !== 0}
         >
-          <p className="cinema-overline">A NEW WAY TO LOOK AT THINGS</p>
           <h1>
             See what
             <br />
             it’s worth.
           </h1>
           <p className="cinema-intro-line">
-            Your camera. A world of better finds.
+            Find better prices. Spot resale potential.
           </p>
           <button className="cinema-explore" onClick={() => go(1, true)}>
             Take a closer look <ArrowDown size={17} aria-hidden="true" />
@@ -214,7 +209,6 @@ export function ThriftStory() {
           <p>Tap any find to explore it.</p>
         </div>
         <div className="cinema-compare-copy" aria-hidden={chapter !== 2}>
-          <p className="cinema-overline">FROM IN FRONT OF YOU, TO EVERYWHERE</p>
           <h2>
             Find it.
             <br />
@@ -245,9 +239,6 @@ export function ThriftStory() {
               </button>
             ))}
           </div>
-        </div>
-        <div className="cinema-scene-caption">
-          AI-generated scene · Illustrative demo
         </div>
         <nav className="cinema-chapters" aria-label="Demo chapters">
           {["Explore", "Identify", "Compare"].map((name, index) => (

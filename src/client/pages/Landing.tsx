@@ -57,13 +57,12 @@ export function Landing() {
           aria-labelledby="beyond-title"
         >
           <div className="cinema-section-heading">
-            <p className="cinema-overline">THE WORLD IS FULL OF FINDS</p>
             <h2 id="beyond-title">
-              Go where your
+              Your finds.
               <br />
-              <span>curiosity takes you.</span>
+              <span>All in one place.</span>
             </h2>
-            <p>From a shop around the corner to something you already own.</p>
+            <p>Photos, prices and links. Ready when you are.</p>
           </div>
           <div className="cinema-editorial">
             <img
@@ -76,32 +75,28 @@ export function Landing() {
             />
             <div className="cinema-editorial-gradient" />
             <div className="cinema-editorial-caption">
-              <span className="cinema-overline">
-                ONE MORE REASON TO LOOK AROUND
-              </span>
               <p>
-                There’s more
+                Found today.
                 <br />
-                than meets the eye.
+                Saved for later.
               </p>
             </div>
-            <div className="cinema-saved-card">
+            <div
+              className="cinema-saved-card"
+              role="group"
+              aria-label="Example saved finds"
+            >
               <span>
-                <Bookmark size={16} aria-hidden="true" /> A few good finds
+                <Bookmark size={16} aria-hidden="true" /> Your finds
               </span>
               {[wideFinds[0], wideFinds[5], wideFinds[1]].map((find) => (
                 <div className="cinema-saved-row" key={find.id}>
                   <FindPhoto find={find} />
                   <div>
                     <b>{find.name}</b>
-                    <small>Photo, details, possibilities.</small>
                   </div>
-                  <span aria-hidden="true">↗</span>
                 </div>
               ))}
-              <small className="cinema-saved-note">
-                Illustrative collection
-              </small>
             </div>
           </div>
           <div className="cinema-benefits">
@@ -113,7 +108,7 @@ export function Landing() {
             <article>
               <Search aria-hidden="true" size={22} />
               <h3>Compare your options.</h3>
-              <p>Explore online offers and similar secondhand listings.</p>
+              <p>Compare prices to buy or resell.</p>
             </article>
             <article>
               <Bookmark aria-hidden="true" size={22} />
@@ -141,7 +136,6 @@ export function Landing() {
           </div>
         </section>
         <section className="cinema-finale" aria-labelledby="finale-title">
-          <p className="cinema-overline">TAKE A SECOND LOOK</p>
           <h2 id="finale-title">
             Your next find
             <br />
@@ -155,15 +149,10 @@ export function Landing() {
       </main>
       <footer className="cinema-footer">
         <Brand />
-        <p>Made for the curious.</p>
         <nav aria-label="Footer navigation">
           <a href="#questions">How it works</a>
           <a href="/signin">Sign in</a>
         </nav>
-        <small>
-          AI-generated scenes and illustrative prices. Store links open
-          searches, not verified offers.
-        </small>
       </footer>
     </div>
   );
