@@ -285,7 +285,7 @@ export function ThriftStory() {
         </nav>
         <a
           className="cinema-story-next"
-          href="#beyond"
+          href="#everywhere"
           aria-label="Continue to more about Ceval"
         >
           <ArrowDown size={18} aria-hidden="true" />

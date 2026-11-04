@@ -8,6 +8,7 @@ import {
 import { Brand } from "../components/Brand";
 import { useThemeColor } from "../lib/theme-color";
 import { FindPhoto, ThriftStory } from "../landing/ThriftStory";
+import { Everywhere } from "../landing/Everywhere";
 import { wideFinds } from "../landing/thrift-demo";
 import "../styles/landing.css";
 import "../styles/cinematic.css";
@@ -51,6 +52,7 @@ export function Landing() {
       </header>
       <main id="cinema-main">
         <ThriftStory />
+        <Everywhere />
         <section
           className="cinema-beyond"
           id="beyond"
