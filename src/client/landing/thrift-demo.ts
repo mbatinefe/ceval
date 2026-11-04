@@ -17,14 +17,6 @@ export type ThriftFind = {
   offers: CampaignOffer[];
   box: SceneBox;
 };
-export const sceneMedia = {
-  wide: { src: "/campaign/thrift/branded-wide.webp", width: 1672, height: 941 },
-  portrait: {
-    src: "/campaign/thrift/branded-portrait.webp",
-    width: 941,
-    height: 1672,
-  },
-};
 const checkedAt = "2026-11-04T13:00:00.000Z";
 const offer = (
   source: Omit<CampaignOffer, "currency" | "checkedAt">,
