@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ScanWork } from "../../src/client/scanner/work.ts";
+import {
+  ScanWork,
+  MAX_PENDING_SCAN_WORK,
+} from "../../src/client/scanner/work.ts";
 const deferred = () => {
   let resolve!: () => void;
   const promise = new Promise<void>((r) => {
@@ -9,6 +12,61 @@ const deferred = () => {
   return { promise, resolve };
 };
 const tick = () => new Promise((r) => setImmediate(r));
+test("evicted findings cannot fill the backlog while two searches are slow", async () => {
+  const work = new ScanWork(),
+    gate = deferred();
+  let oldest = 0;
+  const started: number[] = [];
+  work.start();
+  for (let i = 0; i < 600; i++) {
+    oldest = Math.max(0, i - 99);
+    assert.equal(
+      work.compare(
+        String(i),
+        async () => {
+          started.push(i);
+          await gate.promise;
+        },
+        "photo",
+        () => i >= oldest,
+      ),
+      true,
+    );
+    assert.ok(work.state.pending <= 102);
+  }
+  gate.resolve();
+  await tick();
+  assert.deepEqual(started, [
+    0,
+    1,
+    ...Array.from({ length: 100 }, (_, i) => 500 + i),
+  ]);
+  assert.equal(work.state.pending, 0);
+});
+test("discarding the final obsolete queued search reports completion to the UI", async () => {
+  const work = new ScanWork(),
+    gate = deferred();
+  let current = true,
+    pending = -1;
+  work.onChange = () => {
+    pending = work.state.pending;
+  };
+  work.start();
+  for (let i = 0; i < 3; i++)
+    work.select(
+      String(i),
+      async () => {
+        await gate.promise;
+      },
+      () => current,
+    );
+  work.finishInput();
+  current = false;
+  gate.resolve();
+  await tick();
+  assert.equal(work.state.pending, 0);
+  assert.equal(pending, 0);
+});
 test("two slow price searches do not block recognition of the next frame", async () => {
   const work = new ScanWork(),
     price = deferred();
@@ -243,7 +301,7 @@ test("both lanes share the total queue bound while deduplicating their own work"
     release = deferred();
   const started: string[] = [];
   work.start();
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < MAX_PENDING_SCAN_WORK; i++) {
     const task = async () => {
       started.push(String(i));
       await release.promise;
@@ -253,7 +311,7 @@ test("both lanes share the total queue bound while deduplicating their own work"
       true,
     );
   }
-  assert.equal(work.state.pending, 12);
+  assert.equal(work.state.pending, MAX_PENDING_SCAN_WORK);
   assert.deepEqual(started, ["0", "1", "3"]);
   assert.equal(
     work.select("extra", async () => {}),
@@ -275,10 +333,50 @@ test("both lanes share the total queue bound while deduplicating their own work"
     }),
     true,
   );
-  assert.equal(work.state.pending, 12);
+  assert.equal(work.state.pending, MAX_PENDING_SCAN_WORK);
   release.resolve();
   await tick();
-  assert.equal(started.length, 12);
+  assert.equal(started.length, MAX_PENDING_SCAN_WORK);
+  assert.equal(work.state.pending, 0);
+});
+
+test("all searches in an eighteen-product batch are accepted and exact prices take priority", async () => {
+  const work = new ScanWork(),
+    gate = deferred();
+  const started: string[] = [];
+  work.start();
+  for (let i = 0; i < 18; i++) {
+    assert.equal(
+      work.compare(
+        `photo-${i}`,
+        async () => {
+          started.push(`photo-${i}`);
+          await gate.promise;
+        },
+        "photo",
+      ),
+      true,
+    );
+  }
+  for (let i = 0; i < 18; i++) {
+    assert.equal(
+      work.compare(`price-${i}`, async () => {
+        started.push(`price-${i}`);
+        await gate.promise;
+      }),
+      true,
+    );
+  }
+  assert.equal(work.state.pending, 36);
+  assert.deepEqual(started, ["photo-0", "photo-1"]);
+  work.finishInput();
+  gate.resolve();
+  await tick();
+  assert.deepEqual(
+    started.slice(2, 20),
+    Array.from({ length: 18 }, (_, i) => `price-${i}`),
+  );
+  assert.equal(started.length, 36);
   assert.equal(work.state.pending, 0);
 });
 

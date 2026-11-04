@@ -88,10 +88,11 @@ export function validateFrame(value: unknown): string {
 export function parseProducts(
   value: unknown,
   referenceIds: string[] = [],
+  maximum = 3,
 ): Omit<Product, "id">[] {
   const claimedReferences = new Set<number>();
   const input = record(value).products;
-  if (!Array.isArray(input) || input.length > 3)
+  if (!Array.isArray(input) || input.length > maximum)
     throw new ScanError(
       "invalid_data",
       "The analysis returned an unreadable result.",

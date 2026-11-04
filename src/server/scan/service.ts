@@ -10,6 +10,7 @@ import type {
 import { modelCandidateKey } from "../../shared/scan.ts";
 import {
   recognizeFrame,
+  recognizeFrames,
   searchOffers,
   type RecognitionReference,
 } from "../providers/meta.ts";
@@ -140,7 +141,7 @@ async function job<T>(
 export async function recognize(
   env: Env,
   userId: string,
-  frame: string,
+  frame: string | string[],
   market: Market,
   signal?: AbortSignal,
   previousProductIds: string[] = [],
@@ -171,15 +172,10 @@ export async function recognize(
     ]),
   );
   return job(env, userId, "recognize", frameKey, 180000, async (onUsage) => {
-    const result = await recognizeFrame(
-      env,
-      frame,
-      market,
-      signal,
-      onUsage,
-      references,
-    );
-    const products: Product[] = [];
+    const result = Array.isArray(frame)
+      ? await recognizeFrames(env, frame, market, signal, onUsage, references)
+      : await recognizeFrame(env, frame, market, signal, onUsage, references);
+    const products: (Product & { frameIndex?: number })[] = [];
     for (const [index, p] of result.entries()) {
       const uncertain =
         !p.model || p.confidence < 0.85 || Boolean(p.candidates?.length);
@@ -198,7 +194,10 @@ export async function recognize(
           ...(uncertain ? [frameKey, index] : []),
         ]),
       );
-      const product = { ...p, id: crypto.randomUUID() };
+      const { frameIndex, ...observation } = p as Omit<Product, "id"> & {
+        frameIndex?: number;
+      };
+      const product = { ...observation, id: crypto.randomUUID() };
       const stored = await env.DB.prepare(
         "INSERT INTO scan_products (id,user_id,fingerprint,data,market,updated_at) VALUES (?,?,?,?,?,?) ON CONFLICT(user_id,fingerprint) DO UPDATE SET data=json_set(excluded.data, '$.id', scan_products.id),market=excluded.market,updated_at=excluded.updated_at RETURNING data",
       )
@@ -217,7 +216,10 @@ export async function recognize(
           "Couldn’t retain this product. Please try again.",
           503,
         );
-      products.push(JSON.parse(stored.data) as Product);
+      products.push({
+        ...(JSON.parse(stored.data) as Product),
+        ...(Array.isArray(frame) ? { frameIndex } : {}),
+      });
     }
     return { products, analyzedAt: Date.now() };
   });

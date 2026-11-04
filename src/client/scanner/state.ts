@@ -3,13 +3,29 @@ import type { FoundProduct } from "./continuity.ts";
 import { findSummary } from "./presentation.ts";
 export class ScanFindCount {
   private seen = new Set<string>();
-  update(rows: readonly { historyId?: string; rowId?: string }[]): number {
-    if (!rows.length) this.seen.clear();
-    for (const row of rows) {
-      const id = row.historyId || row.rowId;
-      if (id) this.seen.add(id);
+  private total = 0;
+  update(
+    rows: readonly {
+      historyId?: string;
+      rowId?: string;
+      product?: { id: string };
+    }[],
+  ): number {
+    if (!rows.length) {
+      this.seen.clear();
+      this.total = 0;
     }
-    return this.seen.size;
+    for (const row of rows) {
+      const aliases = [
+        row.historyId && `history:${row.historyId}`,
+        row.rowId && `row:${row.rowId}`,
+        row.product?.id && `product:${row.product.id}`,
+      ].filter((id): id is string => Boolean(id));
+      if (aliases.length && !aliases.some((id) => this.seen.has(id)))
+        this.total++;
+      for (const id of aliases) this.seen.add(id);
+    }
+    return this.total;
   }
 }
 export function findActionRow(
@@ -131,7 +147,7 @@ export function recognitionRetryAt(
   if (isAllowanceError(details.code)) return null;
   return error instanceof TypeError ||
     (details.status !== undefined && details.status >= 500)
-    ? now + 12000
+    ? now + (details.code && details.code !== "request_failed" ? 61000 : 12000)
     : null;
 }
 export function comparisonKey(

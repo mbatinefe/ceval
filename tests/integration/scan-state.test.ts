@@ -191,7 +191,7 @@ test("budget exhaustion codes block further automatic paid requests but provider
 test("recognition gets one delayed retry for transient failures, never a loop or budget retry", () => {
   assert.equal(
     recognitionRetryAt({ code: "provider_rate_limited", status: 503 }, 0, 1000),
-    13000,
+    62000,
   );
   assert.equal(
     recognitionRetryAt(new TypeError("Network failed"), 0, 1000),

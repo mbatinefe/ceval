@@ -15,11 +15,13 @@ export async function readJsonBody(
 ): Promise<Record<string, unknown>> {
   const path = new URL(request.url).pathname;
   const maximum =
-    path === "/api/scan/recognize" || path === "/api/scan/visual-matches"
-      ? 280000
-      : path === "/api/scan/history"
-        ? 45000
-        : 4096;
+    path === "/api/scan/recognize"
+      ? 820000
+      : path === "/api/scan/visual-matches"
+        ? 280000
+        : path === "/api/scan/history"
+          ? 45000
+          : 4096;
   const reader = request.body?.getReader();
   const chunks: Uint8Array[] = [];
   let size = 0;

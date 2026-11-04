@@ -245,7 +245,7 @@ test("real processor rejects malformed and oversized bodies without paid calls",
   for (const [body, status] of [
     ["{broken", 400],
     ["[]", 400],
-    [JSON.stringify({ padding: "x".repeat(280001) }), 413],
+    [JSON.stringify({ padding: "x".repeat(820001) }), 413],
   ] as const) {
     const result = await request("/api/scan/recognize", body);
     assert.equal(result.status, status, await result.clone().text());

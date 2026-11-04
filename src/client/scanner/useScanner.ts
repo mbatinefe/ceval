@@ -37,6 +37,8 @@ import {
 } from "./state";
 import { reconcileCurrentSightings, type FoundProduct } from "./continuity";
 import { ScanWork } from "./work";
+import { CaptureBuffer } from "./capture-buffer";
+import { retryCapturedRequest } from "./recognition-request";
 import {
   MediaStartup,
   cameraFailure,
@@ -59,6 +61,8 @@ export function useScanner(mode: Mode, market: Market) {
   const generation = useRef(0);
   const comparisonContext = useRef({ mode, market });
   const [work] = useState(() => new ScanWork());
+  const [captureBuffer] = useState(() => new CaptureBuffer());
+  const analyzeRef = useRef<() => Promise<void>>(async () => {});
   const [findCount] = useState(() => new ScanFindCount());
   const [totalFound, setTotalFound] = useState(0);
   const [sceneMemory] = useState(() => new SceneMemory());
@@ -168,14 +172,18 @@ export function useScanner(mode: Mode, market: Market) {
   useEffect(() => {
     work.onChange = () => {
       const state = work.state;
-      setBusy(state.recognizing || state.pending > 0);
-      setFinishing(state.draining);
+      const draining =
+        state.draining || Boolean(finished.current && captureBuffer.length);
+      setBusy(
+        state.recognizing || state.pending > 0 || captureBuffer.length > 0,
+      );
+      setFinishing(draining);
       if (finished.current)
         setMessage(
           completionMessage(
             resultsRef.current,
             finished.current,
-            state.draining,
+            draining,
             comparisonContext.current,
           ),
         );
@@ -186,7 +194,7 @@ export function useScanner(mode: Mode, market: Market) {
       work.onChange = undefined;
       work.onError = undefined;
     };
-  }, [work]);
+  }, [work, captureBuffer]);
   const updateResults = useCallback(
     (rows: FoundProduct[]) => {
       resultsRef.current = rows;
@@ -209,12 +217,12 @@ export function useScanner(mode: Mode, market: Market) {
           completionMessage(
             rows,
             finished.current,
-            work.state.draining,
+            work.state.draining || Boolean(captureBuffer.length),
             comparisonContext.current,
           ),
         );
     },
-    [work, historyWriter, findCount],
+    [work, historyWriter, findCount, captureBuffer],
   );
   const stopAnalysis = useCallback(() => {
     cameraRevision.current++;
@@ -222,6 +230,7 @@ export function useScanner(mode: Mode, market: Market) {
     setCameraPending(false);
     generation.current++;
     finished.current = null;
+    captureBuffer.clear();
     work.cancel();
     detectionTrail.clear();
     pendingSelections.current.clear();
@@ -233,7 +242,7 @@ export function useScanner(mode: Mode, market: Market) {
     previous.current = null;
     lastAnalyzed.current = null;
     updateResults(interruptFinds(resultsRef.current));
-  }, [startup, updateResults, work, detectionTrail]);
+  }, [startup, updateResults, work, detectionTrail, captureBuffer]);
   const finishAnalysis = useCallback(
     (reason: "video" | "error" | "stopped") => {
       startup.cancel();
@@ -241,9 +250,22 @@ export function useScanner(mode: Mode, market: Market) {
       runningRef.current = false;
       setRunning(false);
       if (reason !== "video") video.current?.pause();
-      work.finishInput();
+      if (reason === "error") captureBuffer.clear();
+      if (!captureBuffer.length) work.finishInput();
+      else {
+        setFinishing(true);
+        setBusy(true);
+        setMessage("Finishing captured views and price searches…");
+        void analyzeRef.current().catch(() => {
+          captureBuffer.clear();
+          work.finishInput();
+          setError(
+            "Some captured views could not finish. Your completed finds are kept.",
+          );
+        });
+      }
     },
-    [startup, work],
+    [startup, work, captureBuffer],
   );
   const closeSource = useCallback(() => {
     stopAnalysis();
@@ -287,6 +309,7 @@ export function useScanner(mode: Mode, market: Market) {
       active = false;
       startup.cancel();
       generation.current++;
+      captureBuffer.clear();
       work.cancel();
       detectionTrail.clear();
       stream.current?.getTracks().forEach((t) => t.stop());
@@ -466,13 +489,14 @@ export function useScanner(mode: Mode, market: Market) {
   }
   const invalidatePosition = useCallback(() => {
     positionRevision.current++;
+    captureBuffer.clear();
     detectionTrail.clear();
     tracked.current = [];
     setPins([]);
     previous.current = null;
     lastAnalyzed.current = null;
     lastAnalysis.current = 0;
-  }, [detectionTrail]);
+  }, [detectionTrail, captureBuffer]);
 
   function comparisonFailure(err: unknown) {
     const failure = {
@@ -543,52 +567,67 @@ export function useScanner(mode: Mode, market: Market) {
       error: undefined,
       errorCode: undefined,
     });
-    const queued = work.compare(key, async (signal) => {
-      if (
-        !resultsRef.current.some(
-          (item) => comparisonKey(item.product, mode, market) === key,
-        )
-      )
-        return;
-      if (comparisonBlock.current) {
-        updateMatching({
-          ...comparisonBlock.current,
-          searching: false,
-          retryable: true,
-        });
-        return;
-      }
-      try {
-        const comparison = await scanRequest<Comparison>(
-          "/api/scan/compare",
-          { productId: product.id, mode, market },
-          signal,
-        );
-        if (epoch !== generation.current) return;
+    const queued = work.compare(
+      key,
+      async (signal) => {
         if (
-          !cacheMatchingComparison(
-            cache.current,
-            product,
-            mode,
-            market,
-            comparison,
+          epoch !== generation.current ||
+          signal.aborted ||
+          comparisonContext.current.mode !== mode ||
+          comparisonContext.current.market !== market ||
+          !resultsRef.current.some(
+            (item) => comparisonKey(item.product, mode, market) === key,
           )
         )
-          throw new Error(
-            "The shelf label changed during search. Scan this item again.",
+          return;
+        if (comparisonBlock.current) {
+          updateMatching({
+            ...comparisonBlock.current,
+            searching: false,
+            retryable: true,
+          });
+          return;
+        }
+        try {
+          const comparison = await scanRequest<Comparison>(
+            "/api/scan/compare",
+            { productId: product.id, mode, market },
+            signal,
           );
-        updateMatching({
-          comparison,
-          searching: false,
-          error: undefined,
-          errorCode: undefined,
-          retryable: false,
-        });
-      } catch (err) {
-        if (epoch !== generation.current) return;
-        updateMatching(comparisonFailure(err));
-      }
-    });
+          if (epoch !== generation.current) return;
+          if (
+            !cacheMatchingComparison(
+              cache.current,
+              product,
+              mode,
+              market,
+              comparison,
+            )
+          )
+            throw new Error(
+              "The shelf label changed during search. Scan this item again.",
+            );
+          updateMatching({
+            comparison,
+            searching: false,
+            error: undefined,
+            errorCode: undefined,
+            retryable: false,
+          });
+        } catch (err) {
+          if (epoch !== generation.current) return;
+          updateMatching(comparisonFailure(err));
+        }
+      },
+      "price",
+      () =>
+        epoch === generation.current &&
+        comparisonContext.current.mode === mode &&
+        comparisonContext.current.market === market &&
+        resultsRef.current.some(
+          (item) => comparisonKey(item.product, mode, market) === key,
+        ),
+    );
     if (!queued)
       updateMatching({
         searching: false,
@@ -633,6 +672,20 @@ export function useScanner(mode: Mode, market: Market) {
     const queued = work.compare(
       `visual:${productId}:${market}:${mode}`,
       async (signal) => {
+        if (
+          epoch !== generation.current ||
+          signal.aborted ||
+          !findActionRow(resultsRef.current, productId, row.rowId)
+        )
+          return;
+        if (
+          comparisonContext.current.mode !== mode ||
+          comparisonContext.current.market !== market
+        ) {
+          update({ visualSearching: false, visualError: undefined });
+          searchImage(productId, row.rowId, false);
+          return;
+        }
         try {
           if (!row.historyId || !sourceRef.current)
             throw new Error("Save this find before searching its photo.");
@@ -679,6 +732,10 @@ export function useScanner(mode: Mode, market: Market) {
           searchImage(productId, row.rowId, false);
         }
       },
+      "photo",
+      () =>
+        epoch === generation.current &&
+        Boolean(findActionRow(resultsRef.current, productId, row.rowId)),
     );
     if (!queued)
       update({
@@ -703,145 +760,179 @@ export function useScanner(mode: Mode, market: Market) {
   }
   async function analyze() {
     const element = video.current;
-    if (
-      !element ||
-      work.state.recognizing ||
-      !runningRef.current ||
-      element.readyState < 2 ||
-      element.seeking ||
-      element.paused
-    )
-      return;
+    if (!element) return;
     const now = Date.now();
-    if (now < recognitionRecovery.current.retryAt) return;
-    if (now - lastAnalysis.current < 6000) return;
-    const thumbnail = grayFrame(element);
-    const remembered = sceneMemory.match(
-      thumbnail,
-      new Set(resultsRef.current.map((row) => row.rowId || row.product.id)),
-    );
-    if (remembered) {
-      lastAnalysis.current = now;
-      setMessage("Already found these items. Point at something new.");
-      for (const id of remembered) {
-        const row = resultsRef.current.find(
-          (item) => (item.rowId || item.product.id) === id,
-        );
-        if (row) queueComparison(row);
-      }
-      return;
-    }
+    // Capture continues while the provider works, with bounded JPEG memory.
     if (
-      lastAnalyzed.current &&
-      frameDifference(lastAnalyzed.current, thumbnail) < 7 &&
-      now - lastAnalysis.current < 30000
-    )
-      return;
-    const frame = captureFrame(element);
-    const time = sourceRef.current === "camera" ? 0 : element.currentTime;
-    lastAnalysis.current = now;
-    lastAnalyzed.current = thumbnail;
-
-    setMessage("Identifying visible products…");
+      runningRef.current &&
+      element.readyState >= 2 &&
+      !element.seeking &&
+      !element.paused &&
+      now - lastAnalysis.current >= 2500
+    ) {
+      const thumbnail = grayFrame(element);
+      const remembered = sceneMemory.match(
+        thumbnail,
+        new Set(resultsRef.current.map((row) => row.rowId || row.product.id)),
+      );
+      if (remembered) {
+        lastAnalysis.current = now;
+        if (!work.state.recognizing)
+          setMessage("Already found these items. Point at something new.");
+        for (const id of remembered) {
+          const row = resultsRef.current.find(
+            (item) => (item.rowId || item.product.id) === id,
+          );
+          if (row) queueComparison(row);
+        }
+      } else if (
+        !lastAnalyzed.current ||
+        frameDifference(lastAnalyzed.current, thumbnail) >= 7 ||
+        now - lastAnalysis.current >= 30000
+      ) {
+        captureBuffer.push({
+          image: captureFrame(element),
+          gray: thumbnail,
+          time: sourceRef.current === "camera" ? 0 : element.currentTime,
+          capturedAt: now,
+          position: positionRevision.current,
+        });
+        lastAnalysis.current = now;
+        lastAnalyzed.current = thumbnail;
+      }
+    }
+    if (work.state.recognizing || !captureBuffer.length) return;
+    const frames = captureBuffer.take();
+    const latest = frames[frames.length - 1];
+    setMessage(
+      finished.current
+        ? "Finishing captured views and price searches…"
+        : "Identifying visible products…",
+    );
     const epoch = generation.current;
-    const position = positionRevision.current;
-    detectionTrail.begin(thumbnail);
+    detectionTrail.begin(latest.gray);
+    if (latest.position === positionRevision.current && element.readyState >= 2)
+      detectionTrail.append(grayFrame(element));
     await work.recognize(async (signal) => {
+      if (finished.current && !captureBuffer.length) work.finishInput();
       try {
-        const result = await scanRequest<{ products: Product[] }>(
-          "/api/scan/recognize",
-          {
-            frame,
-            market,
-            requestId: crypto.randomUUID(),
-            previousProductIds: [
-              ...new Set(
-                resultsRef.current
-                  .filter(
-                    (row) =>
-                      row.thumbnail &&
-                      row.sighting &&
-                      now >= row.sighting.at &&
-                      now - row.sighting.at <= 30000,
-                  )
-                  .sort((a, b) => b.sighting!.at - a.sighting!.at)
-                  .slice(0, 3)
-                  .map((row) => row.product.id),
-              ),
-            ],
-          },
+        const body = {
+          frames: frames.map((frame) => frame.image),
+          market,
+          previousProductIds: [
+            ...new Set(
+              resultsRef.current
+                .filter(
+                  (row) =>
+                    row.thumbnail &&
+                    row.sighting &&
+                    now >= row.sighting.at &&
+                    now - row.sighting.at <= 30000,
+                )
+                .sort((a, b) => b.sighting!.at - a.sighting!.at)
+                .slice(0, 3)
+                .map((row) => row.product.id),
+            ),
+          ],
+        };
+        const result = await retryCapturedRequest(
+          (requestId) =>
+            scanRequest<{ products: (Product & { frameIndex: number })[] }>(
+              "/api/scan/recognize",
+              { ...body, requestId },
+              signal,
+            ),
           signal,
+          (error) => {
+            const at = recognitionRetryAt(
+              error,
+              recognitionRecovery.current.attempts,
+              Date.now(),
+            );
+            if (at === null || epoch !== generation.current) return null;
+            recognitionRecovery.current = {
+              attempts: recognitionRecovery.current.attempts + 1,
+              retryAt: at,
+            };
+            setMessage(
+              "Analysis interrupted. Retrying the captured views once…",
+            );
+            return { at };
+          },
         );
         if (epoch !== generation.current) return;
         setError("");
         recognitionRecovery.current.retryAt = 0;
-        const photos = await productPhotos(frame, result.products);
-        if (epoch !== generation.current || signal.aborted) return;
-        const reconciled = await reconcileCurrentSightings(
-          () => resultsRef.current,
-          result.products,
-          {
-            time,
-            now,
-            frame: thumbnail,
-            mode: comparisonContext.current.mode,
-            market,
-            cache: cache.current,
-            photos,
-          },
-          signal,
-          () => epoch === generation.current,
-          (value) => updateResults(value.rows),
-        );
-        if (!reconciled || epoch !== generation.current || signal.aborted)
-          return;
-        sceneMemory.remember(
-          thumbnail,
-          reconciled.sightings.map((row) => row.rowId || row.product.id),
-        );
-        if (position === positionRevision.current)
-          detectionTrail.append(grayFrame(element));
-        const projected =
-          position === positionRevision.current
-            ? await detectionTrail.projectMany(
-                reconciled.sightings.map(({ product }) => product.box),
-                signal,
-              )
-            : null;
-        if (epoch !== generation.current || signal.aborted) return;
-        tracked.current = reconciled.sightings.flatMap((row, index) => {
-          const box =
-            position === positionRevision.current
-              ? projected?.boxes[index]
+        for (let frameIndex = 0; frameIndex < frames.length; frameIndex++) {
+          const captured = frames[frameIndex];
+          const products = result.products
+            .filter((product) => product.frameIndex === frameIndex)
+            .map(({ frameIndex: _frameIndex, ...product }) => product);
+          const photos = await productPhotos(captured.image, products);
+          if (epoch !== generation.current || signal.aborted) return;
+          const reconciled = await reconcileCurrentSightings(
+            () => resultsRef.current,
+            products,
+            {
+              time: captured.time,
+              now: captured.capturedAt,
+              frame: captured.gray,
+              mode: comparisonContext.current.mode,
+              market,
+              cache: cache.current,
+              photos,
+            },
+            signal,
+            () => epoch === generation.current,
+            (value) => updateResults(value.rows),
+          );
+          if (!reconciled || epoch !== generation.current || signal.aborted)
+            return;
+          sceneMemory.remember(
+            captured.gray,
+            reconciled.sightings.map((row) => row.rowId || row.product.id),
+          );
+          if (frameIndex === frames.length - 1) {
+            const samePosition = captured.position === positionRevision.current;
+            if (samePosition && element.readyState >= 2)
+              detectionTrail.append(grayFrame(element));
+            const projected = samePosition
+              ? await detectionTrail.projectMany(
+                  reconciled.sightings.map(({ product }) => product.box),
+                  signal,
+                )
               : null;
-          const currentRow = resultsRef.current.find(
-            (item) => item.rowId === row.rowId,
-          );
-          return box && currentRow
-            ? [
-                {
-                  ...currentRow.product,
-                  rowId: currentRow.rowId || currentRow.product.id,
-                  box,
-                },
-              ]
-            : [];
-        });
-        previous.current = projected?.frame || null;
-        setPins(tracked.current);
-        setMessage(
-          result.products.length
-            ? "Products identified. Checking matching prices…"
-            : "No clear product label found. Move closer or try another moment.",
-        );
-        for (const row of reconciled.sightings) {
-          if (epoch !== generation.current) break;
-          const currentRow = resultsRef.current.find(
-            (item) => item.rowId === row.rowId,
-          );
-          if (currentRow) {
-            queueComparison(currentRow);
-            searchImage(currentRow.product.id, currentRow.rowId, false);
+            if (epoch !== generation.current || signal.aborted) return;
+            tracked.current = reconciled.sightings.flatMap((row, index) => {
+              const box =
+                captured.position === positionRevision.current
+                  ? projected?.boxes[index]
+                  : null;
+              const currentRow = resultsRef.current.find(
+                (item) => item.rowId === row.rowId,
+              );
+              return box && currentRow
+                ? [
+                    {
+                      ...currentRow.product,
+                      rowId: currentRow.rowId || currentRow.product.id,
+                      box,
+                    },
+                  ]
+                : [];
+            });
+            previous.current = projected?.frame || null;
+            setPins(tracked.current);
+          }
+          for (const row of reconciled.sightings) {
+            if (epoch !== generation.current) break;
+            const currentRow = resultsRef.current.find(
+              (item) => item.rowId === row.rowId,
+            );
+            if (currentRow) {
+              queueComparison(currentRow);
+              searchImage(currentRow.product.id, currentRow.rowId, false);
+            }
           }
         }
         if (epoch === generation.current && !finished.current)
@@ -850,20 +941,6 @@ export function useScanner(mode: Mode, market: Market) {
           );
       } catch (err) {
         if (epoch === generation.current) {
-          const retryAt = recognitionRetryAt(
-            err,
-            recognitionRecovery.current.attempts,
-            Date.now(),
-          );
-          if (retryAt !== null && !finished.current) {
-            lastAnalyzed.current = null;
-            recognitionRecovery.current = {
-              attempts: recognitionRecovery.current.attempts + 1,
-              retryAt,
-            };
-            setMessage("Analysis interrupted. Retrying once in a moment…");
-            return;
-          }
           setError(
             err instanceof Error ? err.message : "Analysis could not finish.",
           );
@@ -873,8 +950,18 @@ export function useScanner(mode: Mode, market: Market) {
         if (epoch === generation.current) detectionTrail.clear();
       }
     });
+    // Continue after ScanWork releases its recognition slot, even with paused media.
+    if (epoch === generation.current && captureBuffer.length)
+      void analyzeRef.current().catch((error) => {
+        if (epoch !== generation.current) return;
+        setError(
+          error instanceof Error
+            ? error.message
+            : "Couldn’t read the captured views.",
+        );
+        finishAnalysis("error");
+      });
   }
-  const analyzeRef = useRef(analyze);
   analyzeRef.current = analyze;
   useEffect(() => {
     let animation = 0;

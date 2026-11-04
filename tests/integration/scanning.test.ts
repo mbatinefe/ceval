@@ -81,6 +81,100 @@ function request(
 }
 const recognize = (requestId = crypto.randomUUID()) =>
   request("/api/scan/recognize", { frame, market: "US", requestId });
+
+test("batched frames retain every detection's source and share an idempotent paid request", async () => {
+  const bytes = Buffer.from(frame.split(",")[1], "base64");
+  const second =
+    "data:image/jpeg;base64," +
+    Buffer.concat([
+      bytes.subarray(0, 2),
+      Buffer.from([255, 254, 0, 3, 65]),
+      bytes.subarray(2),
+    ]).toString("base64");
+  provider = async () =>
+    response({
+      frames: [
+        {
+          products: Array.from({ length: 6 }, (_, i) => ({
+            ...product,
+            model: `Model A${i}`,
+          })),
+        },
+        { products: [{ ...product, brand: "JBL", model: "Flip 6" }] },
+      ],
+    });
+  const body = {
+    frames: [frame, second],
+    market: "US",
+    requestId: crypto.randomUUID(),
+  };
+  const first = await request("/api/scan/recognize", body);
+  assert.equal(first.status, 200, await first.clone().text());
+  const data = await first.json();
+  assert.equal(data.products.length, 7);
+  const sent = calls[0].input as {
+    content: { type: string; image_url?: string }[];
+  }[];
+  assert.deepEqual(
+    sent[0].content
+      .filter((p) => p.type === "input_image")
+      .map((p) => p.image_url),
+    [frame, second],
+  );
+  assert.deepEqual(
+    data.products.map((p: { frameIndex: number }) => p.frameIndex),
+    [0, 0, 0, 0, 0, 0, 1],
+  );
+  const again = await request("/api/scan/recognize", body);
+  assert.deepEqual(await again.json(), data);
+  assert.equal(calls.length, 1);
+  const stored = await env.DB.prepare(
+    "SELECT data FROM scan_products WHERE user_id='shopper'",
+  ).all<{ data: string }>();
+  assert.equal(stored.results.length, 7);
+  assert.ok(stored.results.every((r) => !("frameIndex" in JSON.parse(r.data))));
+  const reversed = await request("/api/scan/recognize", {
+    ...body,
+    frames: [second, frame],
+  });
+  assert.equal(reversed.status, 409);
+  assert.equal(calls.length, 1);
+});
+
+test("invalid or ambiguous frame batches never reach Meta", async () => {
+  for (const body of [
+    { frames: [] },
+    { frames: [frame, frame, frame, frame] },
+    { frames: [frame, "not an image"] },
+    { frames: [frame], frame },
+  ]) {
+    const result = await request("/api/scan/recognize", {
+      ...body,
+      market: "US",
+      requestId: crypto.randomUUID(),
+    });
+    assert.equal(result.status, 400);
+  }
+  assert.equal(calls.length, 0);
+});
+
+test("a batch response missing a source frame cannot save mismatched product photos", async () => {
+  provider = async () => response({ frames: [{ products: [product] }] });
+  const result = await request("/api/scan/recognize", {
+    frames: [frame, frame],
+    market: "US",
+    requestId: crypto.randomUUID(),
+  });
+  assert.equal(result.status, 502);
+  assert.equal(
+    (
+      await env.DB.prepare("SELECT COUNT(*) AS n FROM scan_products").first<{
+        n: number;
+      }>()
+    )?.n,
+    0,
+  );
+});
 before(async () => {
   mf = new Miniflare(
     await convertV4MiniflareOptions({
@@ -621,6 +715,29 @@ test("provider throttling keeps its specific safe error during the retry cooldow
     assert.ok(!error.error.includes("test-provider-key"));
   }
   assert.equal(calls.length, 1);
+});
+test("the same captured batch retries only after its failed job cooldown expires", async () => {
+  const body = {
+    frames: [frame],
+    market: "US",
+    requestId: crypto.randomUUID(),
+  };
+  provider = async () => new Response("busy", { status: 429 });
+  assert.equal((await request("/api/scan/recognize", body)).status, 503);
+  provider = async () => response({ frames: [{ products: [product] }] });
+  assert.equal((await request("/api/scan/recognize", body)).status, 503);
+  assert.equal(
+    calls.length,
+    1,
+    "a cached failure cannot make another paid call",
+  );
+  await env.DB.prepare("UPDATE scan_jobs SET expires_at=? WHERE status='error'")
+    .bind(Date.now() - 1)
+    .run();
+  const completed = await request("/api/scan/recognize", body);
+  assert.equal(completed.status, 200);
+  assert.equal((await completed.json()).products[0].frameIndex, 0);
+  assert.equal(calls.length, 2);
 });
 test("a preflight budget denial does not cache a failed job or spend another reservation", async () => {
   env.SCAN_TOTAL_BUDGET_MICROS = "1";

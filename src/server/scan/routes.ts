@@ -43,8 +43,24 @@ scanRoutes.post("/scan/recognize", async (c) => {
   const body = c.get("body"),
     userId = c.get("userId");
   await consumeLimit(c.env.DB, `scan:request:${userId}`, 30, 60);
-  const market = marketOf(body.market),
+  const market = marketOf(body.market);
+  let frame: string | string[];
+  if (body.frames !== undefined) {
+    if (
+      body.frame !== undefined ||
+      !Array.isArray(body.frames) ||
+      body.frames.length < 1 ||
+      body.frames.length > 3
+    )
+      throw new ScanError(
+        "invalid_request",
+        "Use one to three captured frames.",
+        400,
+      );
+    frame = body.frames.map(validateFrame);
+  } else {
     frame = validateFrame(body.frame);
+  }
   if (
     typeof body.requestId !== "string" ||
     !/^[a-f0-9-]{36}$/.test(body.requestId)
