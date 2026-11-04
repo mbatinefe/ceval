@@ -158,3 +158,21 @@ test("an exact used listing outranks a different model's retail price", () => {
   assert.equal(summary.offer, exact);
   assert.equal(summary.label, "Asking price");
 });
+
+test("latest sightings move to the front even when an existing find is updated", async () => {
+  const { newestFinds } =
+    await import("../../src/client/scanner/presentation.ts");
+  const rows = [
+    { id: "new-row", time: 20, sighting: { at: 20000 } },
+    { id: "updated-earlier-row", time: 10, sighting: { at: 30000 } },
+    { id: "same-time", time: 20, sighting: { at: 20000 } },
+  ];
+  assert.deepEqual(
+    newestFinds(rows).map((row) => row.id),
+    ["updated-earlier-row", "new-row", "same-time"],
+  );
+  assert.deepEqual(
+    rows.map((row) => row.id),
+    ["new-row", "updated-earlier-row", "same-time"],
+  );
+});

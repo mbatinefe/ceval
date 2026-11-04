@@ -165,3 +165,13 @@ export function findSummary(
     expiresAt: result.expiresAt,
   };
 }
+
+export function newestFinds<
+  T extends { time: number; sighting?: { at: number } },
+>(rows: readonly T[]): T[] {
+  return [...rows].sort((a, b) => {
+    const left = a.sighting?.at ?? -Infinity;
+    const right = b.sighting?.at ?? -Infinity;
+    return left === right ? b.time - a.time : right - left;
+  });
+}

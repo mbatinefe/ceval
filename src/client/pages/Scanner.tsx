@@ -28,6 +28,7 @@ import { ComparisonDialog } from "../components/ComparisonDialog";
 import { ModelChoiceDialog } from "../components/ModelChoiceDialog";
 import { visualSearchForMarket } from "../../shared/visual-search";
 import { ScanResultCard, FindPriceBadge } from "../components/ScanResultCard";
+import { newestFinds } from "../scanner/presentation";
 import { isAllowanceError } from "../scanner/state";
 import { useScanner, type FoundProduct } from "../scanner/useScanner";
 import { clips } from "../../../public/demo/manifest.json";
@@ -60,16 +61,24 @@ export function Scanner() {
     }
   }, [scan.source]);
   const [focusedKey, setFocusedKey] = useState<string | null>(null);
+  const orderedFinds = newestFinds(scan.found);
+  const latest = orderedFinds[0];
+  const latestSighting = latest
+    ? `${rowKey(latest)}:${latest.sighting?.at ?? latest.time}`
+    : "";
+  const findingsRail = useRef<HTMLDivElement>(null);
+  const liveFindings = useRef<HTMLElement>(null);
+  useEffect(() => {
+    setFocusedKey(null);
+    if (findingsRail.current) findingsRail.current.scrollLeft = 0;
+    if (liveFindings.current) liveFindings.current.scrollTop = 0;
+  }, [latestSighting]);
   const [visualKey, setVisualKey] = useState<string | null>(null);
   const visual = scan.found.find((row) => rowKey(row) === visualKey);
   const [choiceKey, setChoiceKey] = useState<string | null>(null);
   const resumeAfterDetails = useRef(false);
   const focused =
-    scan.found.find((row) => rowKey(row) === focusedKey) ||
-    scan.found.find((row) =>
-      scan.pins.some((pin) => pin.rowId === rowKey(row)),
-    ) ||
-    scan.found[0];
+    scan.found.find((row) => rowKey(row) === focusedKey) || latest;
   const choice = scan.found.find((row) => rowKey(row) === choiceKey);
   const allowanceNotice = scan.found.find((row) =>
     isAllowanceError(row.errorCode),
@@ -159,6 +168,17 @@ export function Scanner() {
       </div>
     </section>
   );
+  function focusFind(row: FoundProduct) {
+    setFocusedKey(rowKey(row));
+    setCardOpen(true);
+    setTrayOpen(false);
+    closeDetails();
+    requestAnimationFrame(() => {
+      document
+        .getElementById(`result-${rowKey(row)}`)
+        ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    });
+  }
   const renderFind = (row: FoundProduct) => (
     <ScanResultCard
       key={rowKey(row)}
@@ -166,12 +186,7 @@ export function Scanner() {
       mode={mode}
       market={market}
       active={focused && rowKey(row) === rowKey(focused)}
-      onFocus={() => {
-        setFocusedKey(rowKey(row));
-        setCardOpen(true);
-        setTrayOpen(false);
-        closeDetails();
-      }}
+      onFocus={() => focusFind(row)}
       onVisual={() => showMatches(row)}
       onChoose={() => choose(row)}
       onReview={review}
@@ -230,6 +245,8 @@ export function Scanner() {
             prices automatically.
           </p>
         </div>
+      ) : scan.source ? (
+        orderedFinds.map(renderFind)
       ) : (
         <>
           {identifiable.map(renderFind)}
@@ -370,7 +387,7 @@ export function Scanner() {
               style={{
                 aspectRatio: scan.aspect,
                 width: scan.source
-                  ? `min(100vw, calc(100dvh * ${scan.aspect}))`
+                  ? `min(100%, calc(100dvh * ${scan.aspect}))`
                   : `min(100%, calc(var(--view-height) * ${scan.aspect}))`,
               }}
             >
@@ -417,13 +434,12 @@ export function Scanner() {
                       aria-label={`Inspect ${product.model || product.label}`}
                       onClick={() => {
                         if (row) {
-                          setFocusedKey(rowKey(row));
-                          setCardOpen(true);
+                          focusFind(row);
                         }
                       }}
                     >
                       <i>
-                        {scan.found.findIndex(
+                        {orderedFinds.findIndex(
                           (item) => rowKey(item) === product.rowId,
                         ) + 1 || index + 1}
                       </i>
@@ -585,16 +601,19 @@ export function Scanner() {
           )}
           {scan.source && scan.found.length > 0 && (
             <div className="floating-finds">
-              <div className="finds-rail" aria-label="Items found in this scan">
-                {scan.found.map((row, index) => {
+              <div
+                ref={findingsRail}
+                className="finds-rail"
+                aria-label="Items found in this scan"
+              >
+                {orderedFinds.map((row, index) => {
                   return (
                     <button
                       key={rowKey(row)}
                       aria-label={`Show ${row.product.model || row.product.label}`}
                       aria-pressed={focused && rowKey(row) === rowKey(focused)}
                       onClick={() => {
-                        setFocusedKey(rowKey(row));
-                        setCardOpen(true);
+                        focusFind(row);
                       }}
                     >
                       {row.thumbnail ? (
@@ -698,6 +717,15 @@ export function Scanner() {
           </details>
         </section>
         {!scan.source && resultsPanel}
+        {scan.source && !trayOpen && (
+          <section
+            ref={liveFindings}
+            className="live-findings"
+            aria-label="Live findings"
+          >
+            {resultsPanel}
+          </section>
+        )}
       </div>
       {recentFinds}
       <details className="sample-library">
@@ -762,7 +790,7 @@ export function Scanner() {
             <X aria-hidden="true" />
           </button>
         </div>
-        {scan.source && resultsPanel}
+        {scan.source && trayOpen && resultsPanel}
       </dialog>
       {visual && (
         <VisualMatchesDialog
