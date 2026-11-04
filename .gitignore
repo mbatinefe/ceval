@@ -7,9 +7,10 @@
 !/.dev.vars.example
 !.gitkeep
 
-# Keep all Markdown local during development. Allowlist release docs explicitly later.
+# Markdown stays local; only the public README is released.
 *.[mM][dD]
 *.markdown
+!/README.md
 
 # Private planning and operating notes.
 IDEAS.md
