@@ -36,7 +36,7 @@ export function MarketplaceLinks({
             <i>a</i>
             <i>y</i>
           </span>
-          <span>Search eBay</span>
+          <span>Search</span>
           <ArrowUpRight size={14} aria-hidden="true" />
         </a>
         <a
@@ -48,7 +48,7 @@ export function MarketplaceLinks({
           <span className="cinema-etsy-word" aria-hidden="true">
             Etsy
           </span>
-          <span>Search Etsy</span>
+          <span>Search</span>
           <ArrowUpRight size={14} aria-hidden="true" />
         </a>
       </div>

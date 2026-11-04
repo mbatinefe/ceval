@@ -1474,7 +1474,7 @@
 }
 @media (max-width: 700px), (max-aspect-ratio: 1/1) {
   .cinema-shopping {
-    max-height: calc(100svh - 205px);
+    max-height: calc(100svh - 260px - env(safe-area-inset-top));
     overflow-y: auto;
     overscroll-behavior: contain;
     scrollbar-width: thin;
