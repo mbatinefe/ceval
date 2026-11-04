@@ -22,7 +22,7 @@ function modelName(candidate: VisualCandidate) {
 }
 function listingDetail(candidate: VisualCandidate) {
   const size = candidate.title.match(
-    /\b(\d{1,2}(?:\.\d)?)\s*(?:["″]|[- ]inch\b)/i,
+    /(?<!\/\s*)\b(\d{1,2}(?:\.\d)?)\s*(?:["″]|[- ]inch\b)/i,
   )?.[1];
   const refresh = candidate.title.match(/\b(\d{2,3})\s*Hz\b/i)?.[1];
   const details = [
