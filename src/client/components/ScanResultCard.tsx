@@ -249,3 +249,33 @@ export function ScanResultCard({
     </article>
   );
 }
+
+export function FindPriceBadge({
+  row,
+  mode,
+  market,
+}: {
+  row: FoundProduct;
+  mode: Mode;
+  market: Market;
+}) {
+  const summary = findSummary(row, mode, market);
+  const shelf = row.product;
+  if (!summary && (shelf.shelfPriceMinor === null || !shelf.shelfCurrency))
+    return null;
+  return (
+    <span className="collapsed-price">
+      <Price
+        minor={summary ? summary.offer.priceMinor : shelf.shelfPriceMinor!}
+        currency={summary ? summary.offer.currency : shelf.shelfCurrency!}
+      />
+      <small>
+        {summary
+          ? [summary.shortLabel, summary.qualification]
+              .filter(Boolean)
+              .join(" · ")
+          : "Shelf label"}
+      </small>
+    </span>
+  );
+}

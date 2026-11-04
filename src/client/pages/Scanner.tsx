@@ -27,9 +27,7 @@ import {
 import { ComparisonDialog } from "../components/ComparisonDialog";
 import { ModelChoiceDialog } from "../components/ModelChoiceDialog";
 import { visualSearchForMarket } from "../../shared/visual-search";
-import { Price } from "../components/Price";
-import { ScanResultCard } from "../components/ScanResultCard";
-import { findSummary } from "../scanner/presentation";
+import { ScanResultCard, FindPriceBadge } from "../components/ScanResultCard";
 import { isAllowanceError } from "../scanner/state";
 import { useScanner, type FoundProduct } from "../scanner/useScanner";
 import { clips } from "../../../public/demo/manifest.json";
@@ -72,7 +70,6 @@ export function Scanner() {
       scan.pins.some((pin) => pin.rowId === rowKey(row)),
     ) ||
     scan.found[0];
-  const focusedPrice = findSummary(focused, mode, market);
   const choice = scan.found.find((row) => rowKey(row) === choiceKey);
   const allowanceNotice = scan.found.find((row) =>
     isAllowanceError(row.errorCode),
@@ -636,18 +633,12 @@ export function Scanner() {
                         ? "Selected find"
                         : focused.product.model || focused.product.label}
                     </span>
-                    {!cardOpen && focusedPrice && (
-                      <span className="collapsed-price">
-                        <Price
-                          minor={focusedPrice.offer.priceMinor}
-                          currency={focusedPrice.offer.currency}
-                        />
-                        <small>
-                          {[focusedPrice.shortLabel, focusedPrice.qualification]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </small>
-                      </span>
+                    {!cardOpen && (
+                      <FindPriceBadge
+                        row={focused}
+                        mode={mode}
+                        market={market}
+                      />
                     )}
                     {cardOpen ? (
                       <ChevronDown aria-hidden="true" />
