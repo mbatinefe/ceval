@@ -136,22 +136,32 @@ export function ScanResultCard({
           </p>
         </>
       ) : (
-        <div
-          className={`find-price-state${checking ? " is-checking" : ""}`}
-          role="status"
-        >
-          {checking && <LoaderCircle className="spin" aria-hidden="true" />}
-          <strong>{state}</strong>
-          {!checking && (
-            <span>
-              {row.comparison?.sources?.length
-                ? "Product pages found; prices could not be verified."
-                : needsModel || unidentified
-                  ? "Show the label or tag, or explore similar items."
-                  : "Try another search or check Marketplace."}
-            </span>
+        <>
+          {shelfPriceMinor !== null && shelfCurrency && (
+            <div className="find-prices">
+              <div className="find-price">
+                <small className="price-label">Shelf label</small>
+                <Price minor={shelfPriceMinor} currency={shelfCurrency} />
+              </div>
+            </div>
           )}
-        </div>
+          <div
+            className={`find-price-state${checking ? " is-checking" : ""}`}
+            role="status"
+          >
+            {checking && <LoaderCircle className="spin" aria-hidden="true" />}
+            <strong>{state}</strong>
+            {!checking && (
+              <span>
+                {row.comparison?.sources?.length
+                  ? "Product pages found; prices could not be verified."
+                  : needsModel || unidentified
+                    ? "Show the label or tag, or explore similar items."
+                    : "Try another search or check Marketplace."}
+              </span>
+            )}
+          </div>
+        </>
       )}
       {summary && checking && (
         <p className="searching-price">
