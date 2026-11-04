@@ -78,9 +78,11 @@ export function useStoryScroll() {
   useEffect(() => {
     if (focusChapter.current !== chapter) return;
     focusChapter.current = null;
-    const selector = [".cinema-explore", ".cinema-detection", ".cinema-offer"][
-      chapter
-    ];
+    const selector = [
+      ".cinema-explore",
+      ".cinema-detection",
+      ".cinema-marketplace-primary",
+    ][chapter];
     section.current
       ?.querySelector<HTMLElement>(selector)
       ?.focus({ preventScroll: true });

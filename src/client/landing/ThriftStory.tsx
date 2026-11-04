@@ -3,13 +3,13 @@ import { ArrowDown, ArrowUpRight, ImageOff, ScanLine } from "lucide-react";
 import {
   campaignPrice,
   campaignMatchLabel,
+  campaignReferencePrice,
   type CampaignOffer,
 } from "../../shared/campaign-listings";
-import facebookLogo from "../assets/facebook.png";
+import { MarketplaceLinks } from "./MarketplaceLinks";
 import {
   portraitFinds,
   sceneMedia,
-  shoppingSearches,
   wideFinds,
   type ThriftFind,
 } from "./thrift-demo";
@@ -65,7 +65,6 @@ function ShoppingCard({
   find: ThriftFind;
   portrait: boolean;
 }) {
-  const links = shoppingSearches(find);
   const prices = find.offers.map((offer) => campaignPrice(offer));
   const date = new Intl.DateTimeFormat("en-US", {
     month: "short",
@@ -90,10 +89,11 @@ function ShoppingCard({
       <div className="cinema-model-match" data-match={find.match}>
         {campaignMatchLabel(find.match)}
       </div>
+      <MarketplaceLinks product={find} />
       <div className="cinema-offers-label">
         <span>
           {prices.some(Boolean)
-            ? "Listed prices · USD"
+            ? "Retail & resale · USD"
             : "Check current prices"}
         </span>
         <time dateTime={find.offers[0].checkedAt} title="Source snapshot date">
@@ -113,6 +113,11 @@ function ShoppingCard({
           <span className="cinema-offer-store">
             <b>{offer.merchant}</b>
             <small>{offer.condition}</small>
+            {campaignReferencePrice(offer) && (
+              <small className="cinema-list-price">
+                List price {campaignReferencePrice(offer)}
+              </small>
+            )}
           </span>
           {prices[index] ? (
             <strong>{prices[index]}</strong>
@@ -122,19 +127,6 @@ function ShoppingCard({
           <ArrowUpRight size={16} aria-hidden="true" />
         </a>
       ))}
-      <a
-        className="cinema-marketplace"
-        href={links.marketplace}
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        <img src={facebookLogo} width="24" height="24" alt="" />
-        <span>
-          <b>Facebook Marketplace</b>
-          <small>Search this model nearby</small>
-        </span>
-        <ArrowUpRight size={18} aria-hidden="true" />
-      </a>
     </aside>
   );
 }

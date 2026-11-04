@@ -6,6 +6,7 @@ export type CampaignOffer = {
   imageCredit?: string;
   condition: string;
   priceMinor?: number;
+  referencePriceMinor?: number;
   currency: "USD";
   checkedAt: string;
   availability: "available" | "unavailable" | "unknown";
@@ -46,4 +47,19 @@ export function campaignPrice(
 }
 export function campaignMatchLabel(match: CampaignMatch) {
   return match === "model" ? "Model match" : "Similar match";
+}
+
+// A merchant's stated list price is context, including when its offer is unavailable.
+export function campaignReferencePrice(
+  offer: CampaignOffer,
+  now = Date.now(),
+): string | null {
+  return campaignPrice(
+    {
+      ...offer,
+      availability: "available",
+      priceMinor: offer.referencePriceMinor,
+    },
+    now,
+  );
 }

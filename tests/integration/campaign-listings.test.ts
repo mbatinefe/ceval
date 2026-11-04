@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   campaignPrice,
+  campaignReferencePrice,
   campaignMatchLabel,
   type CampaignOffer,
 } from "../../src/shared/campaign-listings.ts";
@@ -54,4 +55,40 @@ test("the same product keeps the certainty supported by each scene", async () =>
     await import("../../src/client/landing/thrift-demo.ts");
   assert.equal(wideFinds.find((x) => x.id === "camera")?.match, "similar");
   assert.equal(portraitFinds.find((x) => x.id === "camera")?.match, "model");
+});
+
+// A list price is context, not an available offer or a resale estimate.
+test("reference prices remain separate from availability and also expire", () => {
+  const source = {
+    ...offer,
+    availability: "unavailable" as const,
+    referencePriceMinor: 39999,
+  };
+  assert.equal(campaignPrice(source, now), null);
+  assert.equal(campaignReferencePrice(source, now), "$399.99");
+  assert.equal(campaignReferencePrice(source, now + 7 * 86400000), null);
+  assert.equal(
+    campaignReferencePrice({ ...source, referencePriceMinor: -1 }, now),
+    null,
+  );
+});
+
+test("secondary market links encode model details as searches without inventing listings", async () => {
+  const { shoppingSearches } =
+    await import("../../src/client/landing/thrift-demo.ts");
+  const links = shoppingSearches({
+    brand: "Levi’s",
+    model: "A&B / C",
+    variant: "Blue #2",
+  });
+  assert.equal(new URL(links.ebay).origin, "https://www.ebay.com");
+  assert.equal(
+    new URL(links.ebay).searchParams.get("_nkw"),
+    "Levi’s A&B / C Blue #2",
+  );
+  assert.equal(new URL(links.etsy).origin, "https://www.etsy.com");
+  assert.equal(
+    new URL(links.etsy).searchParams.get("q"),
+    "Levi’s A&B / C Blue #2",
+  );
 });

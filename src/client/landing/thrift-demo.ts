@@ -80,6 +80,7 @@ const lamp = {
         "https://www.anglepoise.com/usa/wp-content/uploads/sites/3/2021/12/original-1227-desk-lamp-jet-black-1-1.jpg",
       condition: "New · Jet Black · US plug",
       priceMinor: 25600,
+      referencePriceMinor: 32000,
       availability: "available",
     }),
     offer({
@@ -166,12 +167,19 @@ export const portraitFinds: ThriftFind[] = [
   { ...shoes, box: { x: 0.535, y: 0.534, width: 0.405, height: 0.15 } },
   { ...jacket, box: { x: 0.55, y: 0.115, width: 0.445, height: 0.39 } },
 ];
-export function shoppingSearches(find: ThriftFind) {
+export function shoppingSearches(
+  find: Pick<ThriftFind, "brand" | "model" | "variant">,
+) {
+  const query = [find.brand, find.model, find.variant]
+    .filter(Boolean)
+    .join(" ");
+  const ebay = new URL("https://www.ebay.com/sch/i.html");
+  ebay.searchParams.set("_nkw", query);
+  const etsy = new URL("https://www.etsy.com/search");
+  etsy.searchParams.set("q", query);
   return {
-    marketplace: marketplaceSearch({
-      brand: find.brand,
-      model: find.model,
-      variant: find.variant,
-    }),
+    marketplace: marketplaceSearch(find),
+    ebay: ebay.href,
+    etsy: etsy.href,
   };
 }
