@@ -1,6 +1,17 @@
 import type { Comparison, Market, Mode, Product } from "../../shared/scan.ts";
 import type { FoundProduct } from "./continuity.ts";
 import { findSummary } from "./presentation.ts";
+export class ScanFindCount {
+  private seen = new Set<string>();
+  update(rows: readonly { historyId?: string; rowId?: string }[]): number {
+    if (!rows.length) this.seen.clear();
+    for (const row of rows) {
+      const id = row.historyId || row.rowId;
+      if (id) this.seen.add(id);
+    }
+    return this.seen.size;
+  }
+}
 export function findActionRow(
   rows: FoundProduct[],
   productId: string,

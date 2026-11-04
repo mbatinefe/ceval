@@ -65,6 +65,25 @@ function comparison(p: Product): Comparison {
   };
 }
 
+test("a longer walkthrough keeps earlier finds after the thirty-first item", () => {
+  const existing: FoundProduct[] = Array.from({ length: 30 }, (_, index) => ({
+    product: product({ id: `item-${index}`, model: `Distinct ${index}` }),
+    historyId: `history-${index}`,
+    rowId: `row-${index}`,
+    time: index,
+    searching: false,
+  }));
+  const next = see(existing, [
+    product({ id: "new-item", model: "New distinct model" }),
+  ]);
+  assert.equal(next.rows.length, 31);
+  assert.equal(
+    next.rows.find((row) => row.product.id === "item-0")?.historyId,
+    "history-0",
+  );
+  assert.ok(next.rows.some((row) => row.product.id === "new-item"));
+});
+
 function detailedFrame(seed = 72183): GrayFrame {
   return {
     width: 160,

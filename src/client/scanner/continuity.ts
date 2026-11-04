@@ -1,4 +1,5 @@
 import { equivalentPackageVariants } from "../../shared/package-size.ts";
+import { MAX_HISTORY_ENTRIES } from "../../shared/history.ts";
 import type { VisualSearch } from "../../shared/visual-search.ts";
 import type {
   Box,
@@ -631,7 +632,7 @@ function* reconciliationSteps(
     sightings.push(row);
   });
   rows.sort((a, b) => (b.sighting?.at || 0) - (a.sighting?.at || 0));
-  return { rows: rows.slice(0, 30), sightings };
+  return { rows: rows.slice(0, MAX_HISTORY_ENTRIES), sightings };
 }
 
 export function reconcileSightings(

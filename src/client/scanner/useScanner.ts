@@ -33,6 +33,7 @@ import {
   recognitionRetryAt,
   findActionRow,
   switchComparisonMode,
+  ScanFindCount,
 } from "./state";
 import { reconcileCurrentSightings, type FoundProduct } from "./continuity";
 import { ScanWork } from "./work";
@@ -58,6 +59,8 @@ export function useScanner(mode: Mode, market: Market) {
   const generation = useRef(0);
   const comparisonContext = useRef({ mode, market });
   const [work] = useState(() => new ScanWork());
+  const [findCount] = useState(() => new ScanFindCount());
+  const [totalFound, setTotalFound] = useState(0);
   const [sceneMemory] = useState(() => new SceneMemory());
   const historyWriter = useRef<HistoryWriter<ScanHistoryEntry> | null>(null);
   const [history, setHistory] = useState<ScanHistoryEntry[]>([]);
@@ -188,6 +191,7 @@ export function useScanner(mode: Mode, market: Market) {
     (rows: FoundProduct[]) => {
       resultsRef.current = rows;
       setFound(rows);
+      setTotalFound(findCount.update(rows));
       if (sourceRef.current)
         for (const row of rows) {
           if (!row.historyId) continue;
@@ -210,7 +214,7 @@ export function useScanner(mode: Mode, market: Market) {
           ),
         );
     },
-    [work, historyWriter],
+    [work, historyWriter, findCount],
   );
   const stopAnalysis = useCallback(() => {
     cameraRevision.current++;
@@ -1086,6 +1090,7 @@ export function useScanner(mode: Mode, market: Market) {
     ready,
     pins,
     found,
+    totalFound,
     history,
     historyState,
     historyLoadError,

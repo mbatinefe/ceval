@@ -189,8 +189,13 @@ export function Scanner() {
     <aside className="scan-results">
       <div className="results-heading">
         <h2>This scan</h2>
-        <span>{scan.found.length}</span>
+        <span>{scan.totalFound}</span>
       </div>
+      {scan.totalFound > scan.found.length && (
+        <p className="history-sync-note">
+          Showing the latest {scan.found.length} finds.
+        </p>
+      )}
       {scan.historyState.failed > 0 ? (
         <p className="history-sync-note" role="status">
           Some finds haven’t saved.{" "}
@@ -516,10 +521,10 @@ export function Scanner() {
                   pauseForDetails();
                   setTrayOpen(true);
                 }}
-                aria-label={`Show all ${scan.found.length} finds`}
+                aria-label={`Show finds from this scan (${scan.totalFound} identified)`}
               >
                 <Layers aria-hidden="true" />
-                <span>{scan.found.length} finds</span>
+                <span>{scan.totalFound} finds</span>
               </button>
               <div className="scan-status" role="status">
                 {scan.busy ||
