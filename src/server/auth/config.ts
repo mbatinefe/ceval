@@ -1,9 +1,11 @@
 import { betterAuth } from "better-auth";
 import { emailOTP } from "better-auth/plugins/email-otp";
 import { sendLoginCode } from "./email.ts";
+import { isLocalEnvironment } from "./local-env.ts";
 export const signupsEnabled = (env: Env) =>
   String(env.SIGNUPS_ENABLED) === "true";
 export function createAuth(env: Env, onDeliveryError?: () => void) {
+  const secureCookies = !isLocalEnvironment(env);
   return betterAuth({
     appName: "Ceval",
     database: env.DB,
@@ -18,11 +20,11 @@ export function createAuth(env: Env, onDeliveryError?: () => void) {
       cookieCache: { enabled: false },
     },
     advanced: {
-      useSecureCookies: true,
+      useSecureCookies: secureCookies,
       cookiePrefix: "ceval",
       defaultCookieAttributes: {
         httpOnly: true,
-        secure: true,
+        secure: secureCookies,
         sameSite: "lax",
         path: "/",
       },

@@ -1,3 +1,5 @@
+import { isLocalEnvironment } from "./local-env.ts";
+
 // The logo as table cells, so it shows even when mail apps block images:
 // two ink corners around a red square, then the wordmark.
 const MARK_SIZES = [4, 5, 10, 5, 4];
@@ -19,6 +21,10 @@ export async function sendLoginCode(
   email: string,
   otp: string,
 ): Promise<void> {
+  if (isLocalEnvironment(env)) {
+    console.log(`Ceval local sign-in code: ${otp}`);
+    return;
+  }
   if (!env.RESEND_API_KEY || !env.AUTH_EMAIL_FROM)
     throw new Error("Email unavailable");
   const response = await fetch("https://api.resend.com/emails", {

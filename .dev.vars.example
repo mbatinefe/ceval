@@ -1,15 +1,10 @@
-# Local server configuration. Copy to .dev.vars and supply your own credentials.
-# Deployed credentials belong in Cloudflare Worker secrets.
-META_API_KEY=
-BETTER_AUTH_SECRET=
+# npm run dev creates .dev.vars.local automatically with a random auth secret.
+# Edit that ignored file to supply your own Meta API key for live analysis.
+# No Cloudflare account or Resend key is needed for the local application.
+BETTER_AUTH_SECRET="replace-with-a-random-secret-at-least-32-characters"
+META_API_KEY=""
 
-# Transactional email: use a sending-only key scoped to the verified domain.
-RESEND_API_KEY=
-AUTH_EMAIL_FROM=
-
-# Set to the exact deployed HTTPS origin for the selected environment.
-BETTER_AUTH_URL=
-
-# Optional image search. Uploads product crops to SerpApi for Google Lens.
-# Credentials remain server-side; default hosted search limit is 200/month.
-SERPAPI_API_KEY=
+# Local origin and environment are defined in wrangler.local.jsonc.
+# Local sign-in codes appear in the terminal without an email address.
+# Hosted deployments use Worker secrets for BETTER_AUTH_SECRET,
+# META_API_KEY, RESEND_API_KEY and AUTH_EMAIL_FROM (your own verified sender).

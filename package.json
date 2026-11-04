@@ -13,6 +13,8 @@
     "node": ">=22.18"
   },
   "scripts": {
+    "dev": "node scripts/local-dev.mjs",
+    "setup:local": "node scripts/local-dev.mjs --setup-only",
     "cf:login": "wrangler login --device --use-keyring",
     "cf:types": "wrangler types .wrangler/worker-configuration.d.ts --env staging",
     "typecheck": "npm run cf:types && tsc --noEmit && tsc -p tsconfig.client.json",

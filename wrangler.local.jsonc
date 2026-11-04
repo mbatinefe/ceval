@@ -1,0 +1,54 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ceval-local",
+  "main": "src/server/worker.ts",
+  "compatibility_date": "2026-10-29",
+  "compatibility_flags": ["nodejs_compat", "enable_request_signal"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "migrations": [
+    { "tag": "scan-processor-v1", "new_sqlite_classes": ["ScanProcessor"] },
+  ],
+  "env": {
+    "local": {
+      "name": "ceval-local",
+      "workers_dev": false,
+      "preview_urls": false,
+      "durable_objects": {
+        "bindings": [{ "name": "SCANS", "class_name": "ScanProcessor" }],
+      },
+      "assets": {
+        "directory": "./dist/client",
+        "binding": "ASSETS",
+        "html_handling": "none",
+        "not_found_handling": "none",
+        "run_worker_first": [
+          "/",
+          "/signin",
+          "/app",
+          "/app/*",
+          "/api/*",
+          "/demo/walkthroughs/electronics-walkthrough.mp4",
+          "/demo/walkthroughs/secondhand-walkthrough.mp4",
+        ],
+      },
+      "vars": {
+        "APP_ENVIRONMENT": "local",
+        "SIGNUPS_ENABLED": "true",
+        "SCAN_ENABLED": "true",
+        "SCAN_TOTAL_BUDGET_MICROS": "100000000",
+        "EMAIL_DAILY_LIMIT": "80",
+        "BETTER_AUTH_URL": "http://localhost:8787",
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "ceval-local",
+          "database_id": "00000000-0000-0000-0000-000000000000",
+          "migrations_dir": "db/d1/migrations",
+          "remote": false,
+        },
+      ],
+    },
+  },
+}
