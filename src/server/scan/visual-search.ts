@@ -32,8 +32,8 @@ export async function storedVisualSearch(
 }
 async function reserveVisualSearch(env: Env, userId: string) {
   try {
-    await consumeLimit(env.DB, `visual:user:${userId}`, 20, 3600);
-    await consumeLimit(env.DB, "visual:deployment:hour", 40, 3600);
+    await consumeLimit(env.DB, `visual:user:${userId}`, 240, 3600);
+    await consumeLimit(env.DB, "visual:deployment:hour", 480, 3600);
   } catch (error) {
     if (error instanceof LimitReached)
       throw new ScanError(

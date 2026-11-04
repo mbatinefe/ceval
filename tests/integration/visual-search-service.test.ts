@@ -593,3 +593,46 @@ test("buy and resale photo searches have separate cached results", async () => {
   });
   assert.equal(selection.status, 200);
 });
+
+test("a store walkthrough can continue photo searches after twenty finds", async () => {
+  mockProviders();
+  await request(undefined, payload());
+  for (const [key, count] of [
+    ["visual:user:shopper", 20],
+    ["visual:deployment:hour", 40],
+  ] as const) {
+    await env.DB.prepare(
+      "INSERT INTO app_limits (key,count,resets_at) VALUES (?,?,?)",
+    )
+      .bind(key, count, Math.floor(Date.now() / 1000) + 3600)
+      .run();
+  }
+  const response = await request("/api/scan/visual-matches", {
+    productId: product.id,
+    market: "US",
+  });
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).candidates.length, 1);
+});
+
+for (const [key, count] of [
+  ["visual:user:shopper", 240],
+  ["visual:deployment:hour", 480],
+] as const) {
+  test(`photo searches remain bounded by ${key}`, async () => {
+    const calls = mockProviders();
+    await request(undefined, payload());
+    await env.DB.prepare(
+      "INSERT INTO app_limits (key,count,resets_at) VALUES (?,?,?)",
+    )
+      .bind(key, count, Math.floor(Date.now() / 1000) + 3600)
+      .run();
+    const response = await request("/api/scan/visual-matches", {
+      productId: product.id,
+      market: "US",
+    });
+    assert.equal(response.status, 429);
+    assert.equal((await response.json()).code, "visual_limit");
+    assert.deepEqual(calls(), { uploads: 0, searches: 0, rankings: 0 });
+  });
+}
