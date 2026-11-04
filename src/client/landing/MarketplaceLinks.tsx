@@ -11,24 +11,32 @@ export function MarketplaceLinks({
   const name = `${product.brand} ${product.model}`;
   return (
     <div
-      className="market"
+      className="market-links"
       role="group"
       aria-label={`Search marketplaces for ${name}`}
     >
-      <span className="market-label">Search marketplaces</span>
-      <div className="market-links">
-        <a href={links.marketplace} target="_blank" rel="noopener noreferrer">
-          <img src={facebookLogo} width={18} height={18} alt="" />
-          Facebook Marketplace
-          <ArrowUpRight size={14} aria-hidden="true" />
-        </a>
+      <span className="market-links-label">Search marketplaces</span>
+      <a
+        className="cinema-marketplace-primary"
+        href={links.marketplace}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        <img src={facebookLogo} width={22} height={22} alt="" />
+        <span>
+          <b>Facebook Marketplace</b>
+          <small>Search nearby</small>
+        </span>
+        <ArrowUpRight size={16} aria-hidden="true" />
+      </a>
+      <div className="market-links-more">
         <a
           href={links.ebay}
           target="_blank"
           rel="noopener noreferrer"
           aria-label={`Search eBay for ${name}`}
         >
-          eBay <ArrowUpRight size={14} aria-hidden="true" />
+          eBay <ArrowUpRight size={13} aria-hidden="true" />
         </a>
         <a
           href={links.etsy}
@@ -36,7 +44,7 @@ export function MarketplaceLinks({
           rel="noopener noreferrer"
           aria-label={`Search Etsy for ${name}`}
         >
-          Etsy <ArrowUpRight size={14} aria-hidden="true" />
+          Etsy <ArrowUpRight size={13} aria-hidden="true" />
         </a>
       </div>
     </div>

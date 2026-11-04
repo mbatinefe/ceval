@@ -1,0 +1,1415 @@
+/*
+  Ceval landing page.
+  A thrift shop late in the day: warm shop black, the photo, and paper tags.
+  Ceval's own marks are tags on red string. Red is kept for the strings and
+  for the prices Ceval finds.
+*/
+.cinema-home {
+  --shop: #14110e;
+  --shop-raised: #1f1a15;
+  --tag: #f3eee3;
+  --tag-lift: #fffaf0;
+  --ink: #1a1612;
+  --ink-soft: #5e564b;
+  --fog: #aba294;
+  --red: #c4161c;
+  --rule: rgb(243 238 227 / 0.13);
+  --rule-ink: rgb(26 22 18 / 0.14);
+  --perforation: rgb(26 22 18 / 0.3);
+  background: var(--shop);
+  color: var(--tag);
+  font-family: var(--sans);
+  font-stretch: 100%;
+  overflow: clip;
+  -webkit-font-smoothing: antialiased;
+}
+.cinema-home h1,
+.cinema-home h2,
+.cinema-home h3,
+.cinema-home p {
+  margin: 0;
+}
+.cinema-home h1,
+.cinema-home h2 {
+  font-weight: 650;
+  font-stretch: 84%;
+  letter-spacing: -0.018em;
+  line-height: 0.94;
+  text-wrap: balance;
+}
+.cinema-home button,
+.cinema-home a,
+.cinema-home summary {
+  -webkit-tap-highlight-color: transparent;
+}
+.cinema-home :focus-visible {
+  outline: 2px solid var(--tag);
+  outline-offset: 4px;
+  border-radius: 3px;
+}
+.price-tag :focus-visible {
+  outline-color: var(--ink);
+  outline-offset: 2px;
+}
+
+/* Small print: sources, dates, counts. */
+.cinema-overline,
+.cinema-caption,
+.cinema-chapters small,
+.price-tag-brand,
+.price-tag-range small,
+.price-tag-date,
+.market-links-label,
+.price-tag-match {
+  font-family: var(--mono);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.cinema-home .brand {
+  color: var(--tag);
+  width: 104px;
+  flex: none;
+}
+.cinema-home .brand svg {
+  width: 100%;
+  height: 32px;
+}
+.cinema-home .brand svg > path:first-child {
+  fill: currentColor;
+}
+.cinema-skip {
+  position: fixed;
+  z-index: 100;
+  top: 10px;
+  left: 10px;
+  padding: 14px 20px;
+  background: var(--tag);
+  color: var(--ink);
+  border-radius: 5px;
+  font-weight: 650;
+  transform: translateY(-160%);
+}
+.cinema-skip:focus {
+  transform: none;
+}
+
+/* Header: clear over the opening photo, solid once the page moves. */
+.cinema-nav {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 30;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: calc(76px + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) max(5vw, env(safe-area-inset-right)) 0
+    max(5vw, env(safe-area-inset-left));
+  background: linear-gradient(rgb(20 17 14 / 0.7), rgb(20 17 14 / 0));
+}
+.cinema-nav::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--shop);
+  border-bottom: 1px solid var(--rule);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.cinema-nav[data-solid="true"]::before {
+  opacity: 1;
+}
+.cinema-nav nav {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+}
+.cinema-how-link {
+  font-size: 14px;
+  font-weight: 550;
+  padding: 14px 0;
+}
+.cinema-how-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.cinema-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 11px 18px;
+  background: var(--tag);
+  color: var(--ink);
+  border-radius: 5px;
+  font-size: 14px;
+  font-weight: 650;
+  transition:
+    background-color 0.2s,
+    transform 0.2s;
+}
+.cinema-cta:hover {
+  background: var(--tag-lift);
+  transform: translateY(-1px);
+}
+
+/* The story: one sticky stage, three chapters driven by scroll. */
+.cinema-story {
+  position: relative;
+  height: 380svh;
+  --scene-scale: 1.04;
+  --intro-opacity: 1;
+}
+.cinema-stage {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  min-height: 360px;
+  overflow: hidden;
+  isolation: isolate;
+}
+.cinema-scene {
+  position: absolute;
+  z-index: 0;
+  width: var(--scene-width, 100vw);
+  height: var(--scene-height, 100svh);
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) scale(var(--scene-scale));
+  transform-origin: center;
+  transition:
+    left 1s cubic-bezier(0.2, 0.7, 0.2, 1),
+    opacity 0.8s;
+  will-change: transform;
+}
+.cinema-scene picture,
+.cinema-hero-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+}
+.cinema-hero-image {
+  object-fit: cover;
+  border-radius: calc(8px / var(--scene-scale));
+}
+.cinema-shade {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      90deg,
+      rgb(12 9 6 / 0.8) 0%,
+      rgb(12 9 6 / 0.4) 42%,
+      rgb(12 9 6 / 0) 80%
+    ),
+    linear-gradient(
+      0deg,
+      rgb(20 17 14 / 0.95),
+      rgb(20 17 14 / 0) 33%,
+      rgb(20 17 14 / 0) 80%,
+      rgb(20 17 14 / 0.45)
+    );
+  transition: opacity 0.8s;
+}
+.cinema-intro {
+  position: absolute;
+  z-index: 2;
+  left: 7vw;
+  top: 50%;
+  transform: translateY(-46%);
+  opacity: var(--intro-opacity);
+  width: 720px;
+  max-width: 86%;
+}
+.cinema-intro h1 {
+  font-size: clamp(76px, 9.6vw, 160px);
+}
+.cinema-intro-line {
+  margin-top: 26px;
+  max-width: 430px;
+  font-size: clamp(16px, 1.3vw, 19px);
+  line-height: 1.45;
+  color: #ebe4d6;
+}
+.cinema-explore {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 34px;
+  padding: 10px 0 11px;
+  border-bottom: 1px solid rgb(243 238 227 / 0.5);
+  color: var(--tag);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cinema-explore svg {
+  transition: transform 0.2s;
+}
+.cinema-explore:hover svg {
+  transform: translateY(3px);
+}
+
+/* Finds in the scene: thin viewfinder corners and a paper tag on red string.
+   Sizes are in em of a font size divided by the scene scale, so they stay the
+   same on screen while the photo zooms. */
+.cinema-detections {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+.cinema-detection {
+  position: absolute;
+  padding: 0;
+  color: var(--tag);
+  font-size: calc(11px / var(--scene-scale));
+  border-radius: 0.3em;
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.5s var(--item-delay),
+    background-color 0.2s;
+}
+.cinema-detection:hover,
+.cinema-detection:focus-visible {
+  z-index: 2;
+  background: rgb(243 238 227 / 0.08);
+}
+.cinema-corner {
+  position: absolute;
+  width: 1.5em;
+  height: 1.5em;
+  border: 0 solid currentColor;
+}
+.cinema-corner-tl {
+  top: 0;
+  left: 0;
+  border-width: 0.15em 0 0 0.15em;
+  border-top-left-radius: 0.3em;
+}
+.cinema-corner-tr {
+  top: 0;
+  right: 0;
+  border-width: 0.15em 0.15em 0 0;
+  border-top-right-radius: 0.3em;
+}
+.cinema-corner-bl {
+  bottom: 0;
+  left: 0;
+  border-width: 0 0 0.15em 0.15em;
+  border-bottom-left-radius: 0.3em;
+}
+.cinema-corner-br {
+  bottom: 0;
+  right: 0;
+  border-width: 0 0.15em 0.15em 0;
+  border-bottom-right-radius: 0.3em;
+}
+.find-tag {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 0.9em);
+  filter: drop-shadow(0 0.2em 0.45em rgb(0 0 0 / 0.42));
+  transform-origin: 0.95em 50%;
+  transform: rotate(-2deg);
+  pointer-events: none;
+}
+.find-tag > span {
+  display: block;
+  padding: 0.5em 0.8em 0.5em 1.7em;
+  background: var(--tag);
+  color: var(--ink);
+  font-size: 1em;
+  font-weight: 700;
+  font-stretch: 72%;
+  letter-spacing: 0.045em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  clip-path: polygon(0.75em 0, 100% 0, 100% 100%, 0.75em 100%, 0 50%);
+  -webkit-mask: radial-gradient(
+    circle at 0.95em 50%,
+    transparent 0.22em,
+    #000 0.26em
+  );
+  mask: radial-gradient(circle at 0.95em 50%, transparent 0.22em, #000 0.26em);
+}
+.cinema-detection:hover .find-tag > span,
+.cinema-detection:focus-visible .find-tag > span {
+  background: var(--tag-lift);
+}
+.find-tag-string {
+  position: absolute;
+  left: 0.88em;
+  bottom: 100%;
+  width: 0.14em;
+  height: 1.9em;
+  background: var(--red);
+  transform-origin: 50% 100%;
+}
+.find-tag-string::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -0.22em;
+  width: 0.44em;
+  height: 0.44em;
+  margin-left: -0.22em;
+  border-radius: 50%;
+  background: var(--red);
+}
+@keyframes tag-string {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+@keyframes tag-hang {
+  0% {
+    opacity: 0;
+    transform: rotate(-26deg);
+  }
+  18% {
+    opacity: 1;
+  }
+  48% {
+    transform: rotate(7deg);
+  }
+  70% {
+    transform: rotate(-4.5deg);
+  }
+  86% {
+    transform: rotate(0.5deg);
+  }
+  100% {
+    transform: rotate(-2deg);
+  }
+}
+.cinema-story:not([data-chapter="0"]) .find-tag-string {
+  animation: tag-string 0.3s ease-out var(--item-delay) both;
+}
+.cinema-story:not([data-chapter="0"]) .find-tag {
+  animation: tag-hang 1.3s cubic-bezier(0.3, 0.5, 0.3, 1)
+    calc(var(--item-delay) + 0.2s) both;
+}
+
+/* Chapter copy. */
+.cinema-scan-copy,
+.cinema-compare-copy {
+  position: absolute;
+  z-index: 3;
+  isolation: isolate;
+  left: 5vw;
+  top: 118px;
+  max-width: calc(100% - 12vw);
+  opacity: 0;
+  transform: translateY(12px);
+  pointer-events: none;
+  transition:
+    opacity 0.6s,
+    transform 0.6s;
+}
+.cinema-scan-copy::before,
+.cinema-compare-copy::before {
+  content: "";
+  position: absolute;
+  inset: -18px -48px -22px -24px;
+  z-index: -1;
+  background: linear-gradient(
+    90deg,
+    rgb(20 17 14 / 0.96),
+    rgb(20 17 14 / 0.9) calc(100% - 40px),
+    rgb(20 17 14 / 0)
+  );
+  mask-image: linear-gradient(
+    transparent,
+    #000 18px,
+    #000 calc(100% - 22px),
+    transparent
+  );
+}
+.cinema-overline {
+  font-size: 10px;
+  color: var(--fog);
+}
+.cinema-scan-copy h2 {
+  margin-top: 14px;
+  font-size: clamp(32px, 3.4vw, 56px);
+}
+.cinema-scan-copy > p:last-child {
+  margin-top: 14px;
+  font-size: 15px;
+  color: #ebe4d6;
+}
+.cinema-compare-copy h2 {
+  font-size: clamp(48px, 5.2vw, 88px);
+}
+
+/* The comparison: the tapped tag, grown into a full price tag. */
+.cinema-results {
+  position: absolute;
+  z-index: 4;
+  right: 6vw;
+  top: 50%;
+  width: 360px;
+  transform: translateY(calc(-50% + 24px));
+  opacity: 0;
+  filter: drop-shadow(0 30px 50px rgb(0 0 0 / 0.5));
+  transition:
+    opacity 0.7s,
+    transform 0.7s;
+}
+.price-tag-string {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  top: -34px;
+  width: 2px;
+  height: 50px;
+  margin-left: -1px;
+  background: var(--red);
+}
+.price-tag {
+  position: relative;
+  padding: 32px 20px 16px;
+  background: var(--tag);
+  color: var(--ink);
+  border-radius: 6px;
+  clip-path: polygon(
+    20px 0,
+    calc(100% - 20px) 0,
+    100% 20px,
+    100% 100%,
+    0 100%,
+    0 20px
+  );
+  -webkit-mask: radial-gradient(
+    circle at 50% 16px,
+    transparent 5.5px,
+    #000 6px
+  );
+  mask: radial-gradient(circle at 50% 16px, transparent 5.5px, #000 6px);
+}
+.price-tag-head {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  padding-bottom: 14px;
+  border-bottom: 1px dashed var(--perforation);
+}
+.price-tag-photo {
+  display: block;
+  width: 54px;
+  height: 62px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #d9d0bf;
+}
+.cinema-find-photo {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.price-tag-brand {
+  display: block;
+  font-size: 10px;
+  color: var(--ink-soft);
+}
+.price-tag h3 {
+  margin: 3px 0 7px;
+  font-size: 26px;
+  font-weight: 700;
+  font-stretch: 72%;
+  letter-spacing: 0.01em;
+  line-height: 0.95;
+  text-transform: uppercase;
+}
+.price-tag-head p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 8px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--ink-soft);
+}
+.price-tag-match {
+  padding: 4px 6px 3px;
+  border: 1px solid var(--ink);
+  border-radius: 3px;
+  color: var(--ink);
+  font-size: 9px;
+  line-height: 1;
+}
+.price-tag-match[data-match="similar"] {
+  border-style: dashed;
+}
+.price-tag-range {
+  padding: 15px 0 12px;
+}
+.price-tag-range small {
+  display: block;
+  font-size: 10px;
+  color: var(--ink-soft);
+}
+.price-tag-range strong {
+  display: block;
+  margin-top: 7px;
+  color: var(--red);
+  font-size: 46px;
+  font-weight: 700;
+  font-stretch: 78%;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  line-height: 0.9;
+}
+.price-tag-range strong[data-empty="true"] {
+  color: var(--ink);
+  font-size: 26px;
+}
+.price-tag-offers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.price-tag-offers a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--rule-ink);
+}
+.price-tag-offers a:hover b {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.price-tag-offers a > svg {
+  flex-shrink: 0;
+  color: var(--ink-soft);
+}
+.price-tag-listing-photo {
+  display: grid;
+  place-items: center;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 40px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: #fff;
+  color: var(--ink-soft);
+}
+.price-tag-listing-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.price-tag-store {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.price-tag-store b {
+  font-size: 13px;
+  font-weight: 650;
+}
+.price-tag-store small {
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--ink-soft);
+}
+.price-tag-offers strong {
+  font-size: 20px;
+  font-weight: 700;
+  font-stretch: 80%;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.price-tag-view {
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.market-links {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--perforation);
+}
+.market-links-label {
+  font-size: 9.5px;
+  color: var(--ink-soft);
+}
+.cinema-marketplace-primary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border: 1px solid rgb(26 22 18 / 0.22);
+  border-radius: 5px;
+  transition:
+    background-color 0.2s,
+    border-color 0.2s;
+}
+.cinema-marketplace-primary:hover {
+  background: var(--tag-lift);
+  border-color: rgb(26 22 18 / 0.45);
+}
+.cinema-marketplace-primary > img {
+  flex: 0 0 22px;
+  border-radius: 50%;
+}
+.cinema-marketplace-primary > span {
+  display: grid;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.cinema-marketplace-primary b {
+  font-size: 13px;
+  font-weight: 650;
+}
+.cinema-marketplace-primary small {
+  font-size: 10px;
+  color: var(--ink-soft);
+}
+.cinema-marketplace-primary > svg {
+  flex-shrink: 0;
+  color: var(--ink-soft);
+}
+.market-links-more {
+  display: flex;
+  gap: 20px;
+  padding: 0 2px;
+}
+.market-links-more a {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 32px;
+  font-size: 12.5px;
+  font-weight: 650;
+}
+.market-links-more a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.price-tag-date {
+  margin-top: 6px;
+  font-size: 9px;
+  color: var(--ink-soft);
+}
+.cinema-find-picker {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding-top: 14px;
+}
+.cinema-find-picker button {
+  width: 56px;
+  flex: 0 0 56px;
+  padding: 0;
+  color: var(--fog);
+  cursor: pointer;
+}
+.cinema-find-picker svg {
+  height: 46px;
+  border-radius: 4px;
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  opacity: 0.6;
+  transition:
+    opacity 0.2s,
+    outline-color 0.2s;
+}
+.cinema-find-picker button:hover svg {
+  opacity: 1;
+}
+.cinema-find-picker button[aria-pressed="true"] {
+  color: var(--tag);
+}
+.cinema-find-picker button[aria-pressed="true"] svg {
+  opacity: 1;
+  outline-color: var(--tag);
+}
+.cinema-find-picker span {
+  display: block;
+  margin-top: 7px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* Chapter rail and the scene's caption. */
+.cinema-rail {
+  position: absolute;
+  z-index: 5;
+  left: 50%;
+  bottom: 16px;
+  width: 360px;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  transform: translateX(-50%);
+}
+.cinema-chapters {
+  display: flex;
+  gap: 14px;
+  width: 100%;
+}
+.cinema-chapters button {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  padding: 12px 0 0;
+  color: var(--fog);
+  text-align: left;
+  cursor: pointer;
+}
+.cinema-chapter-track {
+  display: block;
+  height: 2px;
+  margin-bottom: 9px;
+  background: rgb(243 238 227 / 0.22);
+}
+.cinema-chapter-track i {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: var(--tag);
+  transition: width 0.6s;
+}
+.cinema-chapters button > span:last-child {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.cinema-chapters small {
+  font-size: 9px;
+  opacity: 0.7;
+}
+.cinema-chapters button[aria-current="step"] {
+  color: var(--tag);
+}
+.cinema-chapters button[aria-current="step"] i {
+  width: 100%;
+}
+.cinema-caption {
+  font-size: 8.5px;
+  color: rgb(243 238 227 / 0.62);
+  white-space: nowrap;
+}
+.cinema-story-next {
+  position: absolute;
+  z-index: 5;
+  right: 5vw;
+  bottom: 24px;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgb(243 238 227 / 0.3);
+  border-radius: 50%;
+  color: var(--tag);
+}
+
+/* Chapter states. */
+.cinema-story[data-chapter="1"] .cinema-shade {
+  opacity: 0.5;
+}
+.cinema-story[data-chapter="1"] .cinema-scan-copy,
+.cinema-story[data-chapter="2"] .cinema-compare-copy {
+  opacity: 1;
+  transform: none;
+}
+.cinema-story:not([data-chapter="0"]) .cinema-detections,
+.cinema-story:not([data-chapter="0"]) .cinema-detection {
+  opacity: 1;
+}
+.cinema-story[data-chapter="2"] .cinema-scene {
+  left: 36%;
+}
+.cinema-story[data-chapter="2"] .cinema-shade {
+  opacity: 0.7;
+}
+.cinema-story[data-chapter="2"] .cinema-results {
+  opacity: 1;
+  transform: translateY(-50%);
+}
+.cinema-story[data-chapter="2"] .cinema-detection:not([data-selected="true"]) {
+  opacity: 0.35;
+}
+
+/* Saved finds: three tags on one ring. */
+.saved {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 6vw;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 120px 6vw 130px;
+  box-sizing: content-box;
+  border-top: 1px solid var(--rule);
+}
+.saved-copy h2 {
+  font-size: clamp(48px, 5.6vw, 84px);
+}
+.saved-copy p {
+  margin-top: 24px;
+  max-width: 400px;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--fog);
+}
+/* Three tags threaded on one sagging string. The tags' holes sit on the
+   curve: 23px down at the sides, 38px in the middle. */
+.saved-line {
+  position: relative;
+  width: 100%;
+  max-width: 540px;
+  justify-self: center;
+}
+.saved-line::before,
+.saved-line::after {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--red);
+}
+.saved-line::before {
+  left: -4px;
+}
+.saved-line::after {
+  right: -4px;
+}
+.saved-line ul {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  filter: drop-shadow(0 16px 24px rgb(0 0 0 / 0.45));
+}
+.saved-string {
+  position: absolute;
+  z-index: 2;
+  inset: 0 0 auto;
+  width: 100%;
+  height: 60px;
+  overflow: visible;
+  pointer-events: none;
+}
+.saved-string path {
+  fill: none;
+  stroke: var(--red);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+.saved-tag {
+  margin-top: 8px;
+  padding: 32px 12px 16px;
+  background: var(--tag);
+  color: var(--ink);
+  border-radius: 6px;
+  clip-path: polygon(
+    22px 0,
+    calc(100% - 22px) 0,
+    100% 22px,
+    100% 100%,
+    0 100%,
+    0 22px
+  );
+  -webkit-mask: radial-gradient(
+    circle at 50% 15px,
+    transparent 5.5px,
+    #000 6px
+  );
+  mask: radial-gradient(circle at 50% 15px, transparent 5.5px, #000 6px);
+  transform-origin: 50% 15px;
+  transform: rotate(var(--r));
+  transition: transform 0.6s cubic-bezier(0.3, 0.6, 0.3, 1);
+}
+.saved-tag:nth-child(2) {
+  margin-top: 23px;
+}
+.saved-tag svg {
+  display: block;
+  width: 100%;
+  height: 120px;
+  border-radius: 3px;
+}
+.saved-tag b {
+  display: block;
+  margin-top: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  font-stretch: 72%;
+  letter-spacing: 0.03em;
+  line-height: 1.08;
+  text-transform: uppercase;
+}
+.saved-tag span {
+  display: block;
+  margin-top: 8px;
+  color: var(--red);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+}
+@media (hover: hover) {
+  .saved-tag:hover {
+    transform: rotate(calc(var(--r) * -1));
+  }
+}
+
+/* Questions, closing, footer. */
+.cinema-faq {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+  gap: 7vw;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 100px 6vw 110px;
+  box-sizing: content-box;
+  border-top: 1px solid var(--rule);
+  scroll-margin-top: 76px;
+}
+.cinema-faq h2 {
+  font-size: clamp(40px, 4vw, 56px);
+}
+.cinema-faq details {
+  border-top: 1px solid var(--rule);
+}
+.cinema-faq details:last-child {
+  border-bottom: 1px solid var(--rule);
+}
+.cinema-faq summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 0;
+  font-size: 17px;
+  font-weight: 550;
+  cursor: pointer;
+  list-style: none;
+}
+.cinema-faq summary::-webkit-details-marker {
+  display: none;
+}
+.cinema-faq summary span {
+  font-size: 24px;
+  font-weight: 300;
+  color: var(--fog);
+  transition: transform 0.2s;
+}
+.cinema-faq details[open] summary span {
+  transform: rotate(45deg);
+}
+.cinema-faq details p {
+  max-width: 620px;
+  padding: 0 32px 24px 0;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--fog);
+}
+.cinema-finale {
+  display: grid;
+  justify-items: center;
+  padding: 120px 6vw 140px;
+  border-top: 1px solid var(--rule);
+  text-align: center;
+}
+.cinema-finale h2 {
+  max-width: 11ch;
+  font-size: clamp(54px, 7vw, 112px);
+}
+.cinema-finale .cinema-cta {
+  margin-top: 38px;
+  min-height: 52px;
+  padding: 14px 26px;
+  font-size: 15px;
+}
+.cinema-finale p {
+  margin-top: 18px;
+  font-size: 13px;
+  color: var(--fog);
+}
+.cinema-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 24px;
+  padding: 32px 5vw calc(32px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--rule);
+}
+.cinema-footer nav {
+  display: flex;
+  gap: 26px;
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--fog);
+}
+.cinema-footer nav a:hover {
+  color: var(--tag);
+}
+
+/* Landscape tablets and small laptops. */
+@media (max-width: 1050px) and (min-aspect-ratio: 1/1) {
+  .cinema-scan-copy,
+  .cinema-compare-copy {
+    top: 100px;
+  }
+  .cinema-results {
+    right: 4vw;
+    width: 330px;
+  }
+  .cinema-rail {
+    width: 320px;
+  }
+}
+
+/* Phones and portrait screens. */
+@media (max-width: 700px), (max-aspect-ratio: 1/1) {
+  .cinema-nav {
+    height: calc(64px + env(safe-area-inset-top));
+    padding-inline: max(20px, env(safe-area-inset-left));
+  }
+  .cinema-home .brand {
+    width: 92px;
+  }
+  .cinema-how-link {
+    display: none;
+  }
+  .cinema-nav .cinema-cta {
+    min-height: 40px;
+    padding: 9px 14px;
+    gap: 10px;
+    font-size: 13px;
+  }
+  .cinema-intro {
+    left: 7%;
+    top: 43%;
+    max-width: 88%;
+    transform: translateY(-35%);
+  }
+  .cinema-intro h1 {
+    font-size: clamp(64px, 17.5vw, 116px);
+  }
+  .cinema-intro-line {
+    max-width: 300px;
+    margin-top: 22px;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  .cinema-explore {
+    margin-top: 24px;
+    font-size: 13px;
+  }
+  .cinema-shade {
+    background:
+      linear-gradient(90deg, rgb(12 9 6 / 0.66), rgb(12 9 6 / 0.08) 90%),
+      linear-gradient(
+        0deg,
+        var(--shop),
+        rgb(20 17 14 / 0) 48%,
+        rgb(20 17 14 / 0.25)
+      );
+  }
+  .cinema-detection {
+    font-size: calc(10.5px / var(--scene-scale));
+  }
+  .cinema-scan-copy,
+  .cinema-compare-copy {
+    top: calc(84px + env(safe-area-inset-top));
+    left: 6%;
+  }
+  .cinema-overline {
+    font-size: 9px;
+  }
+  .cinema-scan-copy h2 {
+    margin-top: 10px;
+    font-size: clamp(30px, 8.4vw, 46px);
+  }
+  .cinema-scan-copy > p:last-child {
+    margin-top: 10px;
+    font-size: 14px;
+  }
+  .cinema-compare-copy h2 {
+    font-size: clamp(32px, 8.8vw, 54px);
+  }
+  .cinema-story[data-chapter="2"] .cinema-scene {
+    left: 50%;
+    opacity: 0.5;
+  }
+  .cinema-story[data-chapter="2"] .cinema-detections {
+    visibility: hidden;
+  }
+  .cinema-results {
+    top: auto;
+    bottom: 84px;
+    right: 50%;
+    width: min(360px, calc(100% - 32px));
+    transform: translate(50%, 16px);
+  }
+  .cinema-story[data-chapter="2"] .cinema-results {
+    transform: translate(50%, 0);
+  }
+  .price-tag {
+    max-height: calc(100svh - 300px - env(safe-area-inset-top));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+    padding: 30px 16px 14px;
+  }
+  .price-tag-head {
+    grid-template-columns: 46px minmax(0, 1fr);
+    gap: 12px;
+    padding-bottom: 12px;
+  }
+  .price-tag-photo {
+    width: 46px;
+    height: 52px;
+  }
+  .price-tag h3 {
+    font-size: 23px;
+  }
+  .price-tag-range {
+    padding: 12px 0 10px;
+  }
+  .price-tag-range strong {
+    font-size: 40px;
+  }
+  .price-tag-offers a {
+    padding: 9px 0;
+  }
+  .cinema-find-picker {
+    gap: 10px;
+    padding-top: 10px;
+  }
+  .cinema-find-picker button {
+    width: 50px;
+    flex-basis: 50px;
+  }
+  .cinema-find-picker svg {
+    height: 40px;
+  }
+  .cinema-rail {
+    bottom: 10px;
+    width: min(330px, calc(100% - 40px));
+    gap: 4px;
+  }
+  .cinema-chapters {
+    gap: 12px;
+  }
+  .cinema-story-next {
+    display: none;
+  }
+  .cinema-story[data-chapter="1"] .cinema-shade {
+    opacity: 0.4;
+  }
+  .cinema-story[data-chapter="2"] .cinema-shade {
+    opacity: 1;
+  }
+  .saved {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 36px;
+    padding: 84px 22px 80px;
+  }
+  .saved-copy h2 {
+    font-size: clamp(42px, 11.5vw, 64px);
+  }
+  .saved-copy p {
+    margin-top: 18px;
+    font-size: 15px;
+  }
+  .saved-line ul {
+    gap: 10px;
+  }
+  .saved-tag {
+    padding: 30px 8px 12px;
+  }
+  .saved-tag svg {
+    height: 84px;
+  }
+  .saved-tag b {
+    margin-top: 10px;
+    font-size: 11.5px;
+  }
+  .saved-tag span {
+    font-size: 8.5px;
+  }
+  .cinema-faq {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+    padding: 72px 22px;
+  }
+  .cinema-faq h2 {
+    font-size: 40px;
+  }
+  .cinema-faq summary {
+    padding-block: 20px;
+    font-size: 16px;
+  }
+  .cinema-faq details p {
+    padding-right: 8px;
+    font-size: 14px;
+  }
+  .cinema-finale {
+    padding: 90px 22px 100px;
+  }
+  .cinema-finale h2 {
+    font-size: clamp(46px, 13vw, 84px);
+  }
+  .cinema-footer {
+    padding: 24px 22px calc(28px + env(safe-area-inset-bottom));
+    gap: 18px;
+  }
+  .cinema-footer nav {
+    gap: 18px;
+    font-size: 12px;
+  }
+}
+
+/* Shorter phones: keep the price tag clear of the heading. */
+@media (max-width: 700px) and (max-height: 760px) {
+  .cinema-compare-copy {
+    top: calc(76px + env(safe-area-inset-top));
+  }
+  .cinema-compare-copy h2 {
+    font-size: 30px;
+  }
+  .cinema-results {
+    bottom: 76px;
+  }
+  .price-tag {
+    padding: 28px 14px 12px;
+  }
+  .price-tag-head {
+    grid-template-columns: 40px minmax(0, 1fr);
+    padding-bottom: 10px;
+  }
+  .price-tag-photo {
+    width: 40px;
+    height: 46px;
+  }
+  .price-tag h3 {
+    font-size: 21px;
+  }
+  .price-tag-range strong {
+    font-size: 34px;
+  }
+  .price-tag-listing-photo {
+    width: 32px;
+    height: 36px;
+    flex-basis: 32px;
+  }
+  .cinema-find-picker svg {
+    height: 34px;
+  }
+  .cinema-find-picker span {
+    margin-top: 4px;
+  }
+}
+@media (max-width: 700px) and (max-height: 680px) {
+  .cinema-compare-copy {
+    display: none;
+  }
+}
+
+/* Phones held sideways. */
+@media (max-height: 550px) and (min-aspect-ratio: 1/1) {
+  .cinema-nav {
+    height: 58px;
+  }
+  .cinema-intro {
+    top: 50%;
+  }
+  .cinema-intro h1 {
+    font-size: 60px;
+  }
+  .cinema-intro-line {
+    margin-top: 12px;
+    font-size: 14px;
+  }
+  .cinema-explore {
+    margin-top: 10px;
+  }
+  .cinema-scan-copy,
+  .cinema-compare-copy {
+    top: 72px;
+  }
+  .cinema-scan-copy h2 {
+    font-size: 28px;
+  }
+  .cinema-compare-copy h2 {
+    font-size: 36px;
+  }
+  .cinema-results {
+    top: 60px;
+    bottom: 54px;
+    width: 300px;
+    right: 4vw;
+    overflow-y: auto;
+    scrollbar-width: none;
+    transform: translateY(12px);
+  }
+  .cinema-story[data-chapter="2"] .cinema-results {
+    transform: none;
+  }
+  .price-tag-string {
+    display: none;
+  }
+  .price-tag {
+    padding: 28px 14px 12px;
+  }
+  .price-tag-range strong {
+    font-size: 34px;
+  }
+  .cinema-find-picker {
+    padding: 10px 0;
+  }
+  .cinema-find-picker svg {
+    height: 34px;
+  }
+  .cinema-rail {
+    bottom: 6px;
+    width: 300px;
+  }
+  .cinema-story-next {
+    bottom: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cinema-home *,
+  .cinema-home *::before,
+  .cinema-home *::after {
+    transition: none !important;
+    animation: none !important;
+    scroll-behavior: auto !important;
+  }
+}
