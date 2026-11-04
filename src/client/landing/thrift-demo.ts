@@ -1,107 +1,171 @@
 import { marketplaceSearch } from "../../shared/marketplace";
+import type {
+  CampaignMatch,
+  CampaignOffer,
+} from "../../shared/campaign-listings";
 
 export type SceneBox = { x: number; y: number; width: number; height: number };
 export type ThriftFind = {
   id: string;
+  brand: string;
+  model: string;
   name: string;
   short: string;
-  query: string;
-  examples: [number, number];
+  variant: string;
+  match: CampaignMatch;
+  matchNote: string;
+  offers: CampaignOffer[];
   box: SceneBox;
 };
 export const sceneMedia = {
-  wide: { src: "/campaign/thrift/shop-wide.webp", width: 1672, height: 941 },
+  wide: { src: "/campaign/thrift/branded-wide.webp", width: 1672, height: 941 },
   portrait: {
-    src: "/campaign/thrift/shop-portrait.webp",
+    src: "/campaign/thrift/branded-portrait.webp",
     width: 941,
     height: 1672,
   },
 };
-// Illustrative campaign data. These are search destinations, never retrieved offers.
+const checkedAt = "2026-11-04T13:00:00.000Z";
+const offer = (
+  source: Omit<CampaignOffer, "currency" | "checkedAt">,
+): CampaignOffer => ({ ...source, currency: "USD", checkedAt });
+// Curated product-tour snapshots from the linked merchants, separate from account scans.
+// Merchant photos remain remote and attributed by their adjacent source link.
 const camera = {
   id: "camera",
-  name: "Vintage film camera",
-  short: "Camera",
-  query: "vintage 35mm film camera",
-  examples: [85, 110] as [number, number],
+  brand: "Nikon",
+  model: "FM2",
+  name: "Nikon FM2",
+  short: "Nikon",
+  variant: "Chrome body",
+  match: "model" as const,
+  matchNote: "35mm · Body only",
+  offers: [
+    offer({
+      merchant: "KEH",
+      title: "Nikon FM2 35mm Camera Body, Chrome",
+      url: "https://www.keh.com/shop/nikon-fm2-chrome-35mm-camera-body.html",
+      image:
+        "https://cgi.keh.com/media/catalog/product/2/4/246489-2364327_01_r524x.jpg",
+      condition: "Used · Excellent · Body only",
+      priceMinor: 55500,
+      availability: "available",
+    }),
+    offer({
+      merchant: "MPB",
+      title: "Nikon FM2 · SKU 3955534",
+      url: "https://www.mpb.com/en-us/product/nikon-fm2/sku-3955534",
+      image:
+        "https://storage.googleapis.com/mpb-platform-prod-media-service-prod-y1m8/production/f2057561-0695-4829-91fd-231b0dfc64b1/Studio%20Session-60007.jpg",
+      condition: "Used · Good · Body only",
+      availability: "unknown",
+    }),
+  ],
+};
+const lamp = {
+  id: "lamp",
+  brand: "Anglepoise",
+  model: "Original 1227",
+  name: "Anglepoise Original 1227",
+  short: "Anglepoise",
+  variant: "Jet Black",
+  match: "similar" as const,
+  matchNote: "Jet Black · Check base label",
+  offers: [
+    offer({
+      merchant: "Anglepoise",
+      title: "Original 1227 Desk Lamp · Jet Black",
+      url: "https://www.anglepoise.com/usa/product/original-1227-desk-lamp-jet-black/",
+      image:
+        "https://www.anglepoise.com/usa/wp-content/uploads/sites/3/2021/12/original-1227-desk-lamp-jet-black-1-1.jpg",
+      condition: "New · Jet Black · US plug",
+      priceMinor: 25600,
+      availability: "available",
+    }),
+    offer({
+      merchant: "HORNE",
+      title: "Original 1227 Desk Lamp · Jet Black",
+      url: "https://shophorne.com/products/original-1227-desk-light?variant=511786909697",
+      image:
+        "https://shophorne.com/cdn/shop/products/original-1227-desk-lamp-469850.jpg?v=1678754485&width=240",
+      condition: "New · Jet Black · US plug",
+      priceMinor: 32000,
+      availability: "available",
+    }),
+  ],
 };
 const shoes = {
   id: "shoes",
-  name: "Cream canvas sneakers",
-  short: "Sneakers",
-  query: "cream canvas sneakers used",
-  examples: [28, 42] as [number, number],
+  brand: "Converse",
+  model: "Chuck 70 Low",
+  name: "Converse Chuck 70 Low",
+  short: "Converse",
+  variant: "Parchment 162062C",
+  match: "similar" as const,
+  matchNote: "Parchment · Confirm style and size",
+  offers: [
+    offer({
+      merchant: "Converse",
+      title: "Chuck 70 Canvas · 162062C",
+      url: "https://www.converse.com/shop/p/chuck-70-canvas-unisex-low-top-shoe/162062C.html",
+      image:
+        "https://www.converse.com/dw/image/v2/BCZC_PRD/on/demandware.static/-/Sites-cnv-master-catalog/default/dw356d8c76/images/a_107/162062C_A_107X1.jpg?strip=false&sw=240",
+      condition: "New · Choose size",
+      priceMinor: 9000,
+      availability: "available",
+    }),
+    offer({
+      merchant: "Karen Walker",
+      title: "Chuck 70 Low Top Parchment · US M7 / W9",
+      url: "https://www.karenwalker.com/en-us/products/converse-chuck-70-low-top-parchment?variant=44137514041509",
+      image:
+        "https://www.karenwalker.com/cdn/shop/files/converse-chuck-taylor-all-star-70-low-top-parchment-162062-parchmentgarnetegret-front-0250542001611101284_3cc78a31-b1b6-4adc-a8d8-b1af6e9476e5.jpg?v=1724545526&width=240",
+      condition: "New · M7/W9 · Import fees may apply",
+      priceMinor: 7500,
+      availability: "available",
+    }),
+  ],
 };
 const jacket = {
   id: "jacket",
-  name: "Vintage denim jacket",
-  short: "Jacket",
-  query: "vintage blue denim jacket",
-  examples: [38, 65] as [number, number],
+  brand: "Levi’s",
+  model: "Trucker Jacket",
+  name: "Levi’s Trucker Jacket",
+  short: "Levi’s",
+  variant: "Yellow Stone 72334-0683",
+  match: "similar" as const,
+  matchNote: "Confirm wash and size on the tag",
+  offers: [
+    offer({
+      merchant: "Levi’s",
+      title: "Trucker Jacket · Yellow Stone · 72334-0683",
+      url: "https://www.levi.com/US/en_US/clothing/men/outerwear/trucker-jacket/p/723340683",
+      image:
+        "https://lscoglobal.scene7.com/is/image/lscoglobal/MT_72334-0683_GLO_CM_FV?fit=crop%2C1&fmt=jpeg&hei=300&qlt=75&wid=240",
+      condition: "New · Yellow Stone · Choose size",
+      priceMinor: 6698,
+      availability: "available",
+    }),
+  ],
 };
 export const wideFinds: ThriftFind[] = [
-  { ...camera, box: { x: 0.173, y: 0.508, width: 0.113, height: 0.14 } },
-  {
-    id: "lamp",
-    name: "Green enamel desk lamp",
-    short: "Lamp",
-    query: "vintage green enamel desk lamp",
-    examples: [45, 72],
-    box: { x: 0.298, y: 0.313, width: 0.126, height: 0.294 },
-  },
-  { ...shoes, box: { x: 0.397, y: 0.488, width: 0.17, height: 0.156 } },
-  {
-    id: "bag",
-    name: "Leather shoulder bag",
-    short: "Bag",
-    query: "vintage brown leather shoulder bag",
-    examples: [48, 75],
-    box: { x: 0.586, y: 0.427, width: 0.184, height: 0.2 },
-  },
-  {
-    id: "vase",
-    name: "Blue ceramic vase",
-    short: "Vase",
-    query: "blue glazed ceramic vase vintage",
-    examples: [24, 38],
-    box: { x: 0.78, y: 0.383, width: 0.095, height: 0.24 },
-  },
-  { ...jacket, box: { x: 0.435, y: 0.065, width: 0.19, height: 0.408 } },
+  { ...camera, box: { x: 0.16, y: 0.496, width: 0.13, height: 0.172 } },
+  { ...lamp, box: { x: 0.267, y: 0.199, width: 0.151, height: 0.425 } },
+  { ...shoes, box: { x: 0.382, y: 0.482, width: 0.199, height: 0.162 } },
+  { ...jacket, box: { x: 0.438, y: 0.068, width: 0.179, height: 0.411 } },
 ];
 export const portraitFinds: ThriftFind[] = [
-  { ...camera, box: { x: 0.202, y: 0.521, width: 0.278, height: 0.116 } },
-  {
-    id: "pitcher",
-    name: "Glazed ceramic pitcher",
-    short: "Pitcher",
-    query: "vintage green glazed ceramic pitcher",
-    examples: [24, 39],
-    box: { x: 0.416, y: 0.412, width: 0.23, height: 0.17 },
-  },
-  { ...shoes, box: { x: 0.548, y: 0.506, width: 0.315, height: 0.15 } },
-  {
-    id: "chair",
-    name: "Bentwood café chair",
-    short: "Chair",
-    query: "vintage bentwood cafe chair",
-    examples: [55, 95],
-    box: { x: 0.091, y: 0.244, width: 0.345, height: 0.288 },
-  },
-  { ...jacket, box: { x: 0.585, y: 0.119, width: 0.41, height: 0.405 } },
+  { ...camera, box: { x: 0.16, y: 0.56, width: 0.29, height: 0.12 } },
+  { ...lamp, box: { x: 0.235, y: 0.268, width: 0.35, height: 0.338 } },
+  { ...shoes, box: { x: 0.535, y: 0.534, width: 0.405, height: 0.15 } },
+  { ...jacket, box: { x: 0.55, y: 0.115, width: 0.445, height: 0.39 } },
 ];
 export function shoppingSearches(find: ThriftFind) {
-  const ebay = new URL("https://www.ebay.com/sch/i.html");
-  ebay.searchParams.set("_nkw", find.query);
-  const etsy = new URL("https://www.etsy.com/search");
-  etsy.searchParams.set("q", find.query);
   return {
-    ebay: ebay.href,
-    etsy: etsy.href,
     marketplace: marketplaceSearch({
-      brand: "",
-      model: "",
-      variant: "",
-      label: find.query,
+      brand: find.brand,
+      model: find.model,
+      variant: find.variant,
     }),
   };
 }

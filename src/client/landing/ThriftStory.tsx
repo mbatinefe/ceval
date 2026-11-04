@@ -1,5 +1,10 @@
 import { useState, type CSSProperties } from "react";
-import { ArrowDown, ArrowUpRight, ScanLine } from "lucide-react";
+import { ArrowDown, ArrowUpRight, ImageOff, ScanLine } from "lucide-react";
+import {
+  campaignPrice,
+  campaignMatchLabel,
+  type CampaignOffer,
+} from "../../shared/campaign-listings";
 import facebookLogo from "../assets/facebook.png";
 import {
   portraitFinds,
@@ -31,6 +36,28 @@ export function FindPhoto({
   );
 }
 
+function ListingPhoto({ offer }: { offer: CampaignOffer }) {
+  const [missing, setMissing] = useState(false);
+  return (
+    <span className="cinema-listing-photo">
+      {missing ? (
+        <ImageOff size={19} role="img" aria-label="Product photo unavailable" />
+      ) : (
+        <img
+          src={offer.image}
+          alt={offer.title}
+          width={52}
+          height={58}
+          loading="lazy"
+          decoding="async"
+          referrerPolicy="no-referrer"
+          onError={() => setMissing(true)}
+        />
+      )}
+    </span>
+  );
+}
+
 function ShoppingCard({
   find,
   portrait,
@@ -39,56 +66,62 @@ function ShoppingCard({
   portrait: boolean;
 }) {
   const links = shoppingSearches(find);
+  const prices = find.offers.map((offer) => campaignPrice(offer));
+  const date = new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(find.offers[0].checkedAt));
   return (
     <aside
       className="cinema-shopping"
-      aria-label={`Shopping searches for ${find.name}`}
+      aria-label={`Product listings for ${find.name}`}
     >
       <div className="cinema-shopping-heading">
         <span className="cinema-product-photo">
           <FindPhoto find={find} portrait={portrait} />
         </span>
         <div>
-          <h3>{find.name}</h3>
-          <p>Compare similar finds</p>
+          <span className="cinema-product-brand">{find.brand}</span>
+          <h3>{find.model}</h3>
+          <p>{find.matchNote}</p>
         </div>
       </div>
-      <div className="cinema-offers-label">
-        <span>Example asking prices</span>
-        <span>USD</span>
+      <div className="cinema-model-match" data-match={find.match}>
+        {campaignMatchLabel(find.match)}
       </div>
-      <a
-        className="cinema-offer"
-        href={links.ebay}
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        <span className="cinema-store-logo cinema-ebay" aria-hidden="true">
-          e
+      <div className="cinema-offers-label">
+        <span>
+          {prices.some(Boolean)
+            ? "Listed prices · USD"
+            : "Check current prices"}
         </span>
-        <span className="cinema-offer-store">
-          <b>eBay</b>
-          <small>Search similar items</small>
-        </span>
-        <strong>${find.examples[0]}</strong>
-        <ArrowUpRight size={17} aria-hidden="true" />
-      </a>
-      <a
-        className="cinema-offer"
-        href={links.etsy}
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        <span className="cinema-store-logo cinema-etsy" aria-hidden="true">
-          E
-        </span>
-        <span className="cinema-offer-store">
-          <b>Etsy</b>
-          <small>Search vintage finds</small>
-        </span>
-        <strong>${find.examples[1]}</strong>
-        <ArrowUpRight size={17} aria-hidden="true" />
-      </a>
+        <time dateTime={find.offers[0].checkedAt} title="Source snapshot date">
+          {date}
+        </time>
+      </div>
+      {find.offers.map((offer, index) => (
+        <a
+          className="cinema-offer"
+          key={offer.url}
+          href={offer.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`${offer.merchant}: ${offer.title}. ${offer.condition}. ${prices[index] || "Check price"}. Opens product page.`}
+        >
+          <ListingPhoto offer={offer} />
+          <span className="cinema-offer-store">
+            <b>{offer.merchant}</b>
+            <small>{offer.condition}</small>
+          </span>
+          {prices[index] ? (
+            <strong>{prices[index]}</strong>
+          ) : (
+            <span className="cinema-check-price">View listing</span>
+          )}
+          <ArrowUpRight size={16} aria-hidden="true" />
+        </a>
+      ))}
       <a
         className="cinema-marketplace"
         href={links.marketplace}
@@ -98,7 +131,7 @@ function ShoppingCard({
         <img src={facebookLogo} width="24" height="24" alt="" />
         <span>
           <b>Facebook Marketplace</b>
-          <small>Search nearby listings</small>
+          <small>Search this model nearby</small>
         </span>
         <ArrowUpRight size={18} aria-hidden="true" />
       </a>
@@ -140,7 +173,7 @@ export function ThriftStory() {
               width={1672}
               height={941}
               fetchPriority="high"
-              alt="Illustration of a sunlit thrift shop with vintage cameras, clothing, ceramics and secondhand finds."
+              alt="Illustrated thrift-shop scene featuring a Nikon FM2 body, Converse Chuck 70 shoes, a Levi’s Trucker jacket and an Anglepoise desk lamp."
             />
           </picture>
           <div
@@ -172,7 +205,7 @@ export function ThriftStory() {
                 <span className="cinema-corner cinema-corner-br" />
                 <span className="cinema-detection-label">
                   <span />
-                  {find.short}
+                  {find.id === "camera" ? find.name : find.short}
                   <ArrowUpRight size={12} aria-hidden="true" />
                 </span>
               </button>
@@ -220,7 +253,7 @@ export function ThriftStory() {
           aria-hidden={chapter !== 2}
           inert={chapter !== 2}
         >
-          <ShoppingCard find={selected} portrait={portrait} />
+          <ShoppingCard key={selected.id} find={selected} portrait={portrait} />
           <div
             className="cinema-find-picker"
             role="group"

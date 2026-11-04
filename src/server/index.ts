@@ -1,3 +1,4 @@
+import { campaignImageSources } from "../shared/campaign-listings.ts";
 import { productImageHosts } from "./providers/product-media.ts";
 import { Hono } from "hono";
 import { createAuth, signupsEnabled } from "./auth/config.ts";
@@ -25,7 +26,7 @@ const app = new Hono<{
   Bindings: Env;
   Variables: { body: Record<string, unknown>; session: Session };
 }>();
-const csp = `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: ${[...productImageHosts].map((host) => `https://${host}`).join(" ")}; media-src 'self' blob:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'`;
+const csp = `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: ${[...productImageHosts].map((host) => `https://${host}`).join(" ")} ${campaignImageSources.join(" ")}; media-src 'self' blob:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'`;
 
 app.use("*", async (c, next) => {
   await next();

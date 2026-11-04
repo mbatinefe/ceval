@@ -1205,3 +1205,165 @@
     display: none;
   }
 }
+
+.cinema-product-brand {
+  display: block;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #616950;
+}
+.cinema-shopping-heading {
+  padding-bottom: 12px;
+}
+.cinema-model-match {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 4px;
+  margin-bottom: 12px;
+  color: #43601e;
+  background: #e0e9d1;
+  font-size: 10px;
+  line-height: 1.3;
+}
+.cinema-model-match[data-match="similar"] {
+  color: #776139;
+  background: #ebe5d6;
+}
+.cinema-listing-photo {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 52px;
+  flex: 0 0 46px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: #fff;
+  color: #737b69;
+}
+.cinema-listing-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.cinema-offer-store {
+  min-width: 0;
+}
+.cinema-offer-store small {
+  line-height: 1.35;
+}
+.cinema-check-price {
+  font-size: 10px;
+  text-align: right;
+  max-width: 45px;
+  color: #4e5a43;
+}
+.cinema-offer > strong {
+  white-space: nowrap;
+  font-size: 23px;
+}
+.cinema-offer > svg {
+  flex-shrink: 0;
+}
+.cinema-shopping .cinema-marketplace {
+  padding-bottom: 0;
+}
+.cinema-find-picker {
+  gap: 12px;
+}
+.cinema-find-picker button {
+  width: 58px;
+  flex-basis: 58px;
+}
+.cinema-find-picker svg {
+  height: 48px;
+}
+.cinema-find-picker span {
+  font-size: 9px;
+}
+@media (max-width: 700px), (max-aspect-ratio: 1/1) {
+  .cinema-shopping {
+    padding: 16px 18px;
+  }
+  .cinema-shopping-heading {
+    gap: 11px;
+    padding-bottom: 8px;
+  }
+  .cinema-product-brand {
+    font-size: 9px;
+  }
+  .cinema-shopping-heading h3 {
+    margin: 4px 0;
+  }
+  .cinema-shopping-heading p {
+    line-height: 1.35;
+  }
+  .cinema-model-match {
+    margin-bottom: 9px;
+    font-size: 9px;
+  }
+  .cinema-offer {
+    gap: 9px;
+    padding: 10px 0;
+  }
+  .cinema-listing-photo {
+    width: 43px;
+    height: 47px;
+    flex-basis: 43px;
+  }
+  .cinema-offer-store small {
+    font-size: 9px;
+  }
+  .cinema-offer > strong {
+    font-size: 22px;
+  }
+  .cinema-find-picker button {
+    width: 51px;
+    flex-basis: 51px;
+  }
+  .cinema-find-picker svg {
+    height: 44px;
+  }
+}
+@media (max-width: 700px) and (max-height: 760px) {
+  .cinema-shopping {
+    padding: 13px 15px;
+  }
+  .cinema-model-match {
+    margin-bottom: 7px;
+    padding: 3px 7px;
+  }
+  .cinema-listing-photo {
+    width: 36px;
+    height: 40px;
+    flex-basis: 36px;
+  }
+  .cinema-offer {
+    padding: 8px 0;
+  }
+  .cinema-offer > strong {
+    font-size: 20px;
+  }
+  .cinema-find-picker svg {
+    height: 35px;
+  }
+}
+@media (max-height: 550px) and (min-aspect-ratio: 1/1) {
+  .cinema-listing-photo {
+    width: 36px;
+    height: 40px;
+    flex-basis: 36px;
+  }
+  .cinema-model-match {
+    margin-bottom: 6px;
+  }
+  .cinema-find-picker button {
+    width: 44px;
+    flex-basis: 44px;
+  }
+  .cinema-find-picker svg {
+    height: 35px;
+  }
+}

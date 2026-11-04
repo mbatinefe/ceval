@@ -89,7 +89,7 @@ export function Landing() {
               <span>
                 <Bookmark size={16} aria-hidden="true" /> Your finds
               </span>
-              {[wideFinds[0], wideFinds[5], wideFinds[1]].map((find) => (
+              {[wideFinds[0], wideFinds[3], wideFinds[1]].map((find) => (
                 <div className="cinema-saved-row" key={find.id}>
                   <FindPhoto find={find} />
                   <div>
