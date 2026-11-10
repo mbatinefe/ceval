@@ -19,7 +19,7 @@
   "env": {
     "staging": {
       "name": "ceval-staging",
-      "workers_dev": true,
+      "workers_dev": false,
       "preview_urls": false,
       "durable_objects": {
         "bindings": [{ "name": "SCANS", "class_name": "ScanProcessor" }],
@@ -61,7 +61,7 @@
     },
     "production": {
       "name": "ceval",
-      "workers_dev": true,
+      "workers_dev": false,
       "preview_urls": false,
       "durable_objects": {
         "bindings": [{ "name": "SCANS", "class_name": "ScanProcessor" }],
